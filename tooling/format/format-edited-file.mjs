@@ -1,4 +1,4 @@
-// Formats the files an agent just edited: the PostToolUse hook in .claude/settings.json (Claude Code) and .codex/hooks.json (Codex).
+// Formats the files an agent just edited, from a PostToolUse hook in your own untracked agent settings (.claude/settings.local.json for Claude Code, .codex/hooks.json for Codex; ai/formatting-and-file-size.md).
 // It reads the hook's JSON on stdin (Claude's `tool_input.file_path`, or the paths in Codex's `apply_patch` text); file paths given as arguments are formatted instead, for a manual run.
 // Only app-owned files are touched, by tooling/format/scope.json: Rust anywhere outside `neverFormat`, and prettier only for the files its globs cover.
 // It never fails the edit: every outcome exits 0, and a formatter error is one short line on stderr.
