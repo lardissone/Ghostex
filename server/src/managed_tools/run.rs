@@ -80,12 +80,10 @@ pub(crate) fn run(
         }
     };
     // What a reader collected is already in the job's log; one held open by a leftover is let go.
+    // Both readers share one grace, so a leftover holding both pipes costs it once.
+    let readers_deadline = Instant::now() + crate::platform::process::COMMAND_READER_GRACE;
     for reader in readers.into_iter().flatten() {
-        let _ = crate::platform::process::join_reader_within(
-            reader,
-            crate::platform::process::COMMAND_READER_GRACE,
-            &name,
-        );
+        let _ = crate::platform::process::join_reader_within(reader, readers_deadline, &name);
     }
     if status.success() {
         Ok(())
