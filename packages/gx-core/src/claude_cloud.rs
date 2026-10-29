@@ -2,12 +2,18 @@
 //! claude.ai's computers (server/src/claude_cloud/ owns the sessions).
 //!
 //! CDXC:ClaudeCloud 2026-10-23 DECISION:
-//! User picked a separate "Claude (cloud)" entry in the agent list, and Claude cloud as one of the
-//! places in the Run on row next to This computer and the Cloud Boxes, "each with a one-line what
-//! it means"; asked how the two meet, they confirmed "Yes, both": picking Claude (cloud) sets Run
-//! on to Claude cloud, and every other agent dims that place, because only Claude runs there.
-//! The phone shows cloud rows too, tap opening the session's claude.ai page (confirmed, built
-//! after the computer part), so these rules stay client-neutral.
+//! User picked a separate "Claude (cloud)" entry in the agent list. The phone shows cloud rows
+//! too, tap opening the session's claude.ai page (confirmed, built after the computer part), so
+//! these rules stay client-neutral.
+//!
+//! CDXC:ClaudeCloud 2026-10-29 DECISION:
+//! User: "also no need for this machine/cloud since I can just pick cloud claude there in agents
+//! list". The New Thread picker's Run on row no longer offers Claude cloud as a place (it did from
+//! 2026-10-23, when the user had asked for it next to This computer and the Cloud Boxes, lit by
+//! picking Claude (cloud) and dimmed by every other agent); "Claude (cloud)" in the agent list is
+//! the one way to start a cloud session, and the row is back to This computer and the boxes,
+//! shown only with agentbox installed. Its icon is an orange cloud (gx-core
+//! sidebar_menu/agent_logos.rs).
 //!
 //! SEE-ALSO: server/src/claude_cloud/ (the sessions), apps/desktop/src/app/window/new_thread_picker_run_on.rs
 //! (the picker's Run on row), apps/desktop/src/app/native_sidebar/claude_cloud.rs (the row).
@@ -21,14 +27,7 @@ pub const CLAUDE_CLOUD_AGENT_ID: &str = "claude-cloud";
 /// The `runLocation` of a Claude cloud session.
 pub const CLAUDE_CLOUD_RUN_LOCATION: &str = "claude-cloud";
 
-/// What the Run on row calls the place.
-pub const CLAUDE_CLOUD_LABEL: &str = "Claude cloud";
-
-/// The Run on row's one line about the place.
-pub const CLAUDE_CLOUD_DESCRIPTION: &str =
-    "Claude only. Runs on Claude's computers and keeps going when this computer sleeps.";
-
-/// The Run on row's one line about this computer, shown beside Claude cloud.
+/// The Run on row's one line about this computer, its This computer chip's tooltip.
 pub const THIS_COMPUTER_DESCRIPTION: &str = "Any agent. Stops when this computer sleeps.";
 
 /// Whether a launcher agent is the Claude (cloud) agent.
@@ -508,5 +507,17 @@ mod tests {
             false,
             false
         )));
+    }
+
+    #[test]
+    fn claude_cloud_draws_an_orange_cloud_and_claude_keeps_its_logo() {
+        let cloud = crate::colored_agent_logo("claude-cloud").expect("the cloud logo");
+        let claude = crate::colored_agent_logo("claude").expect("the Claude logo");
+        assert_ne!(cloud, claude);
+        assert!(cloud.contains("%23d67556"));
+        assert!(claude.contains("%23d97757"));
+        assert!(
+            crate::agent_logo_svg("claude-cloud").is_some_and(|svg| svg.contains("M10.04 4.305"))
+        );
     }
 }

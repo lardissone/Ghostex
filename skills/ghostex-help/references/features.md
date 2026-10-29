@@ -3382,9 +3382,8 @@ Keep Awake rows for machines that must stay reachable.
 
 A Claude cloud session runs on Claude's own computers (Claude Code on the web)
 instead of this computer, so it keeps going when the computer sleeps, and still
-has its row in the sidebar. Pick **Claude (cloud)** in New Thread (its Run on row
-then shows **Claude cloud**; picking that place picks the agent, and any other
-agent dims it) and choose the Claude account it runs on. It opens in Chat View
+has its row in the sidebar. Pick **Claude (cloud)** (the orange cloud) in New
+Thread's agent list and choose the Claude account it runs on. It opens in Chat View
 (its terminal runs behind it): type the task in the chat box and send it, and the
 session starts on claude.ai from the project's GitHub repository on a new
 `claude/…` branch. On the computer the chat pane then shows the session's own

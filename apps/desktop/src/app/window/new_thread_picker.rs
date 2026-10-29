@@ -21,7 +21,7 @@ use gpui_component::input::{
     Backspace, Enter, Escape, IndentInline, Input, InputEvent, InputState, MoveDown, MoveLeft,
     MoveRight, MoveUp,
 };
-use gpui_component::scroll::Scrollbar;
+use gpui_component::scroll::{Scrollbar, ScrollbarMode};
 use gpui_component::{Sizable as _, Size as ComponentSize, h_flex, v_flex};
 use std::rc::Rc;
 
@@ -32,9 +32,13 @@ pub(crate) use run_on::*;
 /*
 CDXC:AgentLauncher 2026-09-09 DECISION:
 User: the native New Thread picker is sized to its rows: the search field, the key-hint row, one row per agent up to twelve, the divider, and the Browser and Terminal rows; more agents scroll. The chrome height is the 6px top inset, 36px search field, 32px hint row, 2px list inset, 9px divider, two 36px rows, the 6px bottom inset, and the 2px frame border.
-SEE-ALSO: the 30px Run on row is added only when agentbox is installed and the project is on this computer (CDXC:AgentBox in new_thread_picker_run_on.rs); otherwise the picker is exactly this.
+SEE-ALSO: the 30px Run on row is added only when agentbox is installed and the project is on this computer (CDXC:AgentBox in new_thread_picker_run_on.rs); otherwise the picker is exactly this. Its width is the user's 2026-10-29 decision below (420px became 460px so the key hints keep one line).
 */
-pub(crate) const NEW_THREAD_PICKER_WIDTH: f32 = 420.0;
+/*
+CDXC:AgentLauncher 2026-10-29 DECISION:
+User: "make this wider so the hotkeys don't wrap". At 420px the widest key-hint row (Move, Start, Accounts, the Run on row's Location keys, Close) wrapped "esc Close" onto a second line, which also pushed the Terminal row under the bottom edge. Measured at the default text size, that row is 394px of chips and labels with the macOS `⌘←→` keys and about 6px more with `Alt ←→` elsewhere; with its 16px side padding and the 1px frame it needs about 434px, so 460px keeps one line with room to spare on every platform.
+*/
+pub(crate) const NEW_THREAD_PICKER_WIDTH: f32 = 460.0;
 pub(crate) const NEW_THREAD_PICKER_SEARCH_HEIGHT: f32 = 36.0;
 pub(crate) const NEW_THREAD_PICKER_ROW_HEIGHT: f32 = 36.0;
 pub(crate) const NEW_THREAD_PICKER_MAX_AGENT_ROWS: usize = 12;
@@ -460,7 +464,6 @@ impl GpuiNewThreadPickerWindow {
             self.accounts_error = None;
         }
         self.run_on = RunOnState::new(config.boxes, config.default_run_location);
-        self.run_on.set_cloud(self.cloud_agent_index().is_some());
         self.cloud_default_account = config.cloud_default_account;
         self.fit_window_height(window);
         self.reveal_selected_run_location();
@@ -488,7 +491,6 @@ impl GpuiNewThreadPickerWindow {
             .map(|agent| agent.agent_id.clone());
         self.agents = agents;
         self.agents_loaded = true;
-        self.run_on.set_cloud(self.cloud_agent_index().is_some());
         if let Some(scope_agent_id) = self.scope.and(selected_agent_id.as_deref()) {
             self.scope = self
                 .agents
@@ -1481,7 +1483,13 @@ impl Render for GpuiNewThreadPickerWindow {
                             .pb(px(6.0))
                             .children(list_children),
                     )
-                    .child(Scrollbar::vertical(&self.scroll).thickness(px(SCROLLBAR_WIDTH))),
+                    // CDXC:AgentLauncher 2026-10-29 DECISION:
+                    // User: "dont show the scroll unless i'm scrolling (then scroll fades away when i stop scrolling)". The agent list's bar uses gpui-component's Scrolling mode instead of the app theme's Hover mode (which showed it whenever the pointer was over the list): hidden at rest, shown while the list scrolls (wheel, trackpad, or the keyboard moving the highlight past an edge), kept while the pointer is on the visible bar so it can be dragged, and faded out after the idle hold.
+                    .child(
+                        Scrollbar::vertical(&self.scroll)
+                            .mode(ScrollbarMode::Scrolling)
+                            .thickness(px(SCROLLBAR_WIDTH)),
+                    ),
             )
     }
 }

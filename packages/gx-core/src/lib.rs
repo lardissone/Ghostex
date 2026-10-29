@@ -77,8 +77,7 @@ pub use crate::claude_cloud::{
     claude_cloud_page_account, claude_cloud_session_link, close_keeps_claude_cloud_row,
     is_claude_cloud_agent, is_claude_cloud_run_location, is_claude_cloud_session,
     is_running_claude_cloud_page, project_last_cloud_account, session_claude_cloud_page,
-    CLAUDE_CLOUD_AGENT_ID, CLAUDE_CLOUD_DESCRIPTION, CLAUDE_CLOUD_LABEL, CLAUDE_CLOUD_RUN_LOCATION,
-    THIS_COMPUTER_DESCRIPTION,
+    CLAUDE_CLOUD_AGENT_ID, CLAUDE_CLOUD_RUN_LOCATION, THIS_COMPUTER_DESCRIPTION,
 };
 pub use crate::connection::{ConnectionPhase, ConnectionState, ConnectionUpdate};
 pub use crate::core::{Core, Effect, Event, Intent, Output, ResubscribeReason};
