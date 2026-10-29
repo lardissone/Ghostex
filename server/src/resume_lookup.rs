@@ -7,7 +7,6 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use md5::{Digest, Md5};
-use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 
 /*
@@ -757,7 +756,7 @@ fn lookup_cursor(project_path: &str, title: &str) -> Option<String> {
 }
 
 fn read_cursor_meta_values(db_path: &Path) -> Vec<String> {
-    let Ok(db) = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY) else {
+    let Ok(db) = ghostex_find::agent_store::open_agent_store(db_path) else {
         return Vec::new();
     };
     let Ok(mut statement) = db.prepare("select value from meta") else {

@@ -7,7 +7,7 @@ use crate::{
     logging::{GxserverLogInput, GxserverLogger, LogLevel},
     paths::GxserverPaths,
 };
-use rusqlite::{Connection, OpenFlags, Transaction, TransactionBehavior};
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -424,8 +424,6 @@ fn read_zcode_conversations(agent_home: &Path) -> io::Result<Vec<Conversation>> 
     Ok(conversations)
 }
 
-/// CDXC:Sessions 2026-10-29 WHY:
-/// ZCode's databases are WAL-mode, and a ZCode that quits cleanly removes their `-wal` and `-shm` files. The SQLite of macOS (linked since 2026-10-23) cannot open such a database with a read-only connection: every query failed with "unable to open database file", which failed discovery and with it the whole Quick Access Closed list. A read-write connection (never creating the file) may recreate those two files like any SQLite reader; `query_only` keeps it from writing to ZCode's data.
 fn open_optional_zcode_database(path: &Path) -> io::Result<Option<Connection>> {
     match fs::metadata(path) {
         Err(failure) if failure.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -433,16 +431,9 @@ fn open_optional_zcode_database(path: &Path) -> io::Result<Option<Connection>> {
             result?;
         }
     }
-    let connection = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .and_then(|connection| {
-        connection.pragma_update(None, "query_only", true)?;
-        Ok(connection)
-    })
-    .map_err(|failure| io::Error::other(format!("{}: {failure}", path.display())))?;
-    Ok(Some(connection))
+    ghostex_find::agent_store::open_agent_store(path)
+        .map(Some)
+        .map_err(|failure| io::Error::other(format!("{}: {failure}", path.display())))
 }
 
 /// CDXC:Sessions 2026-09-14 WHY:
