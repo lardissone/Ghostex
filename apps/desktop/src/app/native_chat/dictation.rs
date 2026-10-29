@@ -21,8 +21,8 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Context, Entity, EntityInputHandler as _,
     FontFeatures, FontWeight, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
-    Pixels, StatefulInteractiveElement as _, Styled as _, Subscription, Task, Window, canvas, div,
-    px,
+    Pixels, StatefulInteractiveElement as _, Styled as _, Subscription, Task, Window, canvas,
+    deferred, div, px,
 };
 use serde_json::json;
 use std::time::Duration;
@@ -420,7 +420,17 @@ impl NativeChatView {
         let floating = match &phase {
             DictatePhase::Idle => return None,
             DictatePhase::Failed { failure, .. } => {
-                self.render_dictation_failure(failure, p, cx).child(
+                // Never wider than the chat box it floats in. Its width is known before it
+                // paints, so the first frame already places it.
+                let room = self.composer_bounds.get().size.width - px(2.0);
+                let mut width = px(FAILURE_CARD_WIDTH * s);
+                if room > px(0.0) {
+                    width = width.min(room);
+                }
+                let mut measured = control.pill.get();
+                measured.size.width = width;
+                control.pill.set(measured);
+                self.render_dictation_failure(failure, width, p, cx).child(
                     close(true, cx)
                         .absolute()
                         .top(px(6.0 * s))
@@ -510,7 +520,9 @@ impl NativeChatView {
                 .absolute()
                 .inset(px(-1.0)),
             );
-        Some(pill.into_any_element())
+        // Painted after the box: the card reaches above the box's top edge, and the box draws its
+        // border after its children.
+        Some(deferred(pill).with_priority(1).into_any_element())
     }
 
     /// The failure card: "Couldn't transcribe", gxserver's sentence saying what went wrong and
@@ -521,6 +533,7 @@ impl NativeChatView {
     fn render_dictation_failure(
         &self,
         failure: &DictateFailure,
+        width: Pixels,
         p: &ChatAppearance,
         cx: &mut Context<Self>,
     ) -> gpui::Div {
@@ -587,12 +600,9 @@ impl NativeChatView {
             );
         }
         let has_buttons = actions.key.is_some() || actions.retry;
-        // Never wider than the chat box it floats in.
-        let room = self.composer_bounds.get().size.width - px(2.0);
         div()
             .relative()
-            .w(px(FAILURE_CARD_WIDTH * s))
-            .when(room > px(0.0), |this| this.max_w(room))
+            .w(width)
             .flex()
             .flex_col()
             .gap(px(4.0 * s))
