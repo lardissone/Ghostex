@@ -744,6 +744,28 @@ mod tests {
     }
 
     #[test]
+    fn mobile_summary_carries_new_session_agent_scope_only_when_not_per_project() {
+        let result = json!({ "ok": true, "projects": [], "sessions": [] });
+        let unset = to_mobile_session_list(&result, &serde_json::Map::new());
+        assert!(unset.get("newSessionAgentScope").is_none());
+        let mut settings = serde_json::Map::new();
+        for (saved, sent) in [
+            ("project", None),
+            ("galaxy", None),
+            ("space", Some("space")),
+            ("everywhere", Some("everywhere")),
+        ] {
+            settings.insert("newSessionAgentScope".to_string(), json!(saved));
+            assert_eq!(
+                to_mobile_session_list(&result, &settings)
+                    .get("newSessionAgentScope")
+                    .and_then(Value::as_str),
+                sent
+            );
+        }
+    }
+
+    #[test]
     fn mobile_summary_carries_sidebar_session_links_only_when_not_badge() {
         let result = json!({ "ok": true, "projects": [], "sessions": [] });
         let unset = to_mobile_session_list(&result, &serde_json::Map::new());

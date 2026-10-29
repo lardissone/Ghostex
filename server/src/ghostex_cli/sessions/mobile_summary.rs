@@ -146,6 +146,14 @@ pub(super) fn to_mobile_session_list(result: &Value, settings: &Map<String, Valu
     if settings.get("dimSleepingSessions").and_then(Value::as_bool) == Some(true) {
         map.insert("dimSleepingSessions".to_string(), json!(true));
     }
+    // CDXC:AgentLauncher 2026-10-30 SEE-ALSO: packages/gx-core/src/sidebar_menu/agent_choice.rs; the phone remembers the agent picked on a project's agent button by the computer's Settings > Agents > Remember the agent you pick (apps/mobile/app/src/components/sessions/agentChoice.ts). Sent only when it is Per Space or Everywhere (the default is per project).
+    if let Some(scope) = settings
+        .get("newSessionAgentScope")
+        .and_then(Value::as_str)
+        .filter(|scope| matches!(*scope, "space" | "everywhere"))
+    {
+        map.insert("newSessionAgentScope".to_string(), json!(scope));
+    }
     if let Some(projects) = &projects {
         map.insert(
             "projects".to_string(),

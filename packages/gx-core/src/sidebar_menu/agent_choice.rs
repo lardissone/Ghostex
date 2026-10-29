@@ -3,7 +3,7 @@
 //! "Remember the picked agent" says.
 //!
 //! CDXC:AgentLauncher 2026-10-30 DECISION:
-//! User (for a Discord user who works on some projects with Claude only and others with Codex only): remember the agent picked on the project header's agent button per project by default, with a setting to remember it per project, per Space, or everywhere (one choice for every project, the behaviour before). The header button's logo shows the agent that project will start, and its tooltip stays as it was. A project with no choice yet starts the agent picked last anywhere, which is also where an existing user's one stored choice carries over.
+//! User (for a Discord user who works on some projects with Claude only and others with Codex only): remember the agent picked on the project header's agent button per project by default, with a setting to remember it per project, per Space, or everywhere (one choice for every project, the behaviour before). The header button's logo shows the agent that project will start, and its tooltip stays as it was. A project with no choice yet starts the agent picked last anywhere, which is also where an existing user's one stored choice carries over. The middle option is the sidebar's Spaces and is called "Per Space" (user: "call it Per Space please"), never "per workspace". The phone follows the same setting (apps/mobile/app/src/components/sessions/agentChoice.ts).
 //!
 //! WHY: every pick is written to all three memories whatever the setting says, so switching the
 //! setting later starts from what the user actually picked in each project and Space. A worktree

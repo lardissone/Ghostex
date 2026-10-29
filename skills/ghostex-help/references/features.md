@@ -605,6 +605,8 @@ Each project remembers the agent you last picked in it, and a project with no
 pick yet starts the one you picked last anywhere. To share one pick across a
 Space, or use one pick for every project, change Settings > Agents > Remember
 the agent you pick (`newSessionAgentScope`: `project`, `space` or `everywhere`).
+The phone app remembers its own picks for each project's agent button the same
+way and follows this setting of the computer it shows.
 The ⋯ button, or a right-click on the project,
 opens the project menu: Add Worktree (or Create PR), History,
 New Browser Tab, Create Terminal, pinned Actions, Open Folder in the file
