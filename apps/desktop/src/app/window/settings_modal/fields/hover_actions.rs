@@ -147,6 +147,18 @@ fn save_items<V: SettingsPage>(page: &mut V, items: &[HoverButtonItem], cx: &mut
 /// The drag-to-reorder list of the hover buttons (fields/reorder.rs).
 const LIST: &str = "session-card-hover-buttons";
 
+/// Puts a button the strip left out (Note, while Session notes is off) back where it was, so a
+/// click or a drag never drops it or its on/off state from the saved list.
+fn with_hidden(
+    mut items: Vec<HoverButtonItem>,
+    hidden: &Option<(usize, HoverButtonItem)>,
+) -> Vec<HoverButtonItem> {
+    if let Some((at, item)) = hidden {
+        items.insert((*at).min(items.len()), item.clone());
+    }
+    items
+}
+
 /// `SessionCardHoverActionsField` (a wide row). Each button is its own drag handle: a click
 /// toggles it; a hold (250ms) or an 8px move (`getSidebarReorderActivationConstraints`) lifts it,
 /// at the `[data-dragging='true']` opacity of 0.55.
@@ -158,7 +170,19 @@ pub(crate) fn hover_actions_field<V: SettingsPage>(
     value: &Value,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let items = normalize_hover_buttons(value);
+    let mut items = normalize_hover_buttons(value);
+    // CDXC:SessionNotes 2026-10-30 WHY: while Session notes is off (Settings > Extensions) its Note button leaves the strip, and the saved list keeps it, on or off, for when it comes back.
+    let notes_on = {
+        let store = page.settings_store().read(cx);
+        ghostex_settings_catalog::built_in_extensions::enabled_with(
+            ghostex_settings_catalog::built_in_extensions::SESSION_NOTES,
+            |key| Some(store.bool(key)),
+        )
+    };
+    let hidden = (!notes_on)
+        .then(|| items.iter().position(|item| item.id == "note"))
+        .flatten()
+        .map(|at| (at, items.remove(at)));
     let palette = *p;
     super::reorder::reorder_options(
         page,
@@ -178,6 +202,7 @@ pub(crate) fn hover_actions_field<V: SettingsPage>(
         let icon = icon_of(&item.id);
         let label = label_of(&item.id);
         let toggle_items = items.clone();
+        let toggle_hidden = hidden.clone();
         let hover_on = css_mix(p.foreground, 0.12, p.raised_hover);
         let button = div()
             .id(SharedString::from(format!("hover-button-{}", item.id)))
@@ -209,7 +234,7 @@ pub(crate) fn hover_actions_field<V: SettingsPage>(
                     }
                     let mut next = toggle_items.clone();
                     next[index].enabled = !enabled;
-                    save_items(page, &next, cx);
+                    save_items(page, &with_hidden(next, &toggle_hidden), cx);
                 }),
             )
             .child(settings_icon(
@@ -220,6 +245,7 @@ pub(crate) fn hover_actions_field<V: SettingsPage>(
             .into_any_element();
         let handle = super::reorder::reorder_handle(p, LIST, index, label, button);
         let move_items = items.clone();
+        let move_hidden = hidden.clone();
         buttons.push(super::reorder::reorder_row(
             page,
             LIST,
@@ -227,7 +253,8 @@ pub(crate) fn hover_actions_field<V: SettingsPage>(
             slot,
             handle,
             move |page: &mut V, from, to, _window, cx| {
-                save_items(page, &super::reorder::move_index(&move_items, from, to), cx);
+                let next = super::reorder::move_index(&move_items, from, to);
+                save_items(page, &with_hidden(next, &move_hidden), cx);
             },
             cx,
         ));

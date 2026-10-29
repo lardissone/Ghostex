@@ -34,6 +34,8 @@ mod project;
 mod run_in_box;
 mod section;
 mod session;
+#[cfg(test)]
+mod session_notes_tests;
 mod text;
 mod workspace;
 

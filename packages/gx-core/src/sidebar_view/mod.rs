@@ -32,6 +32,8 @@ pub(crate) mod projects;
 mod reveal;
 pub(crate) mod rows;
 mod sections;
+#[cfg(test)]
+mod session_notes_tests;
 pub(crate) mod session_slot;
 mod session_text;
 pub(crate) mod slot_hotkey;

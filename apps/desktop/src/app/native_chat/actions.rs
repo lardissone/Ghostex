@@ -264,7 +264,10 @@ impl NativeChatView {
         CDXC:SessionChat 2026-10-29 DECISION:
         User, on the terminal view's More actions menu matching the chat's (Q729, "Yes, add it"): the chat's More actions menu gets a Session note row after Close After Done, opening the same note dialog the terminal row opens, with the same "1" badge when a note exists, on the computer and the phone (apps/mobile/app/src/chat/native/composer/menus.ts). The note toolbar button is never offered (the core's `composerActions.note` is off), so this row is the only way in unless the control folded here itself.
         */
-        if !(self.composer_control_overflowed("note") && self.composer_control_available("note"))
+        // Only while Session notes is on (Settings > Extensions; CDXC:SessionNotes 2026-10-30).
+        if crate::app::session_notes::session_notes_on()
+            && !(self.composer_control_overflowed("note")
+                && self.composer_control_available("note"))
             && self.composer_control_available("files")
         {
             let mut row = json!({

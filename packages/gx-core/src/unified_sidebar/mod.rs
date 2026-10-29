@@ -12,9 +12,10 @@ mod spaces;
 mod tests;
 
 pub use build::{
-    build_unified_sidebar, came_back_ms, space_filter_key, unified_shelf, unified_status,
-    UnifiedFilter, UnifiedFilterOption, UnifiedFilterOptions, UnifiedMachineInput, UnifiedRow,
-    UnifiedSettings, UnifiedShelf, UnifiedSidebarView, UnifiedStatus,
+    build_unified_sidebar, came_back_ms, is_unified_draft, repo_of_project, space_filter_key,
+    unified_shelf, unified_status, UnifiedFilter, UnifiedFilterOption, UnifiedFilterOptions,
+    UnifiedMachineInput, UnifiedRow, UnifiedSettings, UnifiedShelf, UnifiedSidebarView,
+    UnifiedStatus,
 };
 pub use repo::{normalize_git_remote, repo_identity, RepoIdentity};
 pub use spaces::unified_machine_spaces;

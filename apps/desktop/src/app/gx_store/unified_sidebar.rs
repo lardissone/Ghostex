@@ -11,11 +11,11 @@ use std::sync::Arc;
 use ghostex_gx_core::indicators::neutral_indicator_inputs;
 use ghostex_gx_core::unified_sidebar::{
     UnifiedFilter, UnifiedMachineInput, UnifiedRow, UnifiedSettings, UnifiedShelf,
-    build_unified_sidebar, unified_machine_spaces,
+    build_unified_sidebar, repo_of_project, unified_machine_spaces,
 };
 use ghostex_gx_core::{
-    ChangeSummary, Core, LOCAL_MACHINE_ID, MachineId, MenuHost, SessionKey, SidebarInputs,
-    SidebarMenus, SidebarViewModel,
+    ChangeSummary, Core, HoverAction, LOCAL_MACHINE_ID, MachineId, MenuHost, MenuItem, SessionKey,
+    SidebarInputs, SidebarMenus, SidebarViewModel,
 };
 use serde_json::Value;
 
@@ -39,6 +39,9 @@ pub(crate) struct UnifiedSidebarHost {
     lanes: BTreeMap<MachineId, MachineLane>,
     /// What the header's filter keeps; kept while the app runs.
     pub(crate) filter: UnifiedFilter,
+    /// A project picked in Quick Access whose repository the filter is set to once the list
+    /// holds it (a reopened project arrives a moment later).
+    pending_project: Option<String>,
 }
 
 impl UnifiedSidebarHost {
@@ -53,6 +56,55 @@ impl UnifiedSidebarHost {
             .flat_map(|group| group.core.sessions.iter())
             .find(|session| session.row.sidebar_session_id == sidebar_session_id)
             .and_then(|session| session.row.key.clone())
+    }
+
+    /// The repository of a project on whichever machine lists it.
+    fn repo_key_of_project(&self, project_id: &str) -> Option<String> {
+        self.lanes
+            .values()
+            .find_map(|lane| repo_of_project(lane.model.view(), project_id))
+            .map(|repo| repo.key)
+    }
+
+    /// A project of this computer in the repository `repo_key`, for a new session to start in.
+    fn local_project_in_repo(&self, repo_key: &str) -> Option<String> {
+        let lane = self.lanes.get(&MachineId::Local)?;
+        lane.model
+            .view()
+            .groups
+            .iter()
+            .filter_map(|group| group.core.project_context.as_ref())
+            .map(|context| context.project_id.as_str())
+            .find(|project_id| {
+                repo_of_project(lane.model.view(), project_id)
+                    .is_some_and(|repo| repo.key == repo_key)
+            })
+            .map(str::to_string)
+    }
+
+    /// A card's right-click menu, or one of its hover buttons' submenus, from the machine list
+    /// that holds the session. `None` while the Unified sidebar is off (it has no lists then) or
+    /// when no list holds the row.
+    ///
+    /// CDXC:Sidebar 2026-10-30 WHY:
+    /// User: "right clicking only works on the currently active session, doesn't work on other one". A card's menu opens as a stub that asks the store for its items (`sessionMenu`), and the store answered only from the Project sidebar's own list: the selected Space's drawn rows, without other Spaces, other machines or folded projects. Any card it did not hold got an empty answer, which closes the menu. The Unified lists hold every session, so they answer first while the Unified sidebar is on.
+    pub(crate) fn row_menu(
+        &self,
+        core: &Core,
+        menu_host: &MenuHost,
+        sidebar_session_id: &str,
+        action: Option<HoverAction>,
+        now_ms: u64,
+    ) -> Option<Vec<Value>> {
+        self.lanes.values().find_map(|lane| {
+            let menus = SidebarMenus::new(core, lane.model.view(), &lane.inputs, menu_host, now_ms);
+            let items = match action {
+                // A card's Snooze button opens the submenu whatever the hover strip shows.
+                Some(action) => menus.row_action_submenu(sidebar_session_id, action),
+                None => menus.row_menu(sidebar_session_id),
+            }?;
+            (!items.is_empty()).then(|| items.iter().map(MenuItem::to_json).collect())
+        })
     }
 
     /// Brings every machine's list up to date with `changes` and builds the Unified list.
@@ -122,6 +174,18 @@ impl UnifiedSidebarHost {
             }
         }
 
+        if let Some(project_id) = self.pending_project.clone() {
+            let repo = machines.iter().find_map(|(machine, _)| {
+                repo_of_project(self.lanes.get(machine)?.model.view(), &project_id)
+            });
+            if let Some(repo) = repo {
+                self.filter = UnifiedFilter {
+                    repos: [repo.key].into(),
+                    ..UnifiedFilter::default()
+                };
+                self.pending_project = None;
+            }
+        }
         let inputs: Vec<UnifiedMachineInput<'_>> = machines
             .iter()
             .filter_map(|(machine, label)| {
@@ -134,11 +198,32 @@ impl UnifiedSidebarHost {
             })
             .collect();
         let settings = UnifiedSettings {
-            group_working_sessions: list_inputs.settings.group_working_sessions,
+            working_section: list_inputs.settings.unified_working_section,
             enable_session_parking: list_inputs.settings.enable_session_parking,
         };
         let has_projects = inputs.iter().any(|input| !input.view.groups.is_empty());
         let view = build_unified_sidebar(&inputs, settings, &self.filter, now_ms);
+        // One icon per repository: the first of its projects, on any machine, that has one.
+        let mut icons: HashMap<String, Arc<gpui::Image>> = HashMap::new();
+        for row in view
+            .drafts
+            .iter()
+            .chain(&view.pinned)
+            .chain(&view.active)
+            .chain(&view.working)
+            .chain(&view.snoozed)
+            .chain(&view.parked)
+        {
+            if icons.contains_key(&row.repo.key) {
+                continue;
+            }
+            let icon = groups
+                .get(&(row.machine.clone(), row.group.core.group_id.clone()))
+                .and_then(|group| project_icon(group.project_context.as_ref()));
+            if let Some(icon) = icon {
+                icons.insert(row.repo.key.clone(), icon);
+            }
+        }
         let card = |row: UnifiedRow| -> Option<UnifiedCard> {
             Some(UnifiedCard {
                 session: sessions
@@ -147,15 +232,14 @@ impl UnifiedSidebarHost {
                         row.session.row.sidebar_session_id.clone(),
                     ))?
                     .clone(),
-                group: groups
-                    .get(&(row.machine.clone(), row.group.core.group_id.clone()))?
-                    .clone(),
                 row: row.session.row.clone(),
+                repo_icon: icons.get(&row.repo.key).cloned(),
                 repo_label: row.repo.label,
                 machine_label: row.machine_label,
                 status: row.status,
             })
         };
+        let drafts = view.drafts.into_iter().filter_map(card).collect();
         let list = view
             .pinned
             .into_iter()
@@ -175,12 +259,14 @@ impl UnifiedSidebarHost {
         })
         .collect();
         UnifiedSidebarSnapshot {
+            drafts,
             list,
             shelves,
             options: view.options,
             filter: self.filter.clone(),
             total: view.total,
             has_projects,
+            parking: list_inputs.settings.enable_session_parking,
         }
     }
 }
@@ -231,6 +317,57 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
+    /// A project picked in Quick Access › Projects: while the Unified sidebar is on, its filter
+    /// shows that project's repository alone, on every machine. The Project sidebar ignores it.
+    ///
+    /// CDXC:Sidebar 2026-10-30 DECISION:
+    /// User: "when i click on a project here and unified sidebar is active then we should filter by that project in the unified sidebar". Opening or reopening a project from Quick Access › Projects (click or Enter) sets the Unified filter to that project's repository, as picking it in the filter menu would, and replaces any machine or Space pick so every machine's copy shows; the pick still opens the project as before. A reopened project is matched once it is back in the list.
+    pub(crate) fn gx_store_unified_filter_to_project(
+        &mut self,
+        project_id: &str,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if !self
+            .gx_store
+            .sidebar_list
+            .last_inputs
+            .settings
+            .unified_sidebar
+        {
+            return;
+        }
+        self.gx_store.unified_sidebar.pending_project = Some(project_id.to_string());
+        self.gx_store_unified_sidebar_changed(&ChangeSummary::default(), cx);
+    }
+
+    /// The header's New session button: the New Thread picker (agents with their accounts, then
+    /// Browser and Terminal), the one the New Thread hotkey opens. The page has no picker window,
+    /// so there it makes a terminal session as before.
+    ///
+    /// CDXC:Sidebar 2026-10-30 DECISION:
+    /// User: the Unified header's New session button opens the app's existing new-session picker. It launches into the active project, as from its hotkey; when the filter narrows to one project (one repository) and the active project is not in it, that repository's project on this computer is made active first, so the session starts where the list is looking. Any other filter, or a repository only another machine has, leaves the active project as it is.
+    pub(crate) fn open_unified_new_session(&mut self, cx: &mut gpui::Context<Self>) {
+        let host = &self.gx_store.unified_sidebar;
+        let target = match (host.filter.repos.len(), host.filter.repos.first()) {
+            (1, Some(repo_key)) => {
+                let active_repo = self
+                    .gpui_app_modal_active_project_id()
+                    .and_then(|project_id| host.repo_key_of_project(&project_id));
+                (active_repo.as_deref() != Some(repo_key.as_str()))
+                    .then(|| host.local_project_in_repo(repo_key))
+                    .flatten()
+            }
+            _ => None,
+        };
+        if let Some(project_id) = target {
+            let _ = self.dispatch_gpui_menu_bar_project_activation(&project_id, cx);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        self.open_gpui_new_thread_picker(cx);
+        #[cfg(target_arch = "wasm32")]
+        self.dispatch_native_sidebar_command(serde_json::json!({"type": "createSession"}), cx);
+    }
+
     /// The Unified header's filter menu and its shelves. Returns whether the command was one.
     pub(crate) fn gx_store_run_unified_sidebar_command(
         &mut self,
@@ -239,6 +376,7 @@ impl GhostexGpuiApp {
     ) -> bool {
         match command["type"].as_str() {
             Some("unifiedFilter") => {
+                self.gx_store.unified_sidebar.pending_project = None;
                 let filter = &mut self.gx_store.unified_sidebar.filter;
                 match (command["kind"].as_str(), command["key"].as_str()) {
                     (Some("clear"), _) => *filter = UnifiedFilter::default(),
@@ -261,4 +399,17 @@ impl GhostexGpuiApp {
             _ => false,
         }
     }
+}
+
+/// The project's own icon, as its Project sidebar header draws it: the one set for it, else the
+/// one found in its folder.
+fn project_icon(project_context: Option<&Value>) -> Option<Arc<gpui::Image>> {
+    project_context
+        .and_then(|project| {
+            project
+                .get("iconDataUrl")
+                .or_else(|| project.get("discoveredIconDataUrl"))
+        })
+        .and_then(Value::as_str)
+        .and_then(crate::app::native_sidebar::images::sidebar_image)
 }

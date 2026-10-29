@@ -5,7 +5,7 @@ use gpui::{
     AnyElement, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
     div, px,
 };
-use gpui_component::h_flex;
+use gpui_component::{ElementExt as _, h_flex};
 use serde_json::{Value, json};
 
 use super::model::UnifiedSidebarSnapshot;
@@ -89,6 +89,32 @@ fn filter_label(unified: &UnifiedSidebarSnapshot) -> String {
 }
 
 impl GhostexGpuiApp {
+    /// CDXC:Sidebar 2026-10-30 DECISION:
+    /// User: "please make the sidebar filter in unified sidebar mode not take all the height like it does now". The filter menu is a dropdown: hung under the filter button with its left edge on the button's, no taller than the app's other dropdown menus (`TITLEBAR_POPUP_MENU_MAX_HEIGHT`) or the room left below it in the window, shrinking to fit a short list, and its rows scroll inside it with the bar showing only while they scroll. Pressing the button again closes it.
+    fn show_unified_filter_menu(
+        menu: &Value,
+        owner: Option<gpui::Bounds<gpui::Pixels>>,
+        event: &gpui::ClickEvent,
+        scale: f32,
+        window: &mut gpui::Window,
+        cx: &mut gpui::App,
+    ) {
+        use crate::app::native_sidebar::menus::{SidebarMenuOpener, press_position};
+        let Some(owner) = owner else {
+            Self::show_native_sidebar_menu(menu, event.position(), scale, window, cx);
+            return;
+        };
+        Self::show_native_sidebar_menu_from(
+            menu,
+            SidebarMenuOpener::below(owner)
+                .toggled_by("native-unified-filter", press_position(event))
+                .capped(crate::app::consts::TITLEBAR_POPUP_MENU_MAX_HEIGHT),
+            scale,
+            window,
+            cx,
+        );
+    }
+
     pub(in crate::app::native_sidebar) fn render_native_unified_header(
         &self,
         unified: &UnifiedSidebarSnapshot,
@@ -117,6 +143,7 @@ impl GhostexGpuiApp {
         };
         let filtered = !unified.filter.is_empty();
         let menu = filter_menu_items(unified);
+        let owner = crate::app::native_sidebar::menus::MenuOwner::default();
         h_flex()
             .w_full()
             .flex_shrink_0()
@@ -125,6 +152,7 @@ impl GhostexGpuiApp {
             .gap(px(2.0 * scale))
             .child(
                 h_flex()
+                    .on_prepaint(crate::app::native_sidebar::menus::record_menu_owner(&owner))
                     .id("native-unified-filter")
                     .role(gpui::Role::Button)
                     .aria_label("Filter sessions")
@@ -159,10 +187,10 @@ impl GhostexGpuiApp {
                     )
                     .on_click(cx.listener(move |_, event: &gpui::ClickEvent, window, cx| {
                         cx.stop_propagation();
-                        Self::show_native_sidebar_context_menu(
+                        Self::show_unified_filter_menu(
                             &menu,
-                            None,
-                            event.position(),
+                            owner.get(),
+                            event,
                             scale,
                             window,
                             cx,
@@ -191,7 +219,7 @@ impl GhostexGpuiApp {
                 )
                 .on_click(cx.listener(|app, _, _, cx| {
                     cx.stop_propagation();
-                    app.dispatch_native_sidebar_command(json!({"type": "createSession"}), cx);
+                    app.open_unified_new_session(cx);
                 })),
             )
             .into_any_element()

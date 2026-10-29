@@ -324,6 +324,19 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("title", J::Str("Session details panel")),
         ("settingKeys", J::Arr(&[J::Str("sessionDetailsClaudeTaskTools")])),
     ]),
+    // CDXC:SessionNotes 2026-10-30 DECISION:
+    // User: "please make session notes a built in extension in the extensions page so i can toggle it on and off and if it's off then hide it from the sessions context menu and from the more actions menu in the chat composer and everywhere (should be disabled by default)". A whole-feature entry with a new key (`sessionNotesHidden`, default on = hidden), so it starts off for new and existing users. Off removes the Note row of a session's menu and its hover button, the note dot and the note line in the card's tooltip, the Session note row of the chat's and the terminal bar's More actions, the note dialog, the Session Note hotkey and its Quick Access row, and `ghostex session-note`; the phone follows through `builtInFeaturesOff`. Saved notes are kept and come back when it is turned on.
+    // SEE-ALSO: packages/gx-core/src/sidebar_view/inputs.rs (`session_notes_enabled`), apps/desktop/src/app/session_notes.rs, apps/gpui-web/src/app/session_notes.rs, apps/mobile/app/src/sessions/sessionNotesSwitch.ts.
+    J::Obj(&[
+        ("description", J::Str("Attach a note to an agent conversation, such as what to do next when you come back to it: Note in a session's menu, Session note in the chat's More actions, and a dot on the session's card while it has one. Notes you wrote are kept while this is off.")),
+        ("category", J::Str("features")),
+        ("id", J::Str("sessionNotes")),
+        ("placement", J::Str("feature")),
+        ("settingsKey", J::Str("sessionNotesHidden")),
+        ("appWide", J::Bool(true)),
+        ("title", J::Str("Session notes")),
+        ("hotkeys", J::Arr(&[J::Str("sessionNote")])),
+    ]),
     // CDXC:Extensions 2026-10-25 DECISION:
     // User: claude.ai inside Ghostex "has to be built in extension", not an external Ghostex extension from the Store. Enabled, it adds a sidebar button that opens a global page, with "different claude profiles for each account" to switch between. The 2026-10-28 decision in apps/desktop/src/app/claude_web/takeover.rs supersedes "switches to a global page that just keeps just my sidebar shown": turning Claude on now hides the sidebar too. A whole-feature entry with a new key (`claudeWebHidden`, default on = hidden, so it starts off like Actions) because the settings file stores every default. Off removes the sidebar button and the Claude view; each account's claude.ai sign-in is kept.
     // SEE-ALSO: apps/desktop/src/app/claude_web/ (the view, the button and the account bar).

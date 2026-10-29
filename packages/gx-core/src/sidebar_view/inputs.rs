@@ -299,9 +299,14 @@ pub struct SidebarSettings {
     pub actions_enabled: bool,
     /// The Open In extension is on: menus offer Open In.
     pub open_in_enabled: bool,
+    /// The Session notes extension is on: rows offer Note and draw their note dot and tooltip line.
+    pub session_notes_enabled: bool,
     /// Settings › Sidebar is Unified sidebar (`sidebarView: unified`); the Project sidebar is
     /// the default (unified_sidebar/).
     pub unified_sidebar: bool,
+    /// The Unified sidebar folds working sessions into its Working shelf
+    /// (`unifiedWorkingSection`, on by default).
+    pub unified_working_section: bool,
 }
 
 impl Default for SidebarSettings {
@@ -326,7 +331,9 @@ impl Default for SidebarSettings {
             bot_automations_enabled: false,
             actions_enabled: false,
             open_in_enabled: true,
+            session_notes_enabled: false,
             unified_sidebar: false,
+            unified_working_section: true,
         }
     }
 }
@@ -391,6 +398,10 @@ impl SidebarSettings {
                 defaults.group_working_sessions,
             ),
             unified_sidebar: settings.get("sidebarView").and_then(Value::as_str) == Some("unified"),
+            unified_working_section: boolean(
+                "unifiedWorkingSection",
+                defaults.unified_working_section,
+            ),
             // An inverted key like every Official extension switch, hidden unless set to false.
             bots_enabled: !boolean("botsHidden", !defaults.bots_enabled),
             bot_automations_enabled: !boolean(
@@ -404,6 +415,10 @@ impl SidebarSettings {
             open_in_enabled: built_in_extensions::enabled_in_value(
                 Some(settings),
                 built_in_extensions::OPEN_IN,
+            ),
+            session_notes_enabled: built_in_extensions::enabled_in_value(
+                Some(settings),
+                built_in_extensions::SESSION_NOTES,
             ),
         }
     }

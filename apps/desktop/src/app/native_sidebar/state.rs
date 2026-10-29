@@ -101,7 +101,10 @@ impl GhostexGpuiApp {
         snapshot: Arc<NativeSidebarSnapshot>,
         cx: &mut gpui::Context<Self>,
     ) {
-        if let Some(previous) = &self.native_sidebar.snapshot
+        // CDXC:Sidebar 2026-10-30 WHY:
+        // User: "when unified sidebar is enabled then i often see the sidebar scroll by itself when i activate another session". The Unified list shares this scroll box, but it is one list for every Space and machine, so it has no per-Space position to restore: opening a session in another Space switched the Project sidebar's hidden Space, which put that Space's saved offset on the Unified list. While the Unified sidebar is drawn the scope swap is skipped and the list stays where the user left it.
+        if self.native_sidebar.unified.is_none()
+            && let Some(previous) = &self.native_sidebar.snapshot
             && previous.scroll_scope != snapshot.scroll_scope
         {
             self.native_sidebar.scroll_offsets.insert(

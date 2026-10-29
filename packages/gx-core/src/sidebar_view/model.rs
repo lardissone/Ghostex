@@ -303,6 +303,8 @@ impl SidebarViewModel {
             state.catalog != catalog
                 || state.filter_catalog != filter_catalog
                 || state.inputs.settings.debugging_mode != inputs.settings.debugging_mode
+                || state.inputs.settings.session_notes_enabled
+                    != inputs.settings.session_notes_enabled
         });
         let meta_dirty = previous.as_ref().is_none_or(|previous| {
             !changes.projects_changed.is_empty()
@@ -337,6 +339,7 @@ impl SidebarViewModel {
             catalog: &catalog,
             debugging_mode: effective.settings.debugging_mode,
             always_show_state_tooltip: !machine.is_local(),
+            session_notes: effective.settings.session_notes_enabled,
         };
 
         // 1. Project facts.

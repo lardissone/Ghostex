@@ -465,6 +465,18 @@
       "agentWritable": true
     },
     {
+      "key": "unifiedWorkingSection",
+      "title": "Working section",
+      "subtitle": "Fold sessions whose agent is working or still running something in the background into a Working section at the bottom of the list. They return to the top of the list when they need you. Shown while the Unified sidebar is selected.",
+      "tab": "sidebar",
+      "tabTitle": "Sidebar & Sessions",
+      "section": "sidebar",
+      "sectionTitle": "Sidebar",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
       "key": "sidebarSpaceSwitchBehavior",
       "title": "When switching to a Space",
       "subtitle": "Reopen the session you last had open in a Space when you switch to it, in the view its project was in. Shown while the Spaces extension is on.",
@@ -10233,6 +10245,18 @@
       "sectionTitle": "Built-in",
       "type": "boolean",
       "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "sessionNotesHidden",
+      "title": "Turn off Session notes",
+      "subtitle": "Turn off Session notes: Note in a session's menu and hover buttons, the note dot on its card, Session note in the chat's More actions, the Session Note hotkey and the ghostex session-note command, here and in the phone app. Off by default; notes you wrote are kept and come back when you turn it on.",
+      "tab": "extensions",
+      "tabTitle": "Extensions",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "boolean",
+      "default": true,
       "agentWritable": true
     },
     {

@@ -4,6 +4,7 @@
 
 mod cards;
 mod header;
+mod hover;
 mod list;
 pub(crate) mod model;
 mod shelves;

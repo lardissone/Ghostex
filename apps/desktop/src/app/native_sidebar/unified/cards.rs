@@ -6,8 +6,8 @@ use gpui::{
     AnyElement, Hsla, InteractiveElement, IntoElement, MouseButton, ParentElement,
     StatefulInteractiveElement, Styled, div, px, rgb,
 };
-use gpui_component::h_flex;
 use gpui_component::tooltip::ManagedTooltipExt as _;
+use gpui_component::{ElementExt as _, h_flex};
 use serde_json::{Value, json};
 
 use ghostex_gx_core::unified_sidebar::UnifiedStatus;
@@ -106,14 +106,33 @@ pub(super) fn status_slot(
     )
 }
 
-/// The repository's first letter on a tile, as a project without an icon shows it.
-pub(super) fn repo_tile(label: &str, appearance: &SidebarAppearance, dim: bool) -> AnyElement {
-    let tile = crate::app::native_sidebar::project_header::letter_tile(
-        label,
-        appearance.muted.opacity(0.12),
-        appearance.muted,
-        appearance.scale,
-    );
+/// Whether project icons show, as the Project sidebar's headers follow it.
+pub(super) fn show_project_icons(hud: &Value) -> bool {
+    hud["settings"]["showProjectIcons"].as_bool() != Some(false)
+}
+
+/// The project's icon, or its repository's first letter on a tile when it has none.
+///
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User: "please make sure we make the icons of projects show up in the unified sidebar". A card's tile is the icon the Project sidebar's project header shows (the one set for the project, else the one found in its folder), on every machine; a repository whose projects have one on any machine shows it on all its cards. The letter tile stays for a repository with no icon, and for every card while Show project icons is off.
+pub(super) fn repo_tile(
+    card: &UnifiedCard,
+    appearance: &SidebarAppearance,
+    show_icon: bool,
+    dim: bool,
+) -> AnyElement {
+    let tile = match card.repo_icon.clone().filter(|_| show_icon) {
+        Some(icon) => gpui::img(icon)
+            .size(px(16.0 * appearance.scale))
+            .flex_shrink_0()
+            .into_any_element(),
+        None => crate::app::native_sidebar::project_header::letter_tile(
+            &card.repo_label,
+            appearance.muted.opacity(0.12),
+            appearance.muted,
+            appearance.scale,
+        ),
+    };
     if dim {
         div().opacity(0.5).child(tile).into_any_element()
     } else {
@@ -148,52 +167,56 @@ impl GhostexGpuiApp {
                     / 100.0
             })
             .unwrap_or(1.0);
-        row.on_hover(cx.listener(move |app, hovered: &bool, _, cx| {
-            let current = app.native_sidebar.hovered_session.as_deref() == Some(hover_id.as_str());
-            if *hovered && !current {
-                app.native_sidebar.hovered_session = Some(hover_id.clone());
-                cx.notify();
-            } else if !*hovered && current {
-                app.native_sidebar.hovered_session = None;
-                cx.notify();
-            }
-        }))
-        .on_click(
-            cx.listener(move |app, event: &gpui::ClickEvent, window, cx| {
-                cx.stop_propagation();
-                let modifiers = event.modifiers();
-                if modifiers.shift || modifiers.platform || modifiers.control {
-                    return;
+        // The menu hangs below the card, as a Project sidebar row's does.
+        let owner = crate::app::native_sidebar::menus::MenuOwner::default();
+        row.on_prepaint(crate::app::native_sidebar::menus::record_menu_owner(&owner))
+            .on_hover(cx.listener(move |app, hovered: &bool, _, cx| {
+                let current =
+                    app.native_sidebar.hovered_session.as_deref() == Some(hover_id.as_str());
+                if *hovered && !current {
+                    app.native_sidebar.hovered_session = Some(hover_id.clone());
+                    cx.notify();
+                } else if !*hovered && current {
+                    app.native_sidebar.hovered_session = None;
+                    cx.notify();
                 }
-                app.close_sidebar_extension_view(window, cx);
-                app.dispatch_native_sidebar_ui(
-                    json!({"type": "selectSession", "sessionId": session_id, "mode": "focus"}),
-                    cx,
-                );
-                let _ = app.react_to_native_sidebar_session_click(&session_id, cx);
-                app.reveal_floating_sessions(cx);
-            }),
-        )
-        .on_mouse_down(
-            MouseButton::Right,
-            cx.listener(move |_, event: &gpui::MouseDownEvent, window, cx| {
-                cx.stop_propagation();
-                Self::show_native_sidebar_context_menu(
-                    &menu,
-                    None,
-                    event.position,
-                    scale,
-                    window,
-                    cx,
-                );
-            }),
-        )
+            }))
+            .on_click(
+                cx.listener(move |app, event: &gpui::ClickEvent, window, cx| {
+                    cx.stop_propagation();
+                    let modifiers = event.modifiers();
+                    if modifiers.shift || modifiers.platform || modifiers.control {
+                        return;
+                    }
+                    app.close_sidebar_extension_view(window, cx);
+                    app.dispatch_native_sidebar_ui(
+                        json!({"type": "selectSession", "sessionId": session_id, "mode": "focus"}),
+                        cx,
+                    );
+                    let _ = app.react_to_native_sidebar_session_click(&session_id, cx);
+                    app.reveal_floating_sessions(cx);
+                }),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |_, event: &gpui::MouseDownEvent, window, cx| {
+                    cx.stop_propagation();
+                    Self::show_native_sidebar_context_menu(
+                        &menu,
+                        owner.get(),
+                        event.position,
+                        scale,
+                        window,
+                        cx,
+                    );
+                }),
+            )
     }
 
     /// A card: three lines, or two when there is no branch or pull request to show.
     ///
     /// CDXC:Sidebar 2026-10-30 DECISION:
-    /// User (Q785, Q789): a Unified row is a three-line card. Line one names the project by its repository, followed by the machine's name for a session on another machine, with the status on the right; line two is the title; line three is the branch, the pull request and the agent. The hover buttons are the classic row's own.
+    /// User (Q785, Q789): a Unified row is a three-line card. Line one names the project by its repository, followed by the machine's name for a session on another machine, with the status on the right; line two is the title; line three is the branch, the pull request and the agent. Hovering it shows Snooze and Park in the status's place (hover.rs).
     pub(in crate::app::native_sidebar) fn render_native_unified_card(
         &self,
         card: &UnifiedCard,
@@ -227,17 +250,17 @@ impl GhostexGpuiApp {
                 card.status,
                 None | Some(UnifiedStatus::Working | UnifiedStatus::Waiting)
             );
-        let hover_items = crate::app::native_sidebar::hover_actions::session_hover_items(
-            session,
-            card.group.hover_actions_expanded,
-        );
-        let buttons = hovered && !hover_items.is_empty();
         let project = match &card.machine_label {
             Some(machine) => format!("{} · {machine}", card.repo_label),
             None => card.repo_label.clone(),
         };
-        let right: AnyElement = if buttons {
-            self.render_native_session_hover_actions(&card.group, session, appearance, cx)
+        let parking = self
+            .native_sidebar
+            .unified
+            .as_ref()
+            .is_some_and(|unified| unified.parking);
+        let right: AnyElement = if hovered {
+            self.render_unified_card_actions(card, parking, appearance, cx)
         } else {
             status_slot(card, appearance, now).unwrap_or_else(|| {
                 div()
@@ -312,12 +335,14 @@ impl GhostexGpuiApp {
                 h_flex()
                     .h(px(18.0 * scale))
                     .gap(px(6.0 * scale))
-                    .child(repo_tile(&card.repo_label, appearance, false))
+                    .child(repo_tile(card, appearance, show_project_icons(hud), false))
+                    // CDXC:Sidebar 2026-10-30 DECISION:
+                    // User: "make the pin icon not look like this, it should be the other pin icon we're using in the app already". A pinned card shows the filled pin the sidebar's Links list and account usage button use for something pinned (`pin-filled.svg`), at their 13px, not the `pin.svg` outline the user turned down before.
                     .when(session.is_pinned, |line| {
                         line.child(
                             gpui::svg()
-                                .path("titlebar/pin.svg")
-                                .size(px(12.0 * scale))
+                                .path("titlebar/pin-filled.svg")
+                                .size(px(13.0 * scale))
                                 .flex_shrink_0()
                                 .text_color(appearance.muted),
                         )
@@ -344,9 +369,8 @@ impl GhostexGpuiApp {
                             .min_w_0()
                             .truncate()
                             .text_color(title_color)
-                            .when(needs_you || focused, |title| {
-                                title.font_weight(gpui::FontWeight::NORMAL)
-                            })
+                            // CDXC:Sidebar 2026-10-30 DECISION:
+                            // User: "let's please not change the weight of any of the text when i change the currently active session card". Every line keeps the sidebar's own weight whether the card is active, needs you or neither (opening a Done card also clears its Done), so nothing reflows when the selection moves; the active card shows by its background, outline and brighter title, as a Project sidebar row does.
                             .when(recede, |title| title.opacity(0.75))
                             .child(session.title().to_owned()),
                     )

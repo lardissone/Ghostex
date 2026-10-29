@@ -8,6 +8,7 @@ use gpui::{
     AnyElement, Bounds, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
     Pixels, Point, StatefulInteractiveElement, Styled, Window, deferred, div, px,
 };
+use gpui_component::scroll::{Scrollbar, ScrollbarMode};
 use gpui_component::{Root, h_flex, v_flex};
 use serde_json::Value;
 
@@ -36,6 +37,9 @@ pub(crate) struct SidebarMenuOpener {
     /// Where the press that opened it went down (`press_position`), to tell the press that
     /// dismissed an open menu from a new one.
     pub(crate) press: Option<Point<Pixels>>,
+    /// Makes it a dropdown no taller than this (unscaled), always below the owner, its rows
+    /// scrolling inside it.
+    pub(crate) max_height: Option<f32>,
 }
 
 impl SidebarMenuOpener {
@@ -48,6 +52,7 @@ impl SidebarMenuOpener {
             gap: SIDEBAR_MENU_OWNER_GAP,
             trigger: None,
             press: None,
+            max_height: None,
         }
     }
 
@@ -78,6 +83,12 @@ impl SidebarMenuOpener {
     ) -> Self {
         self.trigger = Some(trigger.into());
         self.press = press;
+        self
+    }
+
+    /// The same, as a dropdown capped at `max_height` (unscaled).
+    pub(crate) fn capped(mut self, max_height: f32) -> Self {
+        self.max_height = Some(max_height);
         self
     }
 }
@@ -115,6 +126,7 @@ impl GhostexGpuiApp {
             position,
             SidebarMenuPlacement::Pointer,
             None,
+            None,
             scale,
             window,
             cx,
@@ -140,7 +152,10 @@ impl GhostexGpuiApp {
         };
         let anchor = Point::new(opener.owner.left(), opener.owner.bottom());
         let toggle = opener.trigger.map(|trigger| (trigger, opener.press));
-        Self::open_native_sidebar_menu(items, anchor, placement, toggle, scale, window, cx);
+        let max_height = opener.max_height.map(|height| px(height * scale));
+        Self::open_native_sidebar_menu(
+            items, anchor, placement, toggle, max_height, scale, window, cx,
+        );
     }
 
     /// CDXC:Sidebar 2026-09-21 DECISION:
@@ -162,6 +177,7 @@ impl GhostexGpuiApp {
                 gap: crate::app::consts::HEADER_MENU_TRIGGER_GAP,
                 trigger: None,
                 press: None,
+                max_height: None,
             }
             .toggled_by(SIDEBAR_MORE_TRIGGER, Some(press)),
             scale,
@@ -221,6 +237,7 @@ impl GhostexGpuiApp {
                 fallback,
                 SidebarMenuPlacement::Pointer,
                 trigger,
+                None,
                 scale,
                 window,
                 cx,
@@ -245,11 +262,13 @@ impl GhostexGpuiApp {
         self.close_native_sidebar_menu(window, cx);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn open_native_sidebar_menu(
         items: &Value,
         position: Point<Pixels>,
         placement: SidebarMenuPlacement,
         toggle: Option<(String, Option<Point<Pixels>>)>,
+        max_height: Option<Pixels>,
         scale: f32,
         window: &mut Window,
         cx: &mut gpui::App,
@@ -329,6 +348,7 @@ impl GhostexGpuiApp {
                         account_panel,
                         panels: vec![SidebarMenuPanel {
                             placement,
+                            max_height,
                             ..SidebarMenuPanel::new(items, position)
                         }],
                         focus,
@@ -671,9 +691,6 @@ impl GhostexGpuiApp {
                     px(12.0 * scale + 2.0),
                 ))
                 .id(format!("native-sidebar-menu-panel-{panel_index}"))
-                .absolute()
-                .left(relative.x)
-                .top(relative.y)
                 .w(bounds.size.width)
                 .max_h(bounds.size.height)
                 .overflow_y_scroll()
@@ -910,7 +927,19 @@ impl GhostexGpuiApp {
                 );
                 offset += if heading { 24.0 } else { 34.0 };
             }
-            layers = layers.child(content);
+            // The bar shows only while the rows scroll, like the agent picker's (new_thread_picker.rs).
+            layers = layers.child(
+                div()
+                    .absolute()
+                    .left(relative.x)
+                    .top(relative.y)
+                    .child(content)
+                    .child(
+                        Scrollbar::vertical(&panel.scroll)
+                            .mode(ScrollbarMode::Scrolling)
+                            .thickness(px(crate::app::consts::TITLEBAR_DROPDOWN_SCROLLBAR_WIDTH)),
+                    ),
+            );
         }
         Some((
             layers,

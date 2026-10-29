@@ -114,6 +114,7 @@ pub(crate) mod session_chat_skeleton;
 mod session_chat_surfaces;
 pub(crate) mod session_chat_warm_pool;
 pub(crate) mod session_note_modal_lifecycle;
+pub(crate) mod session_notes;
 pub(crate) mod session_pane_placement;
 pub(crate) mod settings_modal_lifecycle;
 pub(crate) mod sidebar_agent_launch_placeholder;

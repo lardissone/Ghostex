@@ -114,6 +114,19 @@ fn sidebar_section(
             cx,
         ));
     }
+    // The Unified sidebar's own Working section switch, under the switch that selects it (CDXC:Sidebar
+    // 2026-10-30 in gx-core unified_sidebar/build.rs `unified_shelf`).
+    if g.values.string("sidebarView") == "unified" {
+        rows.extend(page.toggle(
+            g,
+            s,
+            "unifiedWorkingSection",
+            "Working section",
+            "Fold sessions whose agent is working or still running something in the background into a Working section at the bottom of the list. They return to the top of the list when they need you. Shown while the Unified sidebar is selected.",
+            true,
+            cx,
+        ));
+    }
     // CDXC:Settings 2026-09-11 DECISION: dependent rows are hidden, not disabled, while their parent is off.
     // Their parent is the Spaces switch on the Extensions page now (built_in_extensions.rs), so they
     // sit as plain rows rather than indented under a row this page no longer has.

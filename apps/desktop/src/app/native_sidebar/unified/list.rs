@@ -1,12 +1,12 @@
-//! The Unified sidebar's list: the cards, then the shelves pushed to the bottom, or what an empty
-//! list says.
+//! The Unified sidebar's list: Drafts on top, the cards, then the shelves pushed to the bottom, or
+//! what an empty list says.
 
 use gpui::prelude::FluentBuilder;
 use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, px};
 use gpui_component::v_flex;
 use serde_json::Value;
 
-use super::model::UnifiedSidebarSnapshot;
+use super::model::{UnifiedShelfView, UnifiedSidebarSnapshot};
 use crate::GhostexGpuiApp;
 use crate::app::native_sidebar::appearance::SidebarAppearance;
 
@@ -37,9 +37,19 @@ impl GhostexGpuiApp {
                 .text_color(appearance.muted)
                 .child(copy)
         });
+        let drafts = (!unified.drafts.is_empty()).then(|| UnifiedShelfView {
+            shelf: ghostex_gx_core::unified_sidebar::UnifiedShelf::Drafts,
+            cards: unified.drafts.clone(),
+        });
         v_flex()
             .w_full()
             .children(empty)
+            .children(drafts.map(|drafts| {
+                v_flex()
+                    .w_full()
+                    .child(self.render_native_unified_shelf(&drafts, hud, appearance, cx))
+                    .child(div().h(px(10.0 * scale)))
+            }))
             .children(
                 unified
                     .list
