@@ -299,6 +299,9 @@ pub struct SidebarSettings {
     pub actions_enabled: bool,
     /// The Open In extension is on: menus offer Open In.
     pub open_in_enabled: bool,
+    /// Settings › Sidebar is Unified sidebar (`sidebarView: unified`); the Project sidebar is
+    /// the default (unified_sidebar/).
+    pub unified_sidebar: bool,
 }
 
 impl Default for SidebarSettings {
@@ -323,6 +326,7 @@ impl Default for SidebarSettings {
             bot_automations_enabled: false,
             actions_enabled: false,
             open_in_enabled: true,
+            unified_sidebar: false,
         }
     }
 }
@@ -386,6 +390,7 @@ impl SidebarSettings {
                 GROUP_WORKING_SESSIONS_SETTING_KEY,
                 defaults.group_working_sessions,
             ),
+            unified_sidebar: settings.get("sidebarView").and_then(Value::as_str) == Some("unified"),
             // An inverted key like every Official extension switch, hidden unless set to false.
             bots_enabled: !boolean("botsHidden", !defaults.bots_enabled),
             bot_automations_enabled: !boolean(

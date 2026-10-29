@@ -6,6 +6,14 @@ use crate::GhostexGpuiApp;
 
 #[derive(Default)]
 pub(crate) struct NativeSidebarState {
+    /// The Unified sidebar, installed only while Settings › Sidebar selects it
+    /// (gx_store/unified_sidebar.rs); the classic snapshot below is still built and kept.
+    pub(crate) unified: Option<Arc<super::unified::model::UnifiedSidebarSnapshot>>,
+    /// The Unified sidebar's shelves the user opened; every shelf starts folded.
+    pub(crate) unified_open_shelves:
+        std::collections::HashSet<ghostex_gx_core::unified_sidebar::UnifiedShelf>,
+    /// Redraws the Unified sidebar once a second while a card shows a running timer.
+    pub(crate) unified_tick: Option<gpui::Task<()>>,
     pub(crate) disclosures: super::disclosure::SidebarDisclosures,
     pub(crate) group_bounds: std::collections::HashMap<String, gpui::Bounds<gpui::Pixels>>,
     pub(crate) space_gesture: super::space_gesture::SpaceGesture,

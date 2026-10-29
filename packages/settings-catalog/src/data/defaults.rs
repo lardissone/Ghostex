@@ -510,6 +510,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("groupWorkingSessions", J::Bool(false)),
     ("sidebarSpacesEnabled", J::Bool(false)),
     ("sidebarSpaceSwitchBehavior", J::Str("restore")),
+    ("sidebarView", J::Str("project")),
     ("projectSwitchKeepAliveMinutes", J::Num(10.0)),
     ("sidebarSpaceFollowActiveSession", J::Bool(false)),
     ("sidebarVisibilityMemory", J::Str("shared")),

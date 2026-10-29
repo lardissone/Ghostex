@@ -48,6 +48,7 @@ mod sidebar_drag;
 mod sidebar_menu;
 mod sidebar_ui;
 mod sidebar_view;
+pub mod unified_sidebar;
 mod workspace_groups;
 
 pub use crate::active_project_context::{

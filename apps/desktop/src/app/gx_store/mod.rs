@@ -139,6 +139,7 @@ mod space_editor;
 mod space_sleep;
 mod space_switch;
 pub(crate) mod terminal_lifecycle;
+pub(crate) mod unified_sidebar;
 mod work_links;
 mod work_mode;
 mod workspace_groups;

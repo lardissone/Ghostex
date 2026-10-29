@@ -50,7 +50,21 @@ impl GhostexGpuiApp {
         let header_hover = self.native_sidebar.header_hover.clone();
         let (space_offset, space_opacity) = self.native_sidebar.space_gesture.presentation();
         let appearance = SidebarAppearance::from_hud(&snapshot.hud, window);
-        let sticky_clip_top = self.native_sticky_project_clip_top(&content, &appearance);
+        // The Unified sidebar draws its own header and list in the classic ones' places; nothing
+        // else of the sidebar changes (native_sidebar/unified/).
+        let unified = self.native_sidebar.unified.clone();
+        let unified_header = unified
+            .as_ref()
+            .map(|unified| self.render_native_unified_header(unified, &appearance, cx));
+        let unified_list = unified.as_ref().map(|unified| {
+            self.render_native_unified_list(unified, &snapshot.hud, &appearance, cx)
+        });
+        let classic = unified.is_none();
+        let sticky_clip_top = if classic {
+            self.native_sticky_project_clip_top(&content, &appearance)
+        } else {
+            None
+        };
         // Built once per frame for the Commands row's button and whichever strip can draw: the
         // pinned one and the peek are exclusive (`sidebar_usage_visible`).
         let usage_meters = self.account_usage_meters();
@@ -143,7 +157,10 @@ impl GhostexGpuiApp {
             .font_family(crate::ui_fonts::UI_FONT)
             .font_weight(FontWeight::LIGHT)
             .child(self.render_native_sidebar_navigation(&appearance, false, usage_meter_count, cx))
-            .child(self.render_native_sidebar_selectors(&snapshot, &appearance, cx))
+            .child(match unified_header {
+                Some(header) => header,
+                None => self.render_native_sidebar_selectors(&snapshot, &appearance, cx),
+            })
             /*
             The list and its bottom fade ramp are one child on purpose: the
             `on_children_prepainted` above measures the sidebar from its fourth
@@ -209,12 +226,14 @@ impl GhostexGpuiApp {
                                 app.native_sidebar.scroll_animation = None;
                                 app.native_sidebar_scroll_wheel_moved(cx);
                             }))
-                            .on_mouse_down(
-                                gpui::MouseButton::Left,
-                                cx.listener(|app, event: &gpui::MouseDownEvent, _, cx| {
-                                    app.begin_native_space_mouse_drag(event, cx)
-                                }),
-                            )
+                            .when(classic, |list| {
+                                list.on_mouse_down(
+                                    gpui::MouseButton::Left,
+                                    cx.listener(|app, event: &gpui::MouseDownEvent, _, cx| {
+                                        app.begin_native_space_mouse_drag(event, cx)
+                                    }),
+                                )
+                            })
                             .child(
                                 v_flex()
                                     // Every block but the trailing ungroup drop zone, which is empty list space.
@@ -231,7 +250,8 @@ impl GhostexGpuiApp {
                                     .relative()
                                     .left(px(space_offset * appearance.scale))
                                     .opacity(space_opacity)
-                                    .when(content.automations_row, |column| {
+                                    .children(unified_list)
+                                    .when(classic && content.automations_row, |column| {
                                         column.child(self.render_native_sidebar_automations_row(
                                             content.automations_today,
                                             &appearance,
@@ -239,7 +259,8 @@ impl GhostexGpuiApp {
                                         ))
                                     })
                                     .when(
-                                        content.order.is_empty()
+                                        classic
+                                            && content.order.is_empty()
                                             && content.machine_notice.is_none(),
                                         |column| {
                                             column.child(self.render_native_sidebar_empty(
@@ -249,48 +270,50 @@ impl GhostexGpuiApp {
                                             ))
                                         },
                                     )
-                                    .children(content.order.iter().filter_map(|item| {
-                                        if item.kind == "collection" {
-                                            content
-                                                .collections
-                                                .iter()
-                                                .find(|collection| {
-                                                    collection.collection_id == item.id
-                                                })
-                                                .map(|collection| {
-                                                    self.render_native_collection(
-                                                        collection,
-                                                        &content,
-                                                        &appearance,
-                                                        cx,
-                                                    )
-                                                })
-                                        } else {
-                                            content
-                                                .groups
-                                                .iter()
-                                                .find(|group| group.group_id == item.id)
-                                                .filter(|group| !session_groups.nests(group))
-                                                .map(|group| {
-                                                    // CDXC:Spaces 2026-10-06 WHY: padding, not a margin, so this block's measured bounds (where a press is a row's and not the empty list space that starts a Space drag) cover the project header's box, which reaches left over its chevron; as a margin, a click on the chevron armed the Space drag and showed the grabbing hand.
-                                                    div()
-                                                        .pl(px(18.0 * appearance.scale))
-                                                        .mr(px(5.0 * appearance.scale))
-                                                        .mb(px(10.0 * appearance.scale))
-                                                        .child(
-                                                            self.render_native_sidebar_group(
-                                                                group,
-                                                                session_groups
-                                                                    .children(&group.group_id),
-                                                                &content.hud,
-                                                                &appearance,
-                                                                cx,
-                                                            ),
+                                    .children(content.order.iter().filter(|_| classic).filter_map(
+                                        |item| {
+                                            if item.kind == "collection" {
+                                                content
+                                                    .collections
+                                                    .iter()
+                                                    .find(|collection| {
+                                                        collection.collection_id == item.id
+                                                    })
+                                                    .map(|collection| {
+                                                        self.render_native_collection(
+                                                            collection,
+                                                            &content,
+                                                            &appearance,
+                                                            cx,
                                                         )
-                                                        .into_any_element()
-                                                })
-                                        }
-                                    }))
+                                                    })
+                                            } else {
+                                                content
+                                                    .groups
+                                                    .iter()
+                                                    .find(|group| group.group_id == item.id)
+                                                    .filter(|group| !session_groups.nests(group))
+                                                    .map(|group| {
+                                                        // CDXC:Spaces 2026-10-06 WHY: padding, not a margin, so this block's measured bounds (where a press is a row's and not the empty list space that starts a Space drag) cover the project header's box, which reaches left over its chevron; as a margin, a click on the chevron armed the Space drag and showed the grabbing hand.
+                                                        div()
+                                                            .pl(px(18.0 * appearance.scale))
+                                                            .mr(px(5.0 * appearance.scale))
+                                                            .mb(px(10.0 * appearance.scale))
+                                                            .child(
+                                                                self.render_native_sidebar_group(
+                                                                    group,
+                                                                    session_groups
+                                                                        .children(&group.group_id),
+                                                                    &content.hud,
+                                                                    &appearance,
+                                                                    cx,
+                                                                ),
+                                                            )
+                                                            .into_any_element()
+                                                    })
+                                            }
+                                        },
+                                    ))
                                     .child(
                                         div()
                                             .id("native-sidebar-ungroup-drop")
@@ -307,13 +330,16 @@ impl GhostexGpuiApp {
                             ),
                     ))
                     .child(self.render_native_sidebar_list_fade(&appearance))
-                    .when_some(content.machine_notice.as_ref(), |list, notice| {
-                        list.child(self.render_native_sidebar_machine_notice(
-                            notice,
-                            &appearance,
-                            cx,
-                        ))
-                    }),
+                    .when_some(
+                        content.machine_notice.as_ref().filter(|_| classic),
+                        |list, notice| {
+                            list.child(self.render_native_sidebar_machine_notice(
+                                notice,
+                                &appearance,
+                                cx,
+                            ))
+                        },
+                    ),
             )
             /*
             The usage strip and the Commands row are one footer child on purpose:
@@ -347,7 +373,8 @@ impl GhostexGpuiApp {
                         let view = wheel_view.clone();
                         window.on_mouse_event(
                             move |event: &gpui::ScrollEvent, phase, window, cx| {
-                                if phase == gpui::DispatchPhase::Capture
+                                if classic
+                                    && phase == gpui::DispatchPhase::Capture
                                     && bounds.contains(&event.position)
                                 {
                                     view.update(cx, |app, cx| {
@@ -381,7 +408,11 @@ impl GhostexGpuiApp {
                 .absolute()
                 .inset_0(),
             )
-            .children(self.render_native_sticky_project(&content, &appearance, cx))
+            .children(
+                classic
+                    .then(|| self.render_native_sticky_project(&content, &appearance, cx))
+                    .flatten(),
+            )
             .children(self.render_native_sidebar_usage_peek(
                 &appearance,
                 peek_usage_meters,

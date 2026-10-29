@@ -443,6 +443,28 @@
       "agentWritable": false
     },
     {
+      "key": "sidebarView",
+      "title": "Sidebar",
+      "subtitle": "Project sidebar lists each machine, Space and project on its own. Unified sidebar shows every session from every machine, Space and project in one list, with the ones that need you on top; the same repository on two machines is one project there.",
+      "tab": "sidebar",
+      "tabTitle": "Sidebar & Sessions",
+      "section": "sidebar",
+      "sectionTitle": "Sidebar",
+      "type": "enum",
+      "default": "project",
+      "options": [
+        {
+          "label": "Project sidebar",
+          "value": "project"
+        },
+        {
+          "label": "Unified sidebar",
+          "value": "unified"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
       "key": "sidebarSpaceSwitchBehavior",
       "title": "When switching to a Space",
       "subtitle": "Reopen the session you last had open in a Space when you switch to it, in the view its project was in. Shown while the Spaces extension is on.",

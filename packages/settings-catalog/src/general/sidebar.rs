@@ -26,6 +26,7 @@ pub(crate) fn sidebar() -> Section {
         "Sidebar",
         vec![
             row("sidebarSettingsPreset", "Preset", "Apply a sidebar UI preset or show Custom when controlled settings diverge.").options_of(SIDEBAR_SETTINGS_PRESETS, "label", "id").options(&[opt("Custom", "custom")]),
+            row("sidebarView", "Sidebar", "Project sidebar lists each machine, Space and project on its own. Unified sidebar shows every session from every machine, Space and project in one list, with the ones that need you on top; the same repository on two machines is one project there.").options(SIDEBAR_VIEW_OPTIONS),
             row("sidebarSpaceSwitchBehavior", "When switching to a Space", "Reopen the session you last had open in a Space when you switch to it, in the view its project was in. Shown while the Spaces extension is on.").options(SIDEBAR_SPACE_SWITCH_BEHAVIOR_OPTIONS),
             row("sidebarSpaceFollowActiveSession", "Switch Space when opening a session from another Space", "Switch the selected Space to the one that owns a session you open from outside it, such as through Back/Forward or Search by Prompt. Shown while the Spaces extension is on."),
             row("projectSwitchKeepAliveMinutes", "Keep the last project running for", "After you switch to another project or Space, keep the terminals, chats, and view that were open in the previous project running for this many minutes so switching back is instant. 0 releases them right away. Keep views loaded (Auto Sleep) keeps every side panel view until its Auto Sleep time instead."),

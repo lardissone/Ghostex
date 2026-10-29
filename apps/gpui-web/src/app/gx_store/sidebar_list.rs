@@ -19,6 +19,8 @@ pub(crate) struct SidebarList {
     pub(crate) deadline_booked: Option<u64>,
     /// The `?settings=` content hash the inputs were last built from.
     settings_hash: u64,
+    /// What the newest update applied, which the Unified sidebar applies next (`unified_sidebar.rs`).
+    pub(crate) last_changes: ChangeSummary,
 }
 
 impl SidebarList {
@@ -102,6 +104,7 @@ impl SidebarList {
         }
         let changes = std::mem::take(&mut self.changes);
         self.model.update(core, &self.last_inputs, &changes, now_ms);
+        self.last_changes = changes;
         let menus = SidebarMenus::new(
             core,
             self.model.view(),

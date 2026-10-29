@@ -99,6 +99,21 @@ fn sidebar_section(
             cx,
         ));
     }
+    // The Project / Unified switch lives here only (CDXC:Sidebar 2026-10-30 on SIDEBAR_VIEW_OPTIONS).
+    if g.visible(s, "sidebarView") {
+        let spec = RowSpec::new("Sidebar")
+            .description("Project sidebar lists each machine, Space and project on its own. Unified sidebar shows every session from every machine, Space and project in one list, with the ones that need you on top.")
+            .modified(g.values.is_modified("sidebarView"));
+        rows.extend(page.segmented(
+            g,
+            s,
+            "sidebarView",
+            spec,
+            Some(reset_key::<GeneralTab>("sidebarView")),
+            g.options("SIDEBAR_VIEW_OPTIONS"),
+            cx,
+        ));
+    }
     // CDXC:Settings 2026-09-11 DECISION: dependent rows are hidden, not disabled, while their parent is off.
     // Their parent is the Spaces switch on the Extensions page now (built_in_extensions.rs), so they
     // sit as plain rows rather than indented under a row this page no longer has.

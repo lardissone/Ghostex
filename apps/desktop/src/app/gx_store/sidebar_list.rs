@@ -530,6 +530,9 @@ impl GhostexGpuiApp {
             list.last_built_at_ms = now_ms;
             list.built = true;
         }
+        // The Unified sidebar reads the same changes, and nothing at all while it is not selected
+        // (gx_store/unified_sidebar.rs).
+        self.gx_store_unified_sidebar_changed(&changes, cx);
         // A row the list stopped drawing leaves the multi-selection, and a machine failure that
         // ended forgets its shrunk notice; both are list inputs, so the build runs once more when
         // either moved.

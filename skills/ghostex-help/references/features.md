@@ -597,6 +597,23 @@ Settings > Extensions.
 
 ## Sidebar
 
+There are two sidebars, picked in Settings > Sidebar & Sessions > Sidebar
+(`sidebarView`: `project`, the default, or `unified`). The Project sidebar,
+described below, shows one machine and one Space at a time, project by project.
+The Unified sidebar shows every session from every machine, Space and project
+in one list: each session is a card with its project, the machine's name when it
+runs on another computer, its status on the right (Working with a timer,
+Waiting, Question, Approval, Failed or Done), its title, and its branch, pull
+request and agent. A project is named after its repository there, so the same
+repository on this computer and a remote one is one project. Sessions are
+ordered by when they last came back to you (started, sent a message, or a
+finished turn), never by output while an agent works; pinned sessions come
+first. Working, Snoozed and Parked fold into shelves at the bottom: Working only
+while Group working sessions is on, Parked only while session parking is on.
+The filter button at the top narrows the list to projects, machines or Spaces;
+next to it are Add project and New session. Clicking, right-clicking and the
+hover buttons work as in the Project sidebar.
+
 The sidebar lists projects and their sessions. Project headers carry the git
 branch and diff stats and, on hover, a New Terminal button, the agent launcher
 (New agent and the agent picker) and a ⋯ button.

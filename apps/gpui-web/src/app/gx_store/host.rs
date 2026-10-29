@@ -25,6 +25,8 @@ pub(crate) struct GxStoreHost {
     pub(crate) sidebar_ui: SidebarUiStore,
     /// The drawn list, under the desktop's field name so its executor files read it unchanged.
     pub(crate) sidebar_list: super::sidebar_list::SidebarList,
+    /// The Unified sidebar's per-machine lists, as on the desktop (`unified_sidebar.rs`).
+    pub(crate) unified_sidebar: super::unified_sidebar::UnifiedSidebarHost,
     pub(crate) menu_host: MenuHost,
     /// The desktop's record lines; the page writes none (`diagnostics.rs`).
     pub(crate) diagnostics: super::diagnostics::GxStoreDiagnostics,
@@ -400,6 +402,8 @@ impl GhostexGpuiApp {
         // The worktree dialog's agent list: the HUD's agents (the desktop reads the New Thread picker's list, which the page does not have).
         self.new_thread_picker_agents = hud["agents"].as_array().cloned();
         self.install_native_sidebar_snapshot(Arc::new(snapshot), cx);
+        let changes = std::mem::take(&mut self.gx_store.sidebar_list.last_changes);
+        self.gx_store_unified_sidebar_changed(&changes, cx);
         self.web_open_linked_session(cx);
         self.web_book_sidebar_deadline(cx);
         // A showing Quick Access republishes from the store it reads (`quick_access/host.rs`).
@@ -441,5 +445,7 @@ impl GxStoreHost {
             .flat_map(|group| group.core.sessions.iter())
             .find(|session| session.row.sidebar_session_id == sidebar_session_id)
             .and_then(|session| session.row.key.clone())
+            // A Unified sidebar card can be a session the Project list does not draw.
+            .or_else(|| self.unified_sidebar.session_key_for_row(sidebar_session_id))
     }
 }

@@ -48,6 +48,7 @@ pub(crate) mod status;
 mod sticky;
 mod threads;
 mod tooltips;
+pub(crate) mod unified;
 pub(crate) mod usage;
 mod work_chips;
 mod workspace_tile;

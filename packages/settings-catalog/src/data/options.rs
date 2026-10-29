@@ -634,6 +634,13 @@ pub const SIDEBAR_SPACE_SWITCH_BEHAVIOR_OPTIONS: &[Opt] = &[
     opt("Don't switch projects", "keep"),
 ];
 
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User: keep today's sidebar exactly as it is and call it "Project sidebar"; the new one is "Unified sidebar". They switch only in Settings › Sidebar, and the Project sidebar is the default.
+pub const SIDEBAR_VIEW_OPTIONS: &[Opt] = &[
+    opt("Project sidebar", "project"),
+    opt("Unified sidebar", "unified"),
+];
+
 pub const SIDEBAR_THEME_SETTING_OPTIONS: &[Opt] = &[
     opt("Dark", "dark-2"),
     opt("Light", "plain-light"),

@@ -1,0 +1,456 @@
+//! The Unified sidebar list: every session of every machine, Space and project, in one list.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use crate::keys::MachineId;
+use crate::sidebar_view::ordering::{is_grouped_working, session_is_snoozed};
+use crate::sidebar_view::spaces::space_claims_project;
+use crate::sidebar_view::{
+    GroupView, SessionRow, SessionView, SidebarView, SpacesState, LOCAL_MACHINE_ID, OTHER_SPACE_ID,
+};
+
+use super::repo::{repo_identity, RepoIdentity};
+
+/// One machine's rows as the Unified sidebar reads them.
+pub struct UnifiedMachineInput<'a> {
+    pub machine: MachineId,
+    /// The machine's name as its tab spells it.
+    pub label: String,
+    /// That machine's list with no Space, tag filter, collapse or hide applied
+    /// (`indicators::neutral_indicator_inputs`), so every session is in it.
+    pub view: &'a SidebarView,
+    /// The machine's Spaces as this window sees them, when its Spaces are on.
+    pub spaces: Option<SpacesState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UnifiedSettings {
+    /// `groupWorkingSessions`: working rows fold into the Working shelf.
+    pub group_working_sessions: bool,
+    /// `enableSessionParking`: parked rows sit in the Parked shelf.
+    pub enable_session_parking: bool,
+}
+
+/// What the header's filter keeps. An empty set keeps everything of its kind; the kinds narrow
+/// together (a row must pass every non-empty one).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UnifiedFilter {
+    /// [`RepoIdentity::key`]s.
+    pub repos: BTreeSet<String>,
+    /// Machine ids (`local` for this computer).
+    pub machines: BTreeSet<String>,
+    /// [`space_filter_key`]s.
+    pub spaces: BTreeSet<String>,
+}
+
+impl UnifiedFilter {
+    pub fn is_empty(&self) -> bool {
+        self.repos.is_empty() && self.machines.is_empty() && self.spaces.is_empty()
+    }
+
+    fn keeps(&self, row: &UnifiedRow) -> bool {
+        (self.repos.is_empty() || self.repos.contains(&row.repo.key))
+            && (self.machines.is_empty() || self.machines.contains(machine_key(&row.machine)))
+            && (self.spaces.is_empty()
+                || row
+                    .space_key
+                    .as_ref()
+                    .is_some_and(|key| self.spaces.contains(key)))
+    }
+}
+
+/// Where a row sits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnifiedShelf {
+    Pinned,
+    Active,
+    Working,
+    Snoozed,
+    Parked,
+}
+
+/// The status word a card shows in its top right corner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnifiedStatus {
+    Approval,
+    Question,
+    Failed,
+    Working,
+    /// The turn ended but a background shell or monitor the agent started still runs.
+    Waiting,
+    /// A finished turn the user has not looked at.
+    Done,
+}
+
+impl UnifiedStatus {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Approval => "Approval",
+            Self::Question => "Question",
+            Self::Failed => "Failed",
+            Self::Working => "Working",
+            Self::Waiting => "Waiting",
+            Self::Done => "Done",
+        }
+    }
+}
+
+/// The status a row shows, most urgent first, in the order the classic row's dots use.
+pub fn unified_status(row: &SessionRow) -> Option<UnifiedStatus> {
+    if row.awaiting_approval {
+        Some(UnifiedStatus::Approval)
+    } else if row.pending_question_count > 0 {
+        Some(UnifiedStatus::Question)
+    } else if row.model_selection_failed || row.program_status_failed {
+        Some(UnifiedStatus::Failed)
+    } else if row.activity == "working" {
+        Some(UnifiedStatus::Working)
+    } else if row.activity == "attention" {
+        Some(UnifiedStatus::Done)
+    } else if row.has_background_work {
+        Some(UnifiedStatus::Waiting)
+    } else {
+        None
+    }
+}
+
+/// One drawn row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnifiedRow {
+    pub machine: MachineId,
+    /// The machine's name, for a row of another machine; `None` for this computer.
+    pub machine_label: Option<String>,
+    /// The group the row came from, which its menus and hover buttons are built against.
+    pub group: GroupView,
+    pub session: SessionView,
+    pub repo: RepoIdentity,
+    /// [`space_filter_key`] of the Space that shows the row's project; `None` when its machine
+    /// has Spaces off.
+    pub space_key: Option<String>,
+    pub shelf: UnifiedShelf,
+    pub status: Option<UnifiedStatus>,
+    /// When the session last came back to the user ([`came_back_ms`]).
+    pub came_back_ms: i64,
+}
+
+/// One choice of the filter menu.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UnifiedFilterOption {
+    pub key: String,
+    pub label: String,
+    /// What the menu prints after the label: the machines a repository is on, or a Space's machine.
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UnifiedFilterOptions {
+    pub repos: Vec<UnifiedFilterOption>,
+    pub machines: Vec<UnifiedFilterOption>,
+    pub spaces: Vec<UnifiedFilterOption>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UnifiedSidebarView {
+    pub pinned: Vec<UnifiedRow>,
+    pub active: Vec<UnifiedRow>,
+    pub working: Vec<UnifiedRow>,
+    pub snoozed: Vec<UnifiedRow>,
+    pub parked: Vec<UnifiedRow>,
+    pub options: UnifiedFilterOptions,
+    /// Rows before the filter, so an empty list can tell "nothing here" from "nothing left".
+    pub total: usize,
+}
+
+impl UnifiedSidebarView {
+    pub fn is_empty(&self) -> bool {
+        self.pinned.is_empty()
+            && self.active.is_empty()
+            && self.working.is_empty()
+            && self.snoozed.is_empty()
+            && self.parked.is_empty()
+    }
+
+    /// The labels of the repositories the filter keeps, for the empty-list sentence.
+    pub fn filtered_repo_labels(&self, filter: &UnifiedFilter) -> Vec<String> {
+        self.options
+            .repos
+            .iter()
+            .filter(|option| filter.repos.contains(&option.key))
+            .map(|option| option.label.clone())
+            .collect()
+    }
+}
+
+/// The filter key of a Space: Space ids are unique per machine only.
+pub fn space_filter_key(machine: &MachineId, space_id: &str) -> String {
+    format!("{}|{space_id}", machine_key(machine))
+}
+
+fn machine_key(machine: &MachineId) -> &str {
+    machine.remote_id().unwrap_or(LOCAL_MACHINE_ID)
+}
+
+/// When a session last came back to the user: started, a turn begun, or a turn ended.
+///
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User (Q790): the Unified list is ordered by when a session last came back to you, so output while an agent works never moves a row. While the agent works that moment is the stint's start (`workingStartedAt`); once it stops it is the session's meaningful-activity clock, which gxserver last advanced when the turn ended or asked for the user (server/src/session_status/model.rs). Either way the creation time is the floor.
+pub fn came_back_ms(row: &SessionRow) -> i64 {
+    let created = row.timing.created_ms.unwrap_or(0);
+    let moment = if row.activity == "working" {
+        row.timing
+            .working_started_ms
+            .or(row.timing.last_interaction_ms)
+    } else {
+        row.timing.last_interaction_ms
+    };
+    created.max(moment.unwrap_or(0))
+}
+
+/// The shelf of a row.
+///
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User (Q791, Q792): working sessions fold into a Working shelf at the bottom only while Group working sessions is on (the session you have open stays in the list, as in the classic sidebar), and parking stays manual: the Parked shelf is the classic Parked section, so it follows Enable session parking.
+pub fn unified_shelf(row: &SessionView, settings: UnifiedSettings, now_ms: u64) -> UnifiedShelf {
+    let session = &row.row;
+    if session_is_snoozed(session.timing.snoozed_until_ms, now_ms) {
+        UnifiedShelf::Snoozed
+    } else if settings.enable_session_parking && session.is_parked {
+        UnifiedShelf::Parked
+    } else if session.is_pinned {
+        UnifiedShelf::Pinned
+    } else if settings.group_working_sessions && !row.is_focused && is_grouped_working(session) {
+        UnifiedShelf::Working
+    } else {
+        UnifiedShelf::Active
+    }
+}
+
+/// The Space that shows a group's project on its machine: the first Space in order that claims
+/// it, else Other.
+fn space_of_group(state: &SpacesState, group: &GroupView) -> String {
+    let Some(project) = &group.space_project else {
+        return OTHER_SPACE_ID.to_string();
+    };
+    state
+        .ordered()
+        .into_iter()
+        .find(|space| {
+            space_claims_project(
+                space,
+                &project.project_id,
+                project.collection_id.as_deref(),
+                project.parent_project_id.as_deref(),
+            )
+        })
+        .map(|space| space.space_id.clone())
+        .unwrap_or_else(|| OTHER_SPACE_ID.to_string())
+}
+
+/// Every group's repository, a user-made session group taking its project's.
+fn repos_of(view: &SidebarView) -> BTreeMap<String, RepoIdentity> {
+    let mut by_project: BTreeMap<String, RepoIdentity> = BTreeMap::new();
+    for group in &view.groups {
+        let Some(context) = &group.core.project_context else {
+            continue;
+        };
+        by_project.insert(
+            context.project_id.clone(),
+            repo_identity(
+                context.git_remote_origin_url.as_deref(),
+                &context.path,
+                context
+                    .worktree
+                    .as_ref()
+                    .map(|worktree| worktree.parent_project_path.as_str()),
+                &group.core.title,
+            ),
+        );
+    }
+    by_project
+}
+
+/// Builds the list.
+pub fn build_unified_sidebar(
+    machines: &[UnifiedMachineInput<'_>],
+    settings: UnifiedSettings,
+    filter: &UnifiedFilter,
+    now_ms: u64,
+) -> UnifiedSidebarView {
+    let mut rows: Vec<UnifiedRow> = Vec::new();
+    let mut repo_machines: BTreeMap<String, (String, BTreeSet<String>)> = BTreeMap::new();
+    let mut options = UnifiedFilterOptions::default();
+    for machine in machines {
+        options.machines.push(UnifiedFilterOption {
+            key: machine_key(&machine.machine).to_string(),
+            label: machine.label.clone(),
+            detail: None,
+        });
+        if let Some(spaces) = &machine.spaces {
+            let remote = (!machine.machine.is_local()).then(|| machine.label.clone());
+            for space in spaces.ordered() {
+                options.spaces.push(UnifiedFilterOption {
+                    key: space_filter_key(&machine.machine, &space.space_id),
+                    label: space.name.clone(),
+                    detail: remote.clone(),
+                });
+            }
+            options.spaces.push(UnifiedFilterOption {
+                key: space_filter_key(&machine.machine, OTHER_SPACE_ID),
+                label: "Other".to_string(),
+                detail: remote,
+            });
+        }
+        let repos = repos_of(machine.view);
+        let machine_label = (!machine.machine.is_local()).then(|| machine.label.clone());
+        for group in &machine.view.groups {
+            let project_id = group
+                .space_project
+                .as_ref()
+                .map(|project| project.project_id.as_str())
+                .or_else(|| {
+                    group
+                        .core
+                        .project_context
+                        .as_ref()
+                        .map(|context| context.project_id.as_str())
+                });
+            let repo = project_id
+                .and_then(|project_id| repos.get(project_id).cloned())
+                .unwrap_or_else(|| repo_identity(None, "", None, &group.core.title));
+            let entry = repo_machines
+                .entry(repo.key.clone())
+                .or_insert_with(|| (repo.label.clone(), BTreeSet::new()));
+            entry.1.insert(machine.label.clone());
+            let space_key = machine
+                .spaces
+                .as_ref()
+                .map(|spaces| space_filter_key(&machine.machine, &space_of_group(spaces, group)));
+            for session in &group.core.sessions {
+                if session.row.is_browser || session.row.key.is_none() {
+                    continue;
+                }
+                rows.push(UnifiedRow {
+                    machine: machine.machine.clone(),
+                    machine_label: machine_label.clone(),
+                    group: group.clone(),
+                    session: session.clone(),
+                    repo: repo.clone(),
+                    space_key: space_key.clone(),
+                    shelf: unified_shelf(session, settings, now_ms),
+                    status: unified_status(&session.row),
+                    came_back_ms: came_back_ms(&session.row),
+                });
+            }
+        }
+    }
+    options.repos = repo_machines
+        .into_iter()
+        .map(|(key, (label, machine_labels))| UnifiedFilterOption {
+            key,
+            label,
+            detail: (machine_labels.len() > 1)
+                .then(|| machine_labels.into_iter().collect::<Vec<_>>().join(", ")),
+        })
+        .collect();
+    options
+        .repos
+        .sort_by(|left, right| left.label.to_lowercase().cmp(&right.label.to_lowercase()));
+    // Two different repositories with the same name (a fork, another owner's, a folder with no
+    // remote) say which is which.
+    let names: Vec<String> = options
+        .repos
+        .iter()
+        .map(|option| option.label.to_lowercase())
+        .collect();
+    for (index, option) in options.repos.iter_mut().enumerate() {
+        let shared = names
+            .iter()
+            .enumerate()
+            .any(|(other, name)| other != index && *name == names[index]);
+        if !shared {
+            continue;
+        }
+        let which = repo_disambiguator(&option.key);
+        option.detail = Some(match option.detail.take() {
+            Some(machines) => format!("{which} · {machines}"),
+            None => which,
+        });
+    }
+
+    // One repository reads the same on every machine: the label this computer spells it with,
+    // else the first machine's.
+    for row in &mut rows {
+        if let Some(option) = options
+            .repos
+            .iter()
+            .find(|option| option.key == row.repo.key)
+        {
+            row.repo.label.clone_from(&option.label);
+        }
+    }
+    let total = rows.len();
+    let mut view = UnifiedSidebarView {
+        options,
+        total,
+        ..Default::default()
+    };
+    for row in rows.into_iter().filter(|row| filter.keeps(row)) {
+        match row.shelf {
+            UnifiedShelf::Pinned => view.pinned.push(row),
+            UnifiedShelf::Active => view.active.push(row),
+            UnifiedShelf::Working => view.working.push(row),
+            UnifiedShelf::Snoozed => view.snoozed.push(row),
+            UnifiedShelf::Parked => view.parked.push(row),
+        }
+    }
+    let by_came_back = |left: &UnifiedRow, right: &UnifiedRow| {
+        right
+            .came_back_ms
+            .cmp(&left.came_back_ms)
+            .then_with(|| tie_break(left, right))
+    };
+    view.pinned.sort_by(by_came_back);
+    view.active.sort_by(by_came_back);
+    // The Working shelf lists the session you last sent work to first.
+    view.working.sort_by(|left, right| {
+        let started = |row: &UnifiedRow| row.session.row.timing.working_started_ms.unwrap_or(0);
+        started(right)
+            .cmp(&started(left))
+            .then_with(|| tie_break(left, right))
+    });
+    // The soonest to wake first.
+    view.snoozed.sort_by(|left, right| {
+        let wake = |row: &UnifiedRow| row.session.row.timing.snoozed_until_ms.unwrap_or(i64::MAX);
+        wake(left)
+            .cmp(&wake(right))
+            .then_with(|| tie_break(left, right))
+    });
+    // Parked rows read latest active first, as everywhere else (CDXC:Sessions 2026-09-12 in
+    // sidebar_view/ordering.rs).
+    view.parked.sort_by(|left, right| {
+        let active = |row: &UnifiedRow| row.session.row.timing.last_interaction_ms.unwrap_or(0);
+        active(right)
+            .cmp(&active(left))
+            .then_with(|| tie_break(left, right))
+    });
+    view
+}
+
+/// `owner/repo` for a repository with a remote, `no remote` for a folder.
+fn repo_disambiguator(key: &str) -> String {
+    if key.starts_with("dir:") {
+        return "no remote".to_string();
+    }
+    let parts: Vec<&str> = key.split('/').collect();
+    match parts.as_slice() {
+        [.., owner, repo] => format!("{owner}/{repo}"),
+        _ => key.to_string(),
+    }
+}
+
+fn tie_break(left: &UnifiedRow, right: &UnifiedRow) -> std::cmp::Ordering {
+    left.session
+        .row
+        .sidebar_session_id
+        .cmp(&right.session.row.sidebar_session_id)
+}
