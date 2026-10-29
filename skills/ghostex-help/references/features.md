@@ -3217,7 +3217,7 @@ agent card) and the headset and its arrow leave the top
 of the window, the voice agent hotkeys stop working and leave Settings >
 Hotkeys, a call that is running ends, and the phone app hides its headset,
 Voice call about this chat and Voice Call for that computer. Dictate keeps
-working: Settings > Extensions > Voice agent then shows only the xAI key Dictate uses and
+working: Settings > Extensions > Voice agent then shows only the xAI and OpenAI keys Dictate uses and
 the Dictation history. Turn it back on and everything returns, with your voice
 settings as you left them.
 

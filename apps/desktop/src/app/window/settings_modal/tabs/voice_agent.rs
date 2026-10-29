@@ -7,7 +7,7 @@
 //! The Memory row shows the remembered last voice conversation and forgets it
 //! (`/api/forgetVoiceAgentMemory`).
 //!
-//! CDXC:VoiceMode 2026-10-20 DECISION: User: the API keys live on the computer, kept by gxserver. Its "a plain Settings page, not an extension card" is superseded by CDXC:VoiceMode 2026-10-25 (packages/settings-catalog/src/pages/voice_agent.rs): the voice agent is a built-in extension, and while it is off this page keeps only the xAI key Dictate uses and the Dictation history.
+//! CDXC:VoiceMode 2026-10-20 DECISION: User: the API keys live on the computer, kept by gxserver. Its "a plain Settings page, not an extension card" is superseded by CDXC:VoiceMode 2026-10-25 (packages/settings-catalog/src/pages/voice_agent.rs): the voice agent is a built-in extension, and while it is off this page keeps the xAI and OpenAI keys Dictate uses and the Dictation history (both keys since CDXC:VoiceMode 2026-10-30 in official_extensions.rs).
 //! SEE-ALSO: server/src/voice_agent/http.rs, server/src/voice_agent/keys.rs, server/src/voice_agent/memory.rs.
 use super::super::super::native_modal_kit::*;
 use super::super::catalog::{SettingOption, settings_catalog};
@@ -510,7 +510,7 @@ impl Render for VoiceAgentTab {
             )
         };
         // The voice agent turned off on Settings > Extensions leaves its call rows out; Dictate
-        // keeps its xAI key and history here (CDXC:VoiceMode 2026-10-25 in official_extensions.rs).
+        // keeps its xAI and OpenAI keys and history here (CDXC:VoiceMode 2026-10-30 in official_extensions.rs).
         let calls_on = ghostex_settings_catalog::built_in_extensions::on_with(
             ghostex_settings_catalog::built_in_extensions::VOICE_AGENT,
             |key| Some(values.bool(key)),
@@ -541,8 +541,7 @@ impl Render for VoiceAgentTab {
         }
         let mut key_rows = Vec::new();
         for provider in [Provider::Xai, Provider::OpenAi] {
-            if (calls_on || provider == Provider::Xai)
-                && search.row_visible("keys", provider.row_key())
+            if search.row_visible("keys", provider.row_key())
                 && let Some(row) = self.key_row(&p, provider, window, cx)
             {
                 key_rows.push(row);
@@ -552,7 +551,7 @@ impl Render for VoiceAgentTab {
             let note = if calls_on {
                 "Get an xAI key at console.x.ai under API Keys, and an OpenAI key at platform.openai.com under API keys. Dictation in the chat box uses the xAI key, or the OpenAI key when no xAI key is saved. Each provider bills your account while a conversation is open."
             } else {
-                "The voice agent is turned off in Settings > Extensions. Dictation in the chat box still uses this xAI key; get one at console.x.ai under API Keys."
+                "The voice agent is turned off in Settings > Extensions. Dictation in the chat box still uses these keys: the xAI key, or the OpenAI key when no xAI key is saved. Get an xAI key at console.x.ai under API Keys, or an OpenAI key at platform.openai.com under API keys."
             };
             key_rows.push(
                 div()

@@ -62,7 +62,7 @@ fn turning_it_off_hides_its_hotkeys_but_not_dictate() {
 }
 
 #[test]
-fn turning_it_off_keeps_the_page_with_dictates_key_and_history() {
+fn turning_it_off_keeps_the_page_with_dictates_keys_and_history() {
     assert_eq!(built_in_extensions::feature_owning_page("voiceAgent"), None);
     assert!(built_in_extensions::page_shown_with(
         "voiceAgent",
@@ -76,11 +76,12 @@ fn turning_it_off_keeps_the_page_with_dictates_key_and_history() {
         "voiceAgentSpeed",
         "voiceAgentCallMode",
         "voiceAgentMemory",
-        "voiceAgentOpenaiKey",
     ] {
         assert!(hidden.contains(&call_row), "{call_row} hides");
     }
+    // Dictate uses the xAI key, or the OpenAI key when no xAI key is saved.
     assert!(!hidden.contains(&"voiceAgentXaiKey"));
+    assert!(!hidden.contains(&"voiceAgentOpenaiKey"));
     assert!(!hidden.contains(&"voiceAgentDictationHistory"));
     let shown = built_in_extensions::hidden_setting_keys_with(saved(None));
     assert!(!shown.contains(&"voiceAgentProvider"));
