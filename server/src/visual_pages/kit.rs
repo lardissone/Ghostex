@@ -17,8 +17,8 @@
 //! A mockup can stand for one choice: an element with `data-question` (the question's `name`,
 //! title or tag) and `data-choice` (the choice's value, label or letter), usually the element
 //! holding the variant's title and its mockup, gets a Pick button at the right end of its first
-//! heading's row that picks that choice (and shows it picked, both there and in the question), and a
-//! note box under it whose text arrives as `"<question> · <choice> (note)"`.
+//! heading's row that picks that choice (and shows it picked, both there and in the question). It
+//! gets no note box (the reader's notes go in the question's own "Note (optional)" box).
 //!
 //! ```html
 //! <section data-question="Q1" data-choice="tabs"><h3>A. Tabs</h3>…mockup…</section>
@@ -56,7 +56,8 @@
 //! User, about the yellow "?" tile at the left of every question heading: "remove this yellow thing here please so i can tell what i answered and what i didn't answer". A question shows the green check as soon as it has an answer (a pick made, text typed, or a restored draft). After the page is sent, an answered question keeps the green check and one left blank keeps the plain tile. User (2026-10-19): "can we make this match the look of other icons we just worked on please?", so that tile is the chat's shared one (the SessionChat 2026-10-18 DECISION on `SINGLE_LINE_CARD` in apps/desktop/src/app/native_chat/cards.rs: 28px neutral tile, question-bubble glyph, a 12px green check badge), superseding the tinted green and muted squares. Then, of the empty slot an unanswered question kept: "fix this not showing an icon here, should show one with this color question mark #D2A024", so a question still waiting shows the chat's waiting tile (the checklist glyph with a #D2A024 "?" badge, Q305) until it has an answer, superseding the empty slot from "remove this yellow thing here please"; the green check still tells an answered question from a waiting one.
 //! User picked from the looks page: a question's tag is a filled chip ("make it show like eyebrow"), and a choice keeps its radio or checkbox with the letter as a muted keycap on the right; the in-chat form (apps/desktop/src/app/native_chat/question_form.rs, the phone's QuestionForm.tsx) matches. User (2026-10-19): "please move the Q294 to be right aligned same row as the question", so the chip sits at the right end of the title's first line and a long title wraps beside it, superseding the chip above the title.
 //! User: Ctrl+Enter (Cmd+Enter on macOS) presses the page's send button from anywhere on it, a note box included; the in-chat form does the same.
-//! User: a reader picks an option right at its mockup (a Pick button by the mockup's title that picks that choice in its question, shown picked on both and cleared from either), and writes a note under each mockup that arrives with the answers keyed to that question and choice, is kept as a draft, and shows in the answers card.
+//! User: a reader picks an option right at its mockup (a Pick button by the mockup's title that picks that choice in its question, shown picked on both and cleared from either), and (first version) wrote a note under each mockup, keyed to that question and choice.
+//! User 2026-10-30: no note box under each option in pages, for every page and for customers. The kit no longer makes the box (its collect, restore, lock and CSS are gone); the Pick button, each question's own "Note (optional)" box and the form's closing notes box stay. Answers to pages sent earlier with a `"<question> · <choice> (note)"` key still show in the answers card (packages/gx-chat-core/src/transcript/page_answers.rs reads them), but the kit sends no new ones.
 //! User: "question cards in the html having different width is an absolute NO GO … all take up the width as they should": every question card fills the column, even when a page's own CSS centres it with auto margins (which shrink a grid item to its content).
 //! User: the picked mockup's outline must never be cut off and needs more padding so it is not tight on the design: a tagged option gets 14px of room and a 2px ring inside its own box (content-box, so a fixed-width mockup keeps its width), because an outline drawn outside the box is clipped by a scrolling wrapper such as an `overflow-x:auto` frame.
 //! User: every question page offers "Other / none of these" with a note box, consistently, instead of each agent hand-rolling it, and the reader may leave a question unanswered. No choice is ever preselected; an agent marks the one it recommends with a Recommended badge and the reader picks. Mockups can use the full width of the page between or above the questions, and the Answered note is as wide as the question cards.
@@ -65,7 +66,7 @@
 //! User, after an agent's page showed its variants A, B, C but listed the question's choices C, B, A (recommended first): "some agent gave me the options flipped in the selection area below!! ... the order of the options above, has to match their order below!" The kit enforces it instead of trusting every agent: before lettering, a question's choices are sorted into the order their `data-question` / `data-choice` mockups appear in the document (matched by the choice's value or label; a bare letter cannot rank because letters come from the order). Choices no mockup names keep their relative order after the matched ones, "Other / none of these" stays last, and a question with no mockups is left as written. skills/ghostex-visuals/SKILL.md teaches the same rule.
 //!
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO:
-//! The answers card folds the `"<key> (note)"` entries into their question's row (packages/gx-chat-core/src/transcript/page_answers.rs); skills/ghostex-visuals/SKILL.md teaches agents this markup. Change them together.
+//! The answers card folds the `"<key> (note)"` entries (and the `"<key> · <choice> (note)"` ones older pages sent) into their question's row (packages/gx-chat-core/src/transcript/page_answers.rs); skills/ghostex-visuals/SKILL.md teaches agents this markup. Change them together.
 
 /// The kit's look. It comes before the page's own styles, and its heading and paragraph defaults
 /// have no specificity (`:where`), so a page's own CSS always wins.
@@ -184,11 +185,6 @@ gx-question.gx-answered .gx-choice[aria-checked=true] .gx-mark{border-color:var(
 [data-question][data-choice]:not(h1,h2,h3,h4,h5,h6){box-sizing:content-box;padding:14px;border:2px solid transparent;border-radius:16px}
 :where([data-question][data-choice]:not(h1,h2,h3,h4,h5,h6)){max-width:calc(100% - 32px)}
 [data-question][data-choice].gx-picked:not(h1,h2,h3,h4,h5,h6){border-color:color-mix(in srgb,var(--warning) 40%,transparent)}
-.gx-option-note{display:block;width:0;min-width:100%;box-sizing:border-box;margin:8px 0 0;min-height:34px;resize:vertical;field-sizing:content;font:inherit;font-size:12.5px;color:var(--gx-text);background:transparent;border:1px solid var(--gx-line-strong);border-radius:var(--radius);padding:7px 9px}
-.gx-option-note:focus{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 20%,transparent)}
-.gx-option-note::placeholder{color:var(--gx-muted)}
-.gx-option-note[readonly]{resize:none}
-.gx-option-note[hidden]{display:none}
 .gx-send{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;padding:10px 14px;border:1px solid var(--gx-card-border);border-radius:14px;background:var(--gx-footer)}
 .gx-send-button{display:inline-flex;align-items:center;gap:6px;margin-left:auto;height:28px;box-sizing:border-box;padding:0 11px;font:inherit;font-size:13px;font-weight:500;border-radius:8px;border:1px solid var(--gx-control);background:var(--gx-control);color:var(--gx-bg);cursor:pointer}
 .gx-send-button:hover:not(:disabled){opacity:.9}
@@ -322,8 +318,8 @@ function question(qe,index,used,changed){
     lock:function(){answered(choices.some(function(c){return c.on();})||!!note.value.trim());choices.forEach(function(c){c.button.disabled=true;});note.readOnly=true;if(!note.value)note.hidden=true;}};
 }
 /* A mockup tied to a choice (`data-question` + `data-choice`): a Pick button by its title that
-   clicks that choice, and a note box under it, sent as "<question> · <choice> (note)". */
-function bindOptions(questions,changed){
+   clicks that choice. It has no note box (User 2026-10-30). */
+function bindOptions(questions){
   var found=[];
   Array.prototype.forEach.call(document.querySelectorAll("[data-question][data-choice]"),function(node){
     if(node.closest("gx-question"))return;
@@ -336,28 +332,21 @@ function bindOptions(questions,changed){
     /* The Pick button sits at the right end of the title's row. */
     if(heading){heading.classList.add("gx-has-pick");heading.append(pick);}
     else{var head=el("div","gx-option-head");head.append(el("span","gx-option-label",c.label),pick);node.insertBefore(head,node.firstChild);}
-    var note=el("textarea","gx-option-note");note.rows=1;note.placeholder="Note about this option (optional)";note.setAttribute("aria-label","Note about "+c.label);
-    if(heading===node){var mockup=node.nextElementSibling;node.parentNode.insertBefore(note,mockup?mockup.nextSibling:null);}else node.append(note);
-    var key=q.key+" \u00b7 "+c.value+" (note)";
     pick.addEventListener("click",function(){c.button.click();});
-    note.addEventListener("input",changed);
     found.push({
-      sync:function(){var on=c.on();node.classList.toggle("gx-picked",on);pick.setAttribute("aria-pressed",on?"true":"false");pick.textContent=on?"\u2713 Picked":"Pick";pick.setAttribute("data-gx-tip",on?"Click again to clear":"Pick \u201c"+c.label+"\u201d");pick.disabled=c.button.disabled;},
-      collect:function(out){var written=note.value.trim();if(written)out[key]=written;},
-      restore:function(answers){if(typeof answers[key]==="string")note.value=answers[key];},
-      lock:function(){note.readOnly=true;if(!note.value)note.hidden=true;}});
+      sync:function(){var on=c.on();node.classList.toggle("gx-picked",on);pick.setAttribute("aria-pressed",on?"true":"false");pick.textContent=on?"\u2713 Picked":"Pick";pick.setAttribute("data-gx-tip",on?"Click again to clear":"Pick \u201c"+c.label+"\u201d");pick.disabled=c.button.disabled;}});
   });
   return found;
 }
 function setup(root){
   var used={},questions=[],options=[];
-  function collect(){var out={};questions.forEach(function(q){q.collect(out);});options.forEach(function(o){o.collect(out);});return out;}
-  function restore(answers){questions.forEach(function(q){q.restore(answers);});options.forEach(function(o){o.restore(answers);});}
+  function collect(){var out={};questions.forEach(function(q){q.collect(out);});return out;}
+  function restore(answers){questions.forEach(function(q){q.restore(answers);});}
   function syncOptions(){options.forEach(function(o){o.sync();});}
   /* The reader's picks so far are kept on the host (PAGE_API's draft), so closing and reopening the page loses nothing. */
   function changed(){syncOptions();if(window.ghostex&&ghostex.__saveDraft)ghostex.__saveDraft("kit",collect());}
   questions=Array.prototype.map.call(root.querySelectorAll("gx-question"),function(qe,index){return question(qe,index,used,changed);});
-  options=bindOptions(questions,changed);syncOptions();
+  options=bindOptions(questions);syncOptions();
   var bar=el("div","gx-send"),button=el("button","gx-send-button"),label=el("span",null,root.getAttribute("submit")||"Send answers"),status=el("span","gx-send-status"),info=el("button","gx-send-info");
   /* The sentence about blank questions is an (i) icon with the quick tooltip, not a line of text beside the buttons (the SessionChat 2026-10-24 DECISION in apps/desktop/src/app/native_chat/ask_card.rs `ask_info_hint`). Any status message replaces the icon. */
   info.type="button";info.setAttribute("aria-label","Questions you leave blank are sent as skipped.");info.setAttribute("data-gx-tip","Questions you leave blank are sent as skipped.");info.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/></svg>';status.append(info);
@@ -373,7 +362,7 @@ function setup(root){
     /* Once sent, the page shows what went: no picks and no notes. */
     send(out,function(){restore({});root.querySelectorAll("textarea").forEach(function(t){t.value="";});});
   });
-  function lock(){questions.forEach(function(q){q.lock();});options.forEach(function(o){o.lock();});syncOptions();button.disabled=true;skipAll.remove();label.textContent="Sent";button.removeAttribute("data-gx-tip");button.removeAttribute("data-gx-tip-keys");status.classList.remove("gx-error");status.textContent="Sent to the agent.";}
+  function lock(){questions.forEach(function(q){q.lock();});syncOptions();button.disabled=true;skipAll.remove();label.textContent="Sent";button.removeAttribute("data-gx-tip");button.removeAttribute("data-gx-tip-keys");status.classList.remove("gx-error");status.textContent="Sent to the agent.";}
   if(!window.ghostex){button.disabled=true;skipAll.remove();status.textContent="This Ghostex can't send answers from a page; type them in the chat.";return;}
   if(ghostex.answered){restore(ghostex.answers||{});lock();return;}
   var saved=ghostex.__draft&&ghostex.__draft("kit");if(saved&&typeof saved==="object"){restore(saved);syncOptions();}

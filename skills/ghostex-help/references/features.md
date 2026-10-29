@@ -1564,7 +1564,7 @@ on macOS, from anywhere in the form or page) delivers your answers to the agent 
 busy, they wait in the chat's queue and go as soon as it is free), the chat
 shows them as a card, and the form then reads Answered. Questions that need a picture,
 such as choosing between two mockups, come as a page instead, where you can
-also pick an option right at its mockup and add a note under each mockup. A
+also pick an option right at its mockup with the Pick button by its title. A
 page works the same way: its card reads Answered once you send, and opening it
 again shows what you sent. The desktop's floating page window and the mobile page close once your answers are
 sent, and stay open with the error if they could not be; in the Files view or your browser the page stays open. Until you send,

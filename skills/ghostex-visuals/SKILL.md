@@ -479,8 +479,9 @@ A question page is the same skeleton (keep the marker) with
   value, label or letter), for example
   `<section data-question="Q1" data-choice="tabs"><h3>A. Tabs</h3>…</section>`.
   The kit puts a Pick button by that title, shows the variant picked there
-  and in the question (clicking either clears both), and adds a note box
-  under the mockup whose text arrives as `"<question key> · <choice> (note)"`.
+  and in the question (clicking either clears both). It adds no note box
+  under the mockup (the reader's notes go in the question's own note box), so
+  never tell the reader they can write a note under each mockup.
   Older Ghostex versions ignore the attributes; the question still works.
 - `<gx-question>`: `title`; `tag`, an optional short label such as an issue
   id; `name`, the answer's key (the title when there is none); `multiple`
