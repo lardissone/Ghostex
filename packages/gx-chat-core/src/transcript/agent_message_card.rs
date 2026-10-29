@@ -224,6 +224,15 @@ pub fn dress_received(message: &mut Value) {
         Vec::new(),
     );
     card["pill"] = pill;
+    // Why a received message still waits for this agent, once gxserver has held it a minute.
+    if !failed {
+        if let Some(reason) = delivery["waitReason"]
+            .as_str()
+            .filter(|reason| !reason.is_empty())
+        {
+            card["waitReason"] = reason.into();
+        }
+    }
     message["interAgentMessage"]["card"] = crowned(card, coordinator);
 }
 
@@ -481,5 +490,29 @@ mod pill_logo_tests {
         dress_sent(&mut single);
         assert_eq!(single["card"]["agentIcon"], "codex");
         assert_eq!(single["card"]["pill"]["logo"], false);
+    }
+}
+
+#[cfg(test)]
+mod wait_reason_tests {
+    use super::dress_received;
+    use serde_json::json;
+
+    #[test]
+    fn a_held_message_from_another_agent_says_why_it_waits() {
+        let reason = "Waiting for the agent to finish its turn.";
+        let mut message = json!({
+            "interAgentMessage": {"agentId": "claude", "sessionTitle": "Thread"},
+            "startupDelivery": {"promptId": "Q1", "state": "queued", "waitReason": reason},
+        });
+        dress_received(&mut message);
+        let card = &message["interAgentMessage"]["card"];
+        assert_eq!(card["waitReason"], json!(reason));
+        let mut failed = json!({
+            "interAgentMessage": {"agentId": "claude"},
+            "startupDelivery": {"promptId": "Q1", "state": "failed", "errorMessage": "No box.", "waitReason": reason},
+        });
+        dress_received(&mut failed);
+        assert!(failed["interAgentMessage"]["card"]["waitReason"].is_null());
     }
 }

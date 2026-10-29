@@ -239,7 +239,7 @@ pub(crate) fn redraw_held_claude_if_due(
     let _ = crate::zmx::session_chat_zmx_write(&zmx_name, CLAUDE_REDRAW);
 }
 
-fn read_session(state: &AppState, project_id: &str, session_id: &str) -> Option<Value> {
+pub(super) fn read_session(state: &AppState, project_id: &str, session_id: &str) -> Option<Value> {
     let db = crate::storage::open_gxserver_database(&state.paths).ok()?;
     let repository = crate::domain::DomainRepository::new(&db, state.metadata.server_id.as_str());
     repository

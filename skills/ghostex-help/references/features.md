@@ -1687,7 +1687,10 @@ actions and in the menu you get by holding the message on the phone) takes it ou
 and adds its text and pictures to your chat draft instead, unsent; pressing Up in an empty chat box does
 the same for the newest queued message, like Up in the agent's own input. Prompts you explicitly
 queue stay in the list above the input. This also applies when reopening the chat
-or continuing on another device.
+or continuing on another device. A message that has waited about a minute says why under it, for
+example that the agent is still working, is waiting for your answer, or that its input box can't
+be read yet; in that last case Ghostex keeps trying on its own and, if it still can't deliver after
+a few minutes, marks the message Not sent with Retry.
 While the agent works, a one-line card just above the chat box says what it is
 doing: the running tool's description (or its command) while a tool runs, and a
 working word such as "Considering…" between tools. The conversation ends above the

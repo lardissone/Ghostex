@@ -63,8 +63,48 @@ pub struct SessionChatQueuedPrompt {
     /// Set only when `state == "failed"`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    /// Why a waiting row has not gone out yet, in the user's words; only on a row that has waited
+    /// about a minute (`set_queue_wait_reason`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_reason: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// The waiting reasons the scheduler shows, by prompt id. In memory only: a reason is a reading
+/// of the live session, and the scheduler states it again within a minute of a restart.
+static QUEUE_WAIT_REASONS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, String>>,
+> = std::sync::LazyLock::new(Default::default);
+
+/// Sets or clears the waiting reason shown on `prompt_id`; answers whether it changed, so the
+/// caller republishes the queue only then.
+pub(crate) fn set_queue_wait_reason(prompt_id: &str, reason: Option<&str>) -> bool {
+    let Ok(mut reasons) = QUEUE_WAIT_REASONS.lock() else {
+        return false;
+    };
+    match reason {
+        Some(reason) if reasons.get(prompt_id).map(String::as_str) != Some(reason) => {
+            reasons.insert(prompt_id.to_string(), reason.to_string());
+            true
+        }
+        None => reasons.remove(prompt_id).is_some(),
+        _ => false,
+    }
+}
+
+/// Forgets the reasons of rows that are no longer waiting.
+pub(crate) fn retain_queue_wait_reasons(keep: impl Fn(&str) -> bool) {
+    if let Ok(mut reasons) = QUEUE_WAIT_REASONS.lock() {
+        reasons.retain(|prompt_id, _| keep(prompt_id));
+    }
+}
+
+fn queue_wait_reason(prompt_id: &str) -> Option<String> {
+    QUEUE_WAIT_REASONS
+        .lock()
+        .ok()
+        .and_then(|reasons| reasons.get(prompt_id).cloned())
 }
 
 /// Mirrors `SessionChatDraft` in `packages/shared/session-chat-queue.ts`.
@@ -179,6 +219,8 @@ impl SessionChatQueueSnapshot {
             revision.push_str(&prompt.updated_at);
             revision.push(':');
             revision.push_str(prompt.error_message.as_deref().unwrap_or(""));
+            revision.push(':');
+            revision.push_str(prompt.wait_reason.as_deref().unwrap_or(""));
             revision.push('|');
         }
         revision.push('#');
@@ -352,6 +394,7 @@ pub fn handle_session_chat_queue_endpoint(
                     image_paths: Vec::new(),
                     state: SESSION_CHAT_QUEUE_STATE_QUEUED.to_string(),
                     error_message: None,
+                    wait_reason: None,
                     created_at: now_iso(),
                     updated_at: now_iso(),
                 };
@@ -769,8 +812,10 @@ fn read_snapshot(
         .map_err(sql_error)?;
     let queue = statement
         .query_map(params![project_id, session_id], |row| {
+            let id: String = row.get(0)?;
             Ok(SessionChatQueuedPrompt {
-                id: row.get(0)?,
+                wait_reason: queue_wait_reason(&id),
+                id,
                 text: row.get(1)?,
                 state: row.get(2)?,
                 error_message: row.get(3)?,
@@ -868,6 +913,7 @@ fn append_prompt(
         image_paths,
         state: SESSION_CHAT_QUEUE_STATE_QUEUED.to_string(),
         error_message: None,
+        wait_reason: None,
         created_at: now_iso(),
         updated_at: now_iso(),
     };
@@ -1369,8 +1415,10 @@ fn read_prompt(
         "#,
         params![prompt_id, project_id, session_id],
         |row| {
+            let id: String = row.get(0)?;
             Ok(SessionChatQueuedPrompt {
-                id: row.get(0)?,
+                wait_reason: queue_wait_reason(&id),
+                id,
                 text: row.get(1)?,
                 state: row.get(2)?,
                 error_message: row.get(3)?,

@@ -223,6 +223,10 @@ pub struct StartupDelivery {
     pub state: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    /// Why gxserver still holds it, in the user's words; set once the row has waited about a
+    /// minute (server/src/session_chat_queue_runtime/wait_reason.rs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

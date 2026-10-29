@@ -558,6 +558,13 @@ impl NativeChatView {
         cx: &Context<Self>,
     ) -> Option<AnyElement> {
         let failure = text(card, "failure");
+        // A message still waiting says why instead, once gxserver has held it a minute; it has no
+        // Retry or Remove (the card's `retryPromptId` is set only when it failed).
+        let failure = if failure.is_empty() {
+            text(card, "waitReason")
+        } else {
+            failure
+        };
         if failure.is_empty() {
             return None;
         }

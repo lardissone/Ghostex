@@ -89,9 +89,11 @@ mod endpoints;
 mod held_redraw;
 mod mid_turn;
 mod post_send;
+mod repaint_nudge;
 mod scheduler;
 mod send;
 mod send_heal;
+mod wait_reason;
 mod wiring;
 
 pub(crate) use endpoints::*;

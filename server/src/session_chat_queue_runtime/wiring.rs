@@ -121,13 +121,22 @@ pub(crate) fn session_chat_queue_compacting_refresher(
             let session_id = session_id.to_string();
             let agent = agent.map(str::to_string);
             tokio::task::spawn_blocking(move || {
-                // Only startup and compaction holds request this probe. Fresh evidence
+                // Startup, compaction and input-box holds request this probe. Fresh evidence
                 // releases input promptly instead of waiting out the five-second cache.
                 let detection =
                     detector.detect_blocking(&project_id, &session_id, agent.as_deref(), true);
                 // An idle Claude whose input box stays unreadable is asked to redraw, since
                 // nothing else repaints an unwatched one (held_redraw.rs).
                 super::held_redraw::redraw_held_claude_if_due(
+                    &state,
+                    &project_id,
+                    &session_id,
+                    agent.as_deref(),
+                    &detection,
+                );
+                // Still unreadable after that: a one-row resize and back, for any agent
+                // (repaint_nudge.rs).
+                super::repaint_nudge::nudge_held_repaint_if_due(
                     &state,
                     &project_id,
                     &session_id,
