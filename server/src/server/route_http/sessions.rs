@@ -626,7 +626,7 @@ pub(super) async fn route_sessions_http(
                     worker_request_id,
                     &body_json,
                     |_, db, params, server_id| {
-                        crate::external_sessions::discover(
+                        crate::external_sessions::discover_before_listing(
                             db,
                             server_id,
                             &worker_state.paths,
@@ -634,7 +634,7 @@ pub(super) async fn route_sessions_http(
                                 .get("refreshExternalSessions")
                                 .and_then(Value::as_bool)
                                 == Some(true),
-                        )?;
+                        );
                         list_previous_sessions(db, server_id, params)
                     },
                 )

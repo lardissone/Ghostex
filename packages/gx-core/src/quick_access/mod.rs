@@ -16,6 +16,8 @@ mod prompts;
 mod row_actions;
 mod session_titles;
 mod sessions;
+#[cfg(test)]
+mod sessions_tests;
 mod store_groups;
 mod text;
 mod wire;

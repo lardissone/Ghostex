@@ -1106,7 +1106,9 @@ when you open it.
   Previous Sessions in More Options lists past conversations from every agent
   CLI with resume and fork. History in a project's menu (its ⋯ button or a
   right-click on the project) opens Quick Access > Sessions with that project
-  selected and Closed active, ready to search sessions you closed.
+  selected and Closed active, ready to search sessions you closed. Enter or a
+  click on a closed session brings it back and keeps Quick Access open, so you
+  can bring back several in a row; each one leaves the list.
   From a terminal, `ghostex previous-sessions [--query text] --json` lists closed
   sessions and `ghostex restore-previous-session --project-id <id> --session-id <id>`
   brings one back.
