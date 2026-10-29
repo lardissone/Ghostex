@@ -5,6 +5,9 @@
 //! sent to xAI or OpenAI with the keys kept on this computer. Client contract: docs/2026-10-20/voice-mode/voice-agent-client-contract.md.
 
 mod announcements;
+mod control;
+#[cfg(test)]
+mod control_tests;
 mod conversation;
 mod dictation;
 mod feature;
@@ -37,6 +40,8 @@ mod talk_tests;
 mod tool_runs;
 mod tools;
 mod transcribe;
+#[cfg(test)]
+mod transcribe_tests;
 mod when;
 
 pub(crate) use http::{

@@ -141,6 +141,7 @@ mod tests {
             can_remove_project: false,
             git_remote_origin_url: None,
             server_id: server_id.map(str::to_string),
+            agent_place: Default::default(),
         }
     }
 

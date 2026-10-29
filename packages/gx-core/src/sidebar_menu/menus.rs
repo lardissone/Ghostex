@@ -213,6 +213,7 @@ impl<'a> SidebarMenus<'a> {
                 .as_ref()
                 .and_then(|project| project.git_remote_origin_url.as_deref()),
             server_id: self.server_id.clone(),
+            agent_place: super::AgentChoicePlace::for_group(self.view, group),
         }
     }
 

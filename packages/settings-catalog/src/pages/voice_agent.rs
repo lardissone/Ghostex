@@ -68,7 +68,7 @@ pub(crate) fn keys() -> Section {
         "API keys",
         vec![
             row("voiceAgentXaiKey", "xAI API key", "Your xAI API key for Grok Voice and for the chat box's dictation microphone. Kept encrypted on this computer; your phone uses it through this computer and never stores it."),
-            row("voiceAgentOpenaiKey", "OpenAI API key", "Your OpenAI API key for GPT Realtime. Kept encrypted on this computer and never shown again after you save it."),
+            row("voiceAgentOpenaiKey", "OpenAI API key", "Your OpenAI API key for GPT Realtime, and for the chat box's dictation microphone when no xAI key is saved. Kept encrypted on this computer and never shown again after you save it."),
         ],
     )
 }

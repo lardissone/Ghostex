@@ -292,7 +292,7 @@ pub(super) enum ConnectError {
 
 /// The provider's own explanation in an error answer's body: `error.message`, `error`, `message`
 /// or `detail` of a JSON body, else short plain text.
-fn error_body_text(body: Option<&[u8]>) -> Option<String> {
+pub(super) fn error_body_text(body: Option<&[u8]>) -> Option<String> {
     let text = String::from_utf8_lossy(body?).trim().to_string();
     if text.is_empty() {
         return None;

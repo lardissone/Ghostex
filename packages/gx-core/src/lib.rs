@@ -205,6 +205,10 @@ pub use crate::sidebar_menu::{
     HoverSlot, HoverStrip, LauncherAgent, MenuCommand, MenuGroup, MenuHost, MenuItem,
     MenuOpenTarget, MenuSecondary, MenuSplit, SessionActions, SidebarMenus,
 };
+pub use crate::sidebar_menu::{
+    AgentChoicePlace, AgentChoiceScope, AgentChoices, AGENT_CHOICES_STORAGE_KEY,
+    AGENT_CHOICE_SCOPE_SETTING_KEY,
+};
 pub use crate::sidebar_ui::{
     collapse_into_storage, collapse_state_from_storage, hidden_items_from_storage,
     hidden_items_into_storage, machine_tab_from_storage, sidebar_window_storage_key,

@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use super::control::{self, OpenConfirm};
 use super::focus::{self, FocusScope};
 use super::memory;
 use super::paragraphs;
@@ -25,6 +26,8 @@ use super::talk::{Cancel, Press, Release, Talk};
 use super::tool_runs::ToolRuns;
 use super::tools::{self, ToolOutcome};
 use crate::server::AppState;
+
+mod card;
 
 /// CDXC:VoiceMode 2026-10-20 DECISION:
 /// User: the voice agent "hangs up by itself after 5 minutes with nobody talking" because realtime is billed while connected. Talking is user speech the provider detected, typed text, or the agent's audio answering the user; the timer keeps running while no client is attached.
@@ -122,6 +125,18 @@ pub(super) enum Input {
     ToolDone {
         call_id: String,
         name: String,
+        label: String,
+        outcome: ToolOutcome,
+    },
+    /// The user pressed a button on the confirm card `id`: Stop on `Some(session)`, else Cancel.
+    Confirm {
+        id: String,
+        session: Option<String>,
+    },
+    /// The stop the user's Stop on the card ran (`control.rs`).
+    CardStopDone {
+        call_id: String,
+        title: String,
         label: String,
         outcome: ToolOutcome,
     },
@@ -238,6 +253,8 @@ pub(super) struct Conversation {
     /// The start's briefing is still to be read (on the first attach).
     briefing_pending: bool,
     scope_changes: u64,
+    /// The confirm card on screen, if any (`control.rs`).
+    confirm: Option<OpenConfirm>,
 }
 
 enum Ended {
@@ -306,6 +323,7 @@ impl Conversation {
             announcing: false,
             call_log,
             started_focused: focus.is_some(),
+            confirm: None,
             briefing_pending: focus.is_some(),
             focus,
             scope_changes: 0,
@@ -660,6 +678,18 @@ impl Conversation {
                         }
                     }
                 }
+                let mut confirm = None;
+                if name == "stop_session" {
+                    confirm = control::confirm_frame(&call_id, &outcome.output);
+                    if confirm.is_some() {
+                        finished["label"] = json!(control::UNSURE_LABEL);
+                        self.close_confirm("replaced");
+                    } else if let Some(stopped) = control::stopped_ref(&outcome.output) {
+                        if self.confirm.as_ref().is_some_and(|open| open.title_of(stopped).is_some()) {
+                            self.close_confirm("stopped");
+                        }
+                    }
+                }
                 if name == "widen_call"
                     && outcome.output.get("widened").and_then(Value::as_bool) == Some(true)
                 {
@@ -668,6 +698,10 @@ impl Conversation {
                         .await?;
                 }
                 self.to_client(finished);
+                if let Some(frame) = confirm {
+                    self.confirm = OpenConfirm::from_frame(&frame);
+                    self.to_client(frame);
+                }
                 if name == "recall_last_conversation" && outcome.ok {
                     self.memory_recalled();
                 }
@@ -680,9 +714,24 @@ impl Conversation {
                 self.outputs_waiting = true;
                 self.schedule_response_after_tools();
             }
+            Input::Confirm { id, session } => self.answer_confirm(id, session).await?,
+            Input::CardStopDone {
+                call_id,
+                title,
+                label,
+                outcome,
+            } => {
+                self.to_client(json!({"type": "tool", "phase": "finished", "callId": call_id, "name": "stop_session", "label": label, "ok": outcome.ok}));
+                self.add_user_item(control::card_stop_message(&title, &outcome.output))
+                    .await?;
+                self.outputs_waiting = true;
+                self.schedule_response_after_tools();
+            }
         }
         Ok(())
     }
+
+
 
     /// Once every tool of a reply has answered and the reply itself is done, ask for the next
     /// reply after the current audio has played, so the follow-up does not talk over it.

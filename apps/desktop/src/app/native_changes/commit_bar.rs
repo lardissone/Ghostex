@@ -7,8 +7,7 @@
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, MouseButton,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
-    px,
+    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled, Window, div, px,
 };
 use gpui_component::{h_flex, v_flex};
 
@@ -197,8 +196,12 @@ impl ChangesView {
                 .child(div().w(px(12.0)).flex_none().when(checked, |this| {
                     this.child(modal_icon(super::rows::ICON_CHECK, 12.0, s.accent))
                 }))
+                // The text column takes the rest of the row, so a long description wraps instead of
+                // running past the menu's edge.
                 .child(
                     v_flex()
+                        .flex_1()
+                        .min_w_0()
                         .py(px(4.0))
                         .child(
                             div()
@@ -236,6 +239,7 @@ impl ChangesView {
             .right(px(8.0))
             .bottom(px(COMMIT_BUTTON_HEIGHT + 16.0))
             .w(px(320.0))
+            .map(|this| self.fit_menu_in_view(this))
             .p(px(4.0))
             .rounded(px(8.0))
             .border_1()
@@ -285,6 +289,16 @@ impl ChangesView {
             .into_any_element()
     }
 
+    /// A menu anchored at the commit bar's right edge never runs past the view's left edge: in a
+    /// narrow view it narrows and its lines wrap.
+    fn fit_menu_in_view<E: Styled>(&self, menu: E) -> E {
+        if self.view_width > px(0.0) {
+            menu.max_w(self.view_width - px(16.0))
+        } else {
+            menu
+        }
+    }
+
     fn render_agent_menu(&mut self, s: &ChangesStyle, cx: &mut Context<Self>) -> AnyElement {
         let agents = self
             .info
@@ -298,6 +312,7 @@ impl ChangesView {
             .right(px(8.0))
             .bottom(px(COMMIT_BUTTON_HEIGHT + 16.0))
             .w(px(220.0))
+            .map(|this| self.fit_menu_in_view(this))
             .max_h(px(260.0))
             .overflow_y_scroll()
             .p(px(4.0))
@@ -314,7 +329,8 @@ impl ChangesView {
                 let pick = id.clone();
                 h_flex()
                     .id(SharedString::from(format!("changes-agent-{id}")))
-                    .h(px(30.0))
+                    .min_h(px(30.0))
+                    .py(px(4.0))
                     .px(px(8.0))
                     .gap(px(8.0))
                     .rounded(px(5.0))
@@ -329,7 +345,7 @@ impl ChangesView {
                     .child(div().w(px(12.0)).when(checked, |this| {
                         this.child(modal_icon(super::rows::ICON_CHECK, 12.0, s.accent))
                     }))
-                    .child(name)
+                    .child(div().flex_1().min_w_0().child(name))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.agent_id = Some(pick.clone());
                         this.agent_select.close();

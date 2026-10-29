@@ -392,6 +392,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 MIN_WINDOW_GLASS_WORK_AREA_TINT_PERCENT.to_json(),
             ),
             (
+                "NEW_SESSION_AGENT_SCOPE_OPTIONS",
+                NEW_SESSION_AGENT_SCOPE_OPTIONS.to_json(),
+            ),
+            (
                 "PANEL_ANIMATION_SPEED_OPTIONS",
                 PANEL_ANIMATION_SPEED_OPTIONS.to_json(),
             ),

@@ -158,10 +158,11 @@ pub fn run_notify_hook(args: Vec<String>) -> Result<Option<String>, DomainStateE
     {
         return Ok(None);
     }
-    // See CDXC:SessionIdentity 2026-10-11 in nested_agent.rs: an agent another agent started from its tool is not the session's agent. A Claude background session runs outside the daemon and keeps the rule above.
+    // See CDXC:SessionIdentity 2026-10-11 and 2026-10-30 in nested_agent.rs: an agent another agent started from its tool, or a headless Claude (`claude -p`, the Agent SDK) any program started, is not the session's agent. A Claude background session runs outside the daemon and keeps the rule above.
     if !daemon_hosted
         && env_string("CLAUDE_CODE_SESSION_KIND").as_deref() != Some("bg")
-        && super::nested_agent::hook_agent_is_nested(&agent_key)
+        && (super::nested_agent::hook_agent_runs_headless(&agent_key)
+            || super::nested_agent::hook_agent_is_nested(&agent_key))
     {
         return Ok(None);
     }

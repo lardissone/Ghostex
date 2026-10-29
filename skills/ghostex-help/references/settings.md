@@ -308,6 +308,7 @@ How to use this file:
 - **Default view per agent** `preferredAgentInterfaceOverrides` (structured value; change it in Settings, not with `ghostex settings set`): Agents that support Ghostex's Chat View are marked with a chat bubble and can open in Chat or Terminal regardless of the global Default Agent View. Inherit keeps following that global setting.
 ### Defaults
 
+- **Remember the agent you pick** `newSessionAgentScope` (one of project | space | everywhere; default project): Which agent a project's new-session button (and New Agent Session) starts: the one you last picked in that project, in its Space, or one choice for every project. A project with no pick yet starts the agent you picked last. Option labels: project = Per project, space = Per Space, everywhere = Everywhere.
 - **Default Prompt Agent** `defaultPromptAgent` (Settings UI row without a settings key; use `ghostex settings open`): Choose the agent used by Git helper prompts, project board Start Work, and the default worktree first-prompt selection.
 - **Title Generation Agent** `titleGenerationAgent` (Settings UI row without a settings key; use `ghostex settings open`): Choose the headless agent Ghostex uses for first-prompt session title generation. Hover the info icon to see the exact command Ghostex sends.
 - **Custom Title Command** `customTitleCommand` (Settings UI row without a settings key; use `ghostex settings open`): Run this command with the title prompt on stdin. It should print only the title.
@@ -611,7 +612,7 @@ How to use this file:
 ### API keys
 
 - **xAI API key** `voiceAgentXaiKey` (Settings UI row without a settings key; use `ghostex settings open`): Your xAI API key for Grok Voice and for the chat box's dictation microphone. Kept encrypted on this computer; your phone uses it through this computer and never stores it.
-- **OpenAI API key** `voiceAgentOpenaiKey` (Settings UI row without a settings key; use `ghostex settings open`): Your OpenAI API key for GPT Realtime. Kept encrypted on this computer and never shown again after you save it.
+- **OpenAI API key** `voiceAgentOpenaiKey` (Settings UI row without a settings key; use `ghostex settings open`): Your OpenAI API key for GPT Realtime, and for the chat box's dictation microphone when no xAI key is saved. Kept encrypted on this computer and never shown again after you save it.
 ### Dictation history
 
 - **Dictation history** `voiceAgentDictationHistory` (Settings UI row without a settings key; use `ghostex settings open`): Every recording you made with the Dictate microphone, newest first, with its text. Play, download or delete a recording, copy its text, recover one you cancelled, or transcribe one that failed (the text is copied to your clipboard too). Recordings stay on this computer until you delete them.

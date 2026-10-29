@@ -4,6 +4,10 @@ use ghostex_gx_chat_core::menus::orchestrator_effort::{
 use serde_json::{json, Value};
 
 use super::{acknowledge_threads, playbook, sleep_threads, threads};
+use crate::coordinators::{
+    coordinator_launcher_family as agent_family,
+    default_coordinator_launcher as default_coordinator_agent, DEFAULT_CLAUDE_COORDINATOR_MODEL,
+};
 use crate::ghostex_cli::{
     agents,
     args::{parse_args, Flags, ParsedArgs},
@@ -169,16 +173,9 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
             ))
         })?,
     };
-    let named = flag_text(&parsed.flags, "title");
-    // CDXC:Coordinators 2026-10-03 SEE-ALSO: keeps_its_given_title in server/src/coordinators/title.rs; an unnamed coordinator's "Coordinator" is a placeholder the agent's first name may replace.
-    let title_source = if named.is_some() {
-        "user"
-    } else {
-        "placeholder"
-    };
-    let title = named.unwrap_or_else(|| "Coordinator".to_string());
-    let goal = flag_text(&parsed.flags, "goal").unwrap_or_default();
     let task = flag_text(&parsed.flags, "task").unwrap_or_default();
+    let named = flag_text(&parsed.flags, "title");
+    let title = named.clone().unwrap_or_else(|| "Coordinator".to_string());
     let family = agent_rows
         .iter()
         .find(|row| agents::text(row, "agentId") == agent_id)
@@ -190,35 +187,16 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
     }
     let created = call_gxserver_rpc(
         "/api/createAgentSession",
-        &json!({
-            "projectId": project_id,
-            "agentId": agent_id,
-            "launchSettings": launch_settings_for(&agent_rows, &agent_id),
-            "title": title,
-            "runtimeSettings": { "titleSource": title_source },
-            "coordinator": { "goal": goal, "firstRequest": task },
-        })
-        .as_object()
-        .map(|object| {
-            let mut object = object.clone();
-            // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's Medium/High/XHigh decision, 2026-10-29); without --effort an orchestrator starts on High where its launch takes an effort. ZCode takes no effort choice; its --model rides agentModel and gxserver queues it as a `/model` line ahead of the first message.
-            let effort = flag_text(&parsed.flags, "effort").or_else(|| {
-                family
-                    .and_then(crate::coordinators::default_orchestrator_effort)
-                    .map(str::to_string)
-            });
-            if let Some(effort) = effort {
-                object.insert("agentEffort".to_string(), json!(effort));
-            }
-            let model = flag_text(&parsed.flags, "model").or_else(|| {
-                (family == Some("claude")).then(|| DEFAULT_CLAUDE_COORDINATOR_MODEL.to_string())
-            });
-            if let Some(model) = model {
-                object.insert("agentModel".to_string(), json!(model));
-            }
-            Value::Object(object)
-        })
-        .unwrap_or_default(),
+        &crate::coordinators::coordinator_create_params(crate::coordinators::CoordinatorLaunch {
+            agent_rows: &agent_rows,
+            project_id: &project_id,
+            agent_id: &agent_id,
+            title: named,
+            goal: flag_text(&parsed.flags, "goal").unwrap_or_default(),
+            task: task.clone(),
+            model: flag_text(&parsed.flags, "model"),
+            effort: flag_text(&parsed.flags, "effort"),
+        }),
         &flags,
     )?;
     let session = created
@@ -428,54 +406,9 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
     Ok(())
 }
 
-/// `{ agentCommand, icon }` of a launcher from `/api/readSidebarHud`, the way the desktop sends
-/// it: custom agents are listed per machine, so a project that does not list one still launches it.
+/// `{ agentCommand, icon }` of a launcher from `/api/readSidebarHud`, the way the desktop sends it.
 pub(super) fn launch_settings_for(rows: &[Value], agent_id: &str) -> Value {
-    let mut settings = serde_json::Map::new();
-    if let Some(row) = rows
-        .iter()
-        .find(|row| agents::text(row, "agentId") == agent_id)
-    {
-        for (from, to) in [("command", "agentCommand"), ("icon", "icon")] {
-            let value = agents::text(row, from);
-            if !value.is_empty() {
-                settings.insert(to.to_string(), json!(value));
-            }
-        }
-    }
-    Value::Object(settings)
-}
-
-/// The first configured agent, in `COORDINATOR_AGENT_FAMILIES` order.
-/// CDXC:Coordinators 2026-10-01 SEE-ALSO: DEFAULT_CLAUDE_COORDINATOR_MODEL in apps/desktop/src/app/window/new_coordinator_modal.rs (the user's Opus 5.5 decision); `create` on a Claude agent without `--model` uses the same, a Codex agent keeps its configured model.
-const DEFAULT_CLAUDE_COORDINATOR_MODEL: &str = "opus[1m]";
-
-/// The orchestrator family of a launcher row (`COORDINATOR_AGENT_FAMILIES`): by its icon, its
-/// agent id, or the executable its command runs.
-fn agent_family(row: &Value) -> Option<&'static str> {
-    let icon = agents::text(row, "icon");
-    let by_icon = crate::agents::default_agent_icon_to_id(icon).map(str::to_string);
-    let by_id = Some(agents::text(row, "agentId").to_string());
-    let by_command =
-        crate::agents::infer_agent_id_from_command_executable(agents::text(row, "command"));
-    [by_icon, by_id, by_command]
-        .into_iter()
-        .flatten()
-        .find_map(|family| {
-            crate::coordinators::COORDINATOR_AGENT_FAMILIES
-                .into_iter()
-                .find(|supported| *supported == family)
-        })
-}
-
-fn default_coordinator_agent(rows: &[Value]) -> Option<String> {
-    crate::coordinators::COORDINATOR_AGENT_FAMILIES
-        .iter()
-        .find_map(|family| {
-            rows.iter()
-                .find(|row| agent_family(row) == Some(*family))
-                .map(|row| agents::text(row, "agentId").to_string())
-        })
+    crate::coordinators::launcher_launch_settings(rows, agent_id)
 }
 
 fn list(parsed: &ParsedArgs) -> CliResult<()> {

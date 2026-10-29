@@ -373,6 +373,53 @@ fn install_writes_notify_hook_without_payload_content() {
     assert!(!hook_text.contains("rawTitle"));
 }
 
+/// A `claude -p` that a program started from a Ghostex terminal spawned inherits the pane's
+/// session ref, so its SessionStart named its own conversation as the session's (user report
+/// 2026-10-30). The session's own interactive Claude is not headless and keeps reporting.
+#[test]
+fn a_headless_claude_hook_never_names_the_sessions_conversation() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let state_path = temp.path().join("session.state");
+    let hook_store = temp.path().join("hook-store");
+    let saved = [
+        "CLAUDE_CODE_ENTRYPOINT",
+        "CLAUDE_PID",
+        "CLAUDE_JOB_DIR",
+        "CLAUDE_CODE_SESSION_KIND",
+        "GHOSTEX_GXSERVER_BASE_URL",
+        "GHOSTEX_GLOBAL_SESSION_REF",
+    ]
+    .map(|key| (key, std::env::var_os(key)));
+    for (key, _) in &saved {
+        std::env::remove_var(key);
+    }
+    std::env::set_var("CLAUDE_CODE_ENTRYPOINT", "sdk-cli");
+    let answer = run_notify_hook(vec![
+        path_string(&state_path),
+        json!({
+            "agent": "claude",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "session_id": "0a1a3b9b-12c2-45cb-8eb9-398303ade53f",
+            "transcript_path": "/tmp/0a1a3b9b-12c2-45cb-8eb9-398303ade53f.jsonl"
+        })
+        .to_string(),
+        path_string(&hook_store),
+    ]);
+    for (key, value) in saved {
+        match value {
+            Some(value) => std::env::set_var(key, value),
+            None => std::env::remove_var(key),
+        }
+    }
+    assert!(answer.expect("notify helper").is_none());
+    assert!(
+        !state_path.exists(),
+        "a headless Claude's hook must not record a conversation for the session"
+    );
+    assert!(!hook_store.join("claude-hook-sessions.json").exists());
+}
+
 #[test]
 fn notify_hook_helper_records_working_status_and_first_prompt() {
     let temp = tempfile::tempdir().expect("tempdir");

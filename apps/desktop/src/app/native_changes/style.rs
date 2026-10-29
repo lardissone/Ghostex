@@ -67,13 +67,15 @@ pub(crate) struct ChangesStyle {
 
 impl ChangesStyle {
     /// A menu floating over the diff (jump to file, a file's menu, the commit and agent menus):
-    /// the sidebar tooltip's bubble, `(fill, border)`, never the plain menu fill.
+    /// the sidebar tooltip's bubble, `(fill, border)`, never the plain menu fill, and always opaque.
     ///
     /// CDXC:Tooltips 2026-10-25 SEE-ALSO: the rule and its DECISION are on `in_window_bubble` in
     /// apps/desktop/src/app/native_sidebar/tooltips.rs.
+    ///
+    /// CDXC:Changes 2026-10-30 DECISION: User, of the Commit button's menu over a diff: "wtf this is broken please fix!!". Under window glass the bubble's fill is 90% opaque, and the diff's code text read through it and collided with the menu's own lines. Nothing can blur what is under a menu drawn inside the window, so a menu over the diff takes the bubble's colour fully opaque, glass or not.
     pub(crate) fn menu_bubble(&self) -> (gpui::Hsla, gpui::Hsla) {
         let bubble = crate::app::native_sidebar::link_chips::in_window_bubble(self.p.glass);
-        (bubble.fill, bubble.border)
+        (opaque_fill(bubble.fill), bubble.border)
     }
 
     pub(crate) fn resolve(p: ModalPalette) -> Self {
@@ -134,5 +136,24 @@ impl ChangesStyle {
             danger: p.destructive,
             resolved: pick(0x86efac, 0x15803d),
         }
+    }
+}
+
+/// A floating fill that hides everything under it.
+fn opaque_fill(fill: gpui::Hsla) -> gpui::Hsla {
+    gpui::Hsla { a: 1.0, ..fill }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::opaque_fill;
+
+    #[test]
+    fn a_menu_fill_is_opaque_even_from_a_glass_bubble() {
+        let glass = gpui::rgb(0x171717);
+        let glass: gpui::Hsla = glass.into();
+        let fill = opaque_fill(glass.opacity(0.9));
+        assert_eq!(fill.a, 1.0);
+        assert_eq!((fill.h, fill.s, fill.l), (glass.h, glass.s, glass.l));
     }
 }

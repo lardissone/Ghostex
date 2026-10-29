@@ -592,6 +592,14 @@ pub const PREFERRED_AGENT_INTERFACE_INHERIT_VALUE: &str = "inherit";
 pub const PREFERRED_AGENT_INTERFACE_OPTIONS: &[Opt] =
     &[opt("Terminal", "terminal"), opt("Chat", "chat")];
 
+/// `newSessionAgentScope`: how the agent a project's new-session button starts is remembered
+/// (gx-core `sidebar_menu/agent_choice.rs`, CDXC:AgentLauncher 2026-10-30).
+pub const NEW_SESSION_AGENT_SCOPE_OPTIONS: &[Opt] = &[
+    opt("Per project", "project"),
+    opt("Per Space", "space"),
+    opt("Everywhere", "everywhere"),
+];
+
 pub const PROMPT_EDITOR_BACKEND_OPTIONS: &[Opt] = &[
     opt("Ghostex editor", "monaco"),
     opt("Use default from this machine", "inherit"),

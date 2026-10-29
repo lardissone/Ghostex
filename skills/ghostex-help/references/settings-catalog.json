@@ -8709,6 +8709,32 @@
       "agentWritable": false
     },
     {
+      "key": "newSessionAgentScope",
+      "title": "Remember the agent you pick",
+      "subtitle": "Which agent a project's new-session button (and New Agent Session) starts: the one you last picked in that project, in its Space, or one choice for every project. A project with no pick yet starts the agent you picked last.",
+      "tab": "agents",
+      "tabTitle": "Agents",
+      "section": "config",
+      "sectionTitle": "Defaults",
+      "type": "enum",
+      "default": "project",
+      "options": [
+        {
+          "label": "Per project",
+          "value": "project"
+        },
+        {
+          "label": "Per Space",
+          "value": "space"
+        },
+        {
+          "label": "Everywhere",
+          "value": "everywhere"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
       "key": "defaultPromptAgent",
       "title": "Default Prompt Agent",
       "subtitle": "Choose the agent used by Git helper prompts, project board Start Work, and the default worktree first-prompt selection.",
@@ -11648,7 +11674,7 @@
     {
       "key": "voiceAgentOpenaiKey",
       "title": "OpenAI API key",
-      "subtitle": "Your OpenAI API key for GPT Realtime. Kept encrypted on this computer and never shown again after you save it.",
+      "subtitle": "Your OpenAI API key for GPT Realtime, and for the chat box's dictation microphone when no xAI key is saved. Kept encrypted on this computer and never shown again after you save it.",
       "tab": "voiceAgent",
       "tabTitle": "Voice agent",
       "section": "keys",

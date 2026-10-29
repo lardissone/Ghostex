@@ -45,6 +45,10 @@ const OPENAI_KEY: &str = "voiceAgentOpenaiKey";
 const MEMORY: &str = "voiceAgentMemory";
 const DICTATION_HISTORY: &str = "voiceAgentDictationHistory";
 
+fn store_request_key(store: &Entity<SettingsStore>, cx: &App) -> Option<String> {
+    store.read(cx).request().initial_voice_agent_key.clone()
+}
+
 pub(crate) fn voice_agent_tab_view(
     store: &Entity<SettingsStore>,
     window: &mut Window,
@@ -152,6 +156,15 @@ impl VoiceAgentTab {
             memory_error: None,
         };
         tab.read_status(cx);
+        // Dictate's Add key / Check key lands with the caret in that key's field.
+        let focus = match store_request_key(&tab.store, cx).as_deref() {
+            Some("openai") => Some(tab.openai.input.clone()),
+            Some("xai") => Some(tab.xai.input.clone()),
+            _ => None,
+        };
+        if let Some(input) = focus {
+            input.update(cx, |input, cx| input.focus(window, cx));
+        }
         tab
     }
 
@@ -537,7 +550,7 @@ impl Render for VoiceAgentTab {
         }
         if !key_rows.is_empty() {
             let note = if calls_on {
-                "Get an xAI key at console.x.ai under API Keys, and an OpenAI key at platform.openai.com under API keys. Dictation in the chat box always uses the xAI key. Each provider bills your account while a conversation is open."
+                "Get an xAI key at console.x.ai under API Keys, and an OpenAI key at platform.openai.com under API keys. Dictation in the chat box uses the xAI key, or the OpenAI key when no xAI key is saved. Each provider bills your account while a conversation is open."
             } else {
                 "The voice agent is turned off in Settings > Extensions. Dictation in the chat box still uses this xAI key; get one at console.x.ai under API Keys."
             };

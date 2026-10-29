@@ -279,10 +279,9 @@ impl GhostexGpuiApp {
     }
 
     fn ordered_new_thread_picker_agents(&self) -> Vec<NewThreadPickerAgent> {
-        order_new_thread_picker_agents(
-            self.new_thread_picker_agents.as_deref().unwrap_or(&[]),
-            self.sidebar_primary_agent_launcher_id.as_deref(),
-        )
+        let hud_agents = self.new_thread_picker_agents.as_deref().unwrap_or(&[]);
+        let primary = self.active_project_agent_id(hud_agents);
+        order_new_thread_picker_agents(hud_agents, primary.as_deref())
     }
 
     fn new_thread_picker_boxes(&self) -> NewThreadPickerBoxes {

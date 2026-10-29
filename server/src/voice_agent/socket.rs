@@ -261,6 +261,19 @@ async fn run_conversation_socket(
                             "focus needs session: \"<projectId>:<sessionId>\" or null.".to_string(),
                         ),
                     },
+                    "confirm" => match (value.get("id").and_then(Value::as_str), value.get("session")) {
+                        (Some(id), Some(Value::String(session))) => Input::Confirm {
+                            id: id.to_string(),
+                            session: Some(session.trim().to_string()),
+                        },
+                        (Some(id), Some(Value::Null) | None) => Input::Confirm {
+                            id: id.to_string(),
+                            session: None,
+                        },
+                        _ => Input::BadRequest(
+                            "confirm needs id, and session: \"<projectId>:<sessionId>\" for Stop or null for Cancel.".to_string(),
+                        ),
+                    },
                     "playbackRate" => match value.get("rate").and_then(Value::as_f64) {
                         Some(rate) if rate.is_finite() => Input::PlaybackRate(rate),
                         _ => continue,

@@ -362,10 +362,10 @@ impl GhostexGpuiApp {
         let store = &mut self.gx_store;
         let ui = store.sidebar_ui.state().clone();
         let hud = store.runtime_facts.hud_value();
-        // The menus' facts, from the HUD and the launcher's stored default, as the desktop's `gx_store_menu_host` builds them. The page has no Keep Awake.
+        // The menus' facts, from the HUD and the launcher's stored picks, as the desktop's `gx_store_menu_host` builds them. The page has no Keep Awake.
         store.menu_host = MenuHost {
             agents: super::menu_host_lifted::launcher_agents(&hud["agents"]),
-            primary_agent_id: super::read_primary_agent_launcher_id(),
+            agent_choices: super::read_agent_choices(),
             global_commands: super::menu_host_lifted::header_commands(&hud["globalCommands"]),
             project_commands: super::menu_host_lifted::header_commands_by_project(
                 &hud["commandsByProject"],

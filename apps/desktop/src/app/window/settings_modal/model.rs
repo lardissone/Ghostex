@@ -281,6 +281,9 @@ pub(crate) struct SettingsOpenRequest {
     /// The agent (`claude`, `codex`) whose accounts the Accounts page opens on: an account
     /// toast's Open Accounts button (`GpuiAppToastAction::OpenAccounts`).
     pub(crate) initial_accounts_provider: Option<String>,
+    /// The voice agent key field (`xai`, `openai`) Voice agent focuses on arrival: Dictate's Add
+    /// key / Check key (`native_chat/dictation.rs` `open_voice_agent_key`).
+    pub(crate) initial_voice_agent_key: Option<String>,
     pub(crate) initial_custom_view_id: Option<String>,
     pub(crate) initial_view_scope_key: Option<String>,
     /// The project the Projects page opens on: `initialProjectId`, else the opening window's
@@ -343,6 +346,8 @@ impl SettingsOpenRequest {
                 .filter(|id| !id.trim().is_empty()),
             initial_accounts_provider: optional_text(message, "initialAccountsProvider")
                 .filter(|provider| provider == "claude" || provider == "codex"),
+            initial_voice_agent_key: optional_text(message, "initialVoiceAgentKey")
+                .filter(|provider| provider == "xai" || provider == "openai"),
             initial_custom_view_id: optional_text(message, "initialCustomViewId"),
             initial_view_scope_key: optional_text(message, "initialViewScopeKey"),
             initial_project_id: optional_text(message, "initialProjectId")

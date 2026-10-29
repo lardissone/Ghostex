@@ -254,10 +254,11 @@ view from the strip.
   sessions keep running) and Merge All Panes, or drag it to move that session
   onto another pane's edge (a new split) or its middle (it takes that pane's
   place), and the pane it left closes. Each pane can show the raw terminal or
-  Session Chat. Cmd+Shift+O starts a new session with the agent you used last,
+  Session Chat. Cmd+Shift+O starts a new session with the active project's agent
+  (the one its agent button shows, see Sidebar),
   in your default view (Chat or Terminal), like ChatGPT's New Chat. Cmd+N opens
-  the New Thread picker instead: type to filter the configured agents (last used
-  first), Browser, or Terminal, press Enter to start it in the active project,
+  the New Thread picker instead: type to filter the configured agents (that
+  project's agent first), Browser, or Terminal, press Enter to start it in the active project,
   and press Tab on Claude or Codex to pick an account. Cmd+Shift+T opens a new
   terminal, Cmd+T always opens a new browser tab, Cmd+Ctrl+Shift+F forks the
   focused session, and Cmd+D splits. Cmd+R renames the focused session,
@@ -598,7 +599,13 @@ Settings > Extensions.
 
 The sidebar lists projects and their sessions. Project headers carry the git
 branch and diff stats and, on hover, a New Terminal button, the agent launcher
-(New agent and the agent picker) and a ⋯ button. The ⋯ button, or a right-click on the project,
+(New agent and the agent picker) and a ⋯ button.
+The agent launcher's button shows the logo of the agent that project starts.
+Each project remembers the agent you last picked in it, and a project with no
+pick yet starts the one you picked last anywhere. To share one pick across a
+Space, or use one pick for every project, change Settings > Agents > Remember
+the agent you pick (`newSessionAgentScope`: `project`, `space` or `everywhere`).
+The ⋯ button, or a right-click on the project,
 opens the project menu: Add Worktree (or Create PR), History,
 New Browser Tab, Create Terminal, pinned Actions, Open Folder in the file
 manager and Add to Group.
@@ -1207,11 +1214,15 @@ again to stop. In the chat session you are in, Option+Ctrl+D (Ctrl+Alt+Shift+D o
 Windows and Linux) does the same as the chat box's microphone. What you said goes into the chat box (or is typed into that
 session's terminal) and is never sent by itself. Dictate records first and
 transcribes second: your voice is saved as a recording while you talk, and only
-after you stop is it turned into text with xAI's speech-to-text, so it needs an
-xAI API key in Settings > Extensions > Voice agent (the key stays on this computer). A
-problem with xAI or the connection never loses what you said: when the
-transcription fails, the chat box says so and offers Transcribe again (hover
-"Transcription failed" to read why, in xAI's own words when it gives any). In
+after you stop is it turned into text with xAI's speech-to-text, or OpenAI's
+when only an OpenAI key is saved, so it needs an xAI or OpenAI API key in
+Settings > Extensions > Voice agent (the key stays on this computer; xAI is used
+when both are saved). A problem with the provider or the connection never loses
+what you said: when the transcription fails, a small card above the microphone
+says what went wrong and what to do (no key, a refused key, no internet, too
+many requests, credit or plan usage, audio the provider couldn't read), with Add
+key or Check key, which opens that key's field in Settings, and Transcribe
+again; hover its sentence for the provider's own words when it gave any. In
 the chat box, a small pill right above the microphone shows what Dictate is
 doing: the recording time while you talk, then Transcribing. Its ✕ cancels, and
 so does Esc. A cancelled recording is still

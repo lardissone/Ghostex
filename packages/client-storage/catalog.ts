@@ -89,6 +89,13 @@ export const storageCatalog = Object.freeze({
     'ghostex-sidebar-project-terminal-launcher',
     textCodec
   ),
+  launcherChoices: define(
+    'launcherChoices',
+    'Agent launcher',
+    'apps/desktop/src/app/gx_store/primary_launcher.rs',
+    'ghostex.sidebar.agentLauncherChoices.v1',
+    objectCodec
+  ),
   accountOwner: define(
     'accountOwner',
     'Account setup identity',

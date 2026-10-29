@@ -13,6 +13,7 @@
 //! own module comment. The command payloads are unchanged, so a row built here and a row built there
 //! reach the same handler.
 
+mod agent_choice;
 mod agent_logos;
 mod bulk;
 mod capabilities;
@@ -36,6 +37,10 @@ mod session;
 mod text;
 mod workspace;
 
+pub use agent_choice::{
+    AgentChoicePlace, AgentChoiceScope, AgentChoices, AGENT_CHOICES_STORAGE_KEY,
+    AGENT_CHOICE_SCOPE_SETTING_KEY,
+};
 pub use agent_logos::{agent_logo_icons, agent_logo_svg, colored_agent_logo};
 pub use commands::MenuCommand;
 pub use group::MenuGroup;

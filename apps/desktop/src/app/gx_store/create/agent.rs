@@ -43,9 +43,6 @@ use crate::app::remote_conn::sidebar_rpc::{
 };
 use crate::shared_settings;
 
-/// `ghostex-sidebar-project-terminal-launcher` (apps/desktop/src/app/gx_store/primary_launcher.rs), which
-/// the project header's agent name and the launcher's highlighted row are read from.
-const PRIMARY_AGENT_LAUNCHER_STORAGE_KEY: &str = "ghostex-sidebar-project-terminal-launcher";
 /// `installAgentHooks` on a remote machine waited this long.
 const REMOTE_HOOK_INSTALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// `startRemoteAgentSessionAndSendPrompt`'s timeout.
@@ -96,17 +93,17 @@ impl GhostexGpuiApp {
             return;
         };
         let agent_id = agent_id.to_string();
-        self.note_primary_agent_launcher(&agent_id);
+        // The pick is remembered for the project and the Space it was made in, and as the last
+        // pick anywhere (gx-core's `agent_choice.rs`); the active project when no group is named.
+        let place =
+            self.gx_store_agent_choice_place(message.get("groupId").and_then(Value::as_str));
+        let mut choices = super::super::read_agent_choices();
+        choices.remember(&agent_id, &place);
+        self.note_primary_agent_launcher(&agent_id, &choices);
         let background = cx.background_executor().clone();
-        let stored = agent_id.clone();
         cx.spawn(async move |this, cx| {
-            let _ = background
-                .spawn(async move {
-                    super::super::write_client_document_value(
-                        PRIMARY_AGENT_LAUNCHER_STORAGE_KEY,
-                        Some(&stored),
-                    )
-                })
+            background
+                .spawn(async move { super::super::write_agent_choices(&choices) })
                 .await;
             // The launcher key is one of the menu host's two values; a launch is the write that
             // command names, so the next install re-reads it.
