@@ -510,10 +510,14 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
             match agent.as_deref() {
                 Some("claude" | "openclaude") => {
                     // See CDXC:AgentScreenDetection in session_chat_question_liveness.rs.
-                    let Some(screen_text) =
-                        crate::session_chat_send::capture_session_terminal_text(&target.zmx_name)
-                            .await
-                    else {
+                    use crate::session_chat_claude_question_answer::ClaudeQuestionScreen;
+                    let screen =
+                        crate::session_chat_claude_question_answer::read_claude_question_screen(
+                            &target.zmx_name,
+                            &questions,
+                        )
+                        .await;
+                    if screen == ClaudeQuestionScreen::Unreadable {
                         return domain_error_response(
                             endpoint_path,
                             request_id,
@@ -523,13 +527,8 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                                     .to_string(),
                             },
                         );
-                    };
-                    let selector_on_screen =
-                        crate::session_chat_question_liveness::claude_question_selector_on_screen(
-                            &questions,
-                            &screen_text,
-                        );
-                    let preview_question_without_option = selector_on_screen
+                    }
+                    let preview_question_without_option = (screen != ClaudeQuestionScreen::Gone)
                         .then(|| claude_preview_question_without_option(&questions, &selections))
                         .flatten();
                     if let Some(question) = preview_question_without_option {
@@ -545,36 +544,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             },
                         );
                     }
-                    if selector_on_screen {
-                        // See CDXC:SessionChat in session_chat_question_liveness.rs.
-                        let Some(position) =
-                            crate::session_chat_question_liveness::claude_question_selector_position(
-                                &questions,
-                                &screen_text,
-                            )
-                        else {
-                            return domain_error_response(
-                                endpoint_path,
-                                request_id,
-                                DomainStateError {
-                                    code: "invalidState",
-                                    message: "Claude's question is on screen, but where its highlight sits could not be read, so the answer was not sent. Answer it in the terminal."
-                                        .to_string(),
-                                },
-                            );
-                        };
-                        let mut groups =
-                            crate::session_chat_question_liveness::claude_question_selector_reset_keys(
-                                position,
-                            );
-                        groups.extend(crate::session_chat_send::build_claude_ask_answer_keys(
-                            &questions,
-                            &selections,
-                        ));
-                        crate::session_chat_send::build_ask_answer_steps(&groups)
-                    } else if !crate::session_chat_send::has_ask_answer(&selections) {
-                        Vec::new()
-                    } else {
+                    let answer_message = || {
                         crate::session_chat_send::build_session_chat_message_steps(
                             agent.as_deref(),
                             &crate::session_chat_question_liveness::format_ask_answer_message(
@@ -584,6 +554,45 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             &[],
                             false,
                         )
+                    };
+                    let has_answer = crate::session_chat_send::has_ask_answer(&selections);
+                    match screen {
+                        ClaudeQuestionScreen::Placed(position) => {
+                            // See CDXC:SessionChat in session_chat_question_liveness.rs.
+                            let mut groups =
+                                crate::session_chat_question_liveness::claude_question_selector_reset_keys(
+                                    position,
+                                );
+                            groups.extend(crate::session_chat_send::build_claude_ask_answer_keys(
+                                &questions,
+                                &selections,
+                            ));
+                            crate::session_chat_send::build_ask_answer_steps(&groups)
+                        }
+                        ClaudeQuestionScreen::Gone if !has_answer => Vec::new(),
+                        ClaudeQuestionScreen::Gone => answer_message(),
+                        // See CDXC:SessionChat on `claude_question_dialog_at_bottom`.
+                        ClaudeQuestionScreen::Unplaced { cancellable: true } if has_answer => {
+                            let mut steps = vec![
+                                crate::session_chat_send::SessionChatSendStep::CancelClaudeQuestion(
+                                    questions.clone(),
+                                ),
+                            ];
+                            steps.extend(answer_message());
+                            steps
+                        }
+                        ClaudeQuestionScreen::Unplaced { .. }
+                        | ClaudeQuestionScreen::Unreadable => {
+                            return domain_error_response(
+                                endpoint_path,
+                                request_id,
+                                DomainStateError {
+                                    code: crate::session_chat_send::ANSWER_IN_TERMINAL,
+                                    message: "Claude's question is on screen, but Ghostex could not read where its highlight sits, so the answer was not sent. Open the terminal to answer it there."
+                                        .to_string(),
+                                },
+                            );
+                        }
                     }
                 }
                 Some("codex") => crate::session_chat_send::build_ask_answer_steps(
@@ -604,7 +613,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             endpoint_path,
                             request_id,
                             DomainStateError {
-                                code: "invalidState",
+                                code: crate::session_chat_send::ANSWER_IN_TERMINAL,
                                 message: "Antigravity's question is not on screen at its first question, so the answer was not sent. Answer it in the terminal."
                                     .to_string(),
                             },
@@ -638,7 +647,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             endpoint_path,
                             request_id,
                             DomainStateError {
-                                code: "invalidState",
+                                code: crate::session_chat_send::ANSWER_IN_TERMINAL,
                                 message: "Copilot's question is not on screen the way the card shows it, so the answer was not sent. Answer it in the terminal."
                                     .to_string(),
                             },
@@ -666,7 +675,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             endpoint_path,
                             request_id,
                             DomainStateError {
-                                code: "invalidState",
+                                code: crate::session_chat_send::ANSWER_IN_TERMINAL,
                                 message: "Freebuff's question is not on screen, so the answer was not sent. Answer it in the terminal."
                                     .to_string(),
                             },
@@ -699,7 +708,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             endpoint_path,
                             request_id,
                             DomainStateError {
-                                code: "invalidState",
+                                code: crate::session_chat_send::ANSWER_IN_TERMINAL,
                                 message: "Empryo's question is not on screen, so the answer was not sent. Answer it in the terminal."
                                     .to_string(),
                             },
@@ -742,7 +751,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             endpoint_path,
                             request_id,
                             DomainStateError {
-                                code: "invalidState",
+                                code: crate::session_chat_send::ANSWER_IN_TERMINAL,
                                 message: "Grok Build's question is not on screen, so the answer was not sent. Answer it in the terminal."
                                     .to_string(),
                             },
@@ -772,7 +781,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             endpoint_path,
                             request_id,
                             DomainStateError {
-                                code: "invalidState",
+                                code: crate::session_chat_send::ANSWER_IN_TERMINAL,
                                 message: "ZCode's question is not on screen at its first question, so the answer was not sent. Answer it in the terminal."
                                     .to_string(),
                             },

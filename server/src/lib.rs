@@ -92,6 +92,7 @@ pub(crate) mod session_chat_claude_panel;
 pub(crate) mod session_chat_claude_permission;
 pub(crate) mod session_chat_claude_plan;
 pub(crate) mod session_chat_claude_popups;
+pub mod session_chat_claude_question_answer;
 pub mod session_chat_claude_question_prep;
 pub(crate) mod session_chat_claude_workflow_cards;
 pub(crate) mod session_chat_claude_workflows;

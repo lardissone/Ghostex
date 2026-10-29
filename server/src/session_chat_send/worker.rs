@@ -134,6 +134,25 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
+                SessionChatSendStep::CancelClaudeQuestion(questions) => {
+                    if let Err(message) =
+                        crate::session_chat_claude_question_answer::cancel_claude_question(
+                            &project_id,
+                            &session_id,
+                            &zmx_name,
+                            &source,
+                            &questions,
+                            &|| job_generation != generation.load(Ordering::SeqCst),
+                        )
+                        .await
+                    {
+                        outcome = Err(SessionChatSendError::new(
+                            SessionChatSendFailure::Write,
+                            message,
+                        ));
+                        break;
+                    }
+                }
                 SessionChatSendStep::DriveCodexAsyncQuestion(answer) => {
                     if let Err(message) = crate::session_chat_codex_async_answer::run(
                         &project_id,

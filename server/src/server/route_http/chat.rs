@@ -164,17 +164,25 @@ pub(super) async fn route_chat_http(
             })
         }
         "/api/answerSessionChatPrompt" => {
-            crate::session_chat_send_requests::send_once(
+            let mut response = crate::session_chat_send_requests::send_once(
                 &state,
                 endpoint.path,
-                request_id,
+                request_id.clone(),
                 &body_json,
                 |state, endpoint_path, request_id, body| async move {
                     handle_answer_session_chat_prompt_http(&state, endpoint_path, request_id, &body)
                         .await
                 },
             )
-            .await
+            .await;
+            crate::session_chat_send_diagnostics::record_response(
+                &state,
+                &request_id,
+                &body_json,
+                &mut response,
+            )
+            .await;
+            response
         }
         "/api/interruptSessionChat" => {
             handle_interrupt_session_chat_http(&state, endpoint.path, request_id, &body_json).await

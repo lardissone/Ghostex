@@ -372,10 +372,22 @@ impl NativeChatView {
         if let Some(card) = self.render_composer_not_ready(p, cx) {
             waiting.push(super::suggestions::stack_member(card, &stack_top).into_any_element());
         } else if let Some(error) = self.snapshot["operationError"].as_str() {
+            // An answer only the terminal can take (gxserver's `ANSWER_IN_TERMINAL`) offers the way there.
+            let open_terminal =
+                (self.snapshot["operationErrorCode"] == "answerInTerminal").then(|| {
+                    div().flex().mt(px(6.0 * p.scale)).child(self.chat_button(
+                        "answer-in-terminal".into(),
+                        "Open terminal".into(),
+                        json!({"type":"switchToTerminal"}),
+                        p,
+                        cx,
+                    ))
+                });
             waiting.push(
                 div()
                     .text_color(gpui::rgb(0xef9999))
                     .child(error.to_string())
+                    .children(open_terminal)
                     .child(super::suggestions::stack_marker(&stack_top))
                     .into_any_element(),
             );
