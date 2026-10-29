@@ -2,7 +2,6 @@
 //! the Windows environment rows), Terminal Behavior and Terminal Scrolling.
 use super::super::super::super::native_modal_kit::hsla;
 use super::super::super::catalog::{SettingOption, module, settings_catalog};
-#[cfg(target_os = "macos")]
 use super::super::super::fields::toggle_field_with;
 use super::super::super::fields::{
     ButtonVariant, SliderBinding, SliderSaver, card_inset, color_field, reset_key, select_field,
