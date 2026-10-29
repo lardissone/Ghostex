@@ -21,6 +21,8 @@ use crate::wire::{ChatRpcMethod, RpcOutcome};
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LaterState {
     pub pending: BTreeMap<String, (bool, u64)>,
+    /// The removals set here that the wire has not confirmed yet, by id, and the call that set them.
+    pub removing: BTreeMap<String, u64>,
 }
 
 /// The forms and pages put off For later: gxserver's list with this client's changes on top.
@@ -34,6 +36,47 @@ pub fn later_ids(state: &ChatState) -> BTreeSet<String> {
         }
     }
     ids
+}
+
+/// The forms and pages the reader removed without answering: gxserver's list with this client's
+/// removals on top. They no longer wait, count or notify, and the list shows them under Earlier
+/// dimmed like a withdrawn question.
+///
+/// CDXC:SessionChat 2026-10-30 DECISION:
+/// User, of the Chat Resources list's For later rows: "when i hover on it then we should show the restore button and a new x button to remove a question without answering it". The X removes a form or page for good: it leaves the unanswered and For later counts, the ? pill's stepping and the header's "N for later", moves to Earlier marked like a withdrawn question, is kept across restarts in gxserver beside the For later list, and sends nothing to the agent.
+pub fn removed_ids(state: &ChatState) -> BTreeSet<String> {
+    state
+        .session
+        .removed_question_ids
+        .iter()
+        .chain(state.questions.later.removing.keys())
+        .cloned()
+        .collect()
+}
+
+/// `questionRemove {id}`: removes a form or page without answering it.
+pub fn remove(state: &mut ChatState, id: &str) -> Vec<Effect> {
+    let id = id.trim();
+    if id.is_empty() || removed_ids(state).contains(id) {
+        return Vec::new();
+    }
+    let request_id = state.core.allocate_request_id();
+    state
+        .questions
+        .later
+        .removing
+        .insert(id.to_string(), request_id);
+    state.core.request_publish();
+    vec![Effect::SendRpc {
+        request_id,
+        method: ChatRpcMethod::AnswerSessionChatPrompt,
+        params: Box::new(json!({
+            "kind": "questionRemove",
+            "questionId": id,
+            "projectId": state.identity.project_id,
+            "sessionId": state.identity.session_id,
+        })),
+    }]
 }
 
 /// `questionForLater {id, later}`: puts a form or page off For later, or back to unanswered.
@@ -69,35 +112,51 @@ pub fn rpc_settled(
     request_id: u64,
     outcome: &RpcOutcome,
 ) -> Option<Vec<Effect>> {
-    let id = state
+    let marked = state
         .questions
         .later
         .pending
         .iter()
         .find(|(_, (_, request))| *request == request_id)
-        .map(|(id, _)| id.clone())?;
+        .map(|(id, _)| id.clone());
+    let removed = state
+        .questions
+        .later
+        .removing
+        .iter()
+        .find(|(_, request)| **request == request_id)
+        .map(|(id, _)| id.clone());
+    if marked.is_none() && removed.is_none() {
+        return None;
+    }
     let RpcOutcome::Err { message, .. } = outcome else {
         return Some(Vec::new());
     };
-    state.questions.later.pending.remove(&id);
+    let what = if let Some(id) = marked {
+        state.questions.later.pending.remove(&id);
+        "change For later"
+    } else {
+        if let Some(id) = removed {
+            state.questions.later.removing.remove(&id);
+        }
+        "remove the question"
+    };
     state.core.request_publish();
     Some(vec![Effect::Toast {
         level: "error".to_string(),
-        message: format!("Couldn't change For later: {message}"),
+        message: format!("Couldn't {what}: {message}"),
     }])
 }
 
 /// Forgets the changes the wire now carries.
 pub fn settle(state: &mut ChatState) {
-    if state.questions.later.pending.is_empty() {
-        return;
-    }
+    let later = &mut state.questions.later;
     let wire = &state.session.later_question_ids;
-    state
-        .questions
-        .later
+    later
         .pending
         .retain(|id, (later, _)| wire.contains(id) != *later);
+    let removed = &state.session.removed_question_ids;
+    later.removing.retain(|id, _| !removed.contains(id));
 }
 
 #[cfg(test)]
@@ -142,5 +201,39 @@ mod tests {
         );
         assert!(matches!(effects.as_deref(), Some([Effect::Toast { .. }])));
         assert!(!later_ids(&state).contains("form-a"));
+    }
+
+    #[test]
+    fn a_removal_shows_at_once_holds_until_the_wire_agrees_and_a_refusal_drops_it() {
+        let mut state = ChatState::default();
+        let effects = remove(&mut state, "page-a");
+        assert_eq!(effects.len(), 1);
+        assert!(removed_ids(&state).contains("page-a"));
+        settle(&mut state);
+        assert!(
+            removed_ids(&state).contains("page-a"),
+            "a frame from before the write"
+        );
+        state.session.removed_question_ids = vec!["page-a".to_string()];
+        settle(&mut state);
+        assert!(state.questions.later.removing.is_empty());
+        assert!(
+            removed_ids(&state).contains("page-a"),
+            "kept from the wire's list"
+        );
+
+        remove(&mut state, "form-a");
+        let request = state.questions.later.removing["form-a"];
+        let effects = rpc_settled(
+            &mut state,
+            request,
+            &RpcOutcome::Err {
+                code: None,
+                message: "no".to_string(),
+                endpoint: None,
+            },
+        );
+        assert!(matches!(effects.as_deref(), Some([Effect::Toast { .. }])));
+        assert!(!removed_ids(&state).contains("form-a"));
     }
 }

@@ -45,6 +45,12 @@ const RUNTIME_KEY: &str = "sessionChatOpenQuestions";
 /// answerable but leave the count, so no pink dot, no `answer requested (n)` and no notification
 /// (the SessionStatus 2026-10-27 DECISION in gx-chat-core's questions/later.rs).
 const LATER_KEY: &str = "sessionChatQuestionsForLater";
+/// Where the forms and pages the user removed without answering are kept (form or page ids). They
+/// no longer wait, count or notify (the SessionChat 2026-10-30 DECISION in gx-chat-core's
+/// questions/later.rs).
+const REMOVED_KEY: &str = "sessionChatQuestionsRemoved";
+/// How many removals a session keeps at most; the oldest are dropped first.
+const REMOVED_LIMIT: usize = 500;
 /// How many For later marks a session keeps at most; answered ones are dropped as they settle.
 const LATER_LIMIT: usize = 500;
 /// The agent's last words reach its transcript a moment after the turn-end hook.
@@ -118,16 +124,48 @@ pub(crate) fn later_ids(session: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The forms and pages this session's user removed without answering, as last recorded.
+pub(crate) fn removed_ids(session: &Value) -> Vec<String> {
+    session
+        .pointer(&format!("/runtimeSettings/{REMOVED_KEY}"))
+        .and_then(Value::as_array)
+        .map(|ids| {
+            ids.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// [`later_ids`] read straight from the database, for the chat's frames (`laterQuestionIds`).
 pub(crate) fn read_later_ids(
     db: &rusqlite::Connection,
     project_id: &str,
     session_id: &str,
 ) -> Vec<String> {
+    read_id_list(db, project_id, session_id, LATER_KEY)
+}
+
+/// [`removed_ids`] read straight from the database, for the chat's frames (`removedQuestionIds`).
+pub(crate) fn read_removed_ids(
+    db: &rusqlite::Connection,
+    project_id: &str,
+    session_id: &str,
+) -> Vec<String> {
+    read_id_list(db, project_id, session_id, REMOVED_KEY)
+}
+
+fn read_id_list(
+    db: &rusqlite::Connection,
+    project_id: &str,
+    session_id: &str,
+    key: &str,
+) -> Vec<String> {
     let value: Option<String> = db
         .query_row(
             &format!(
-                "SELECT json_extract(runtimeSettingsJson, '$.{LATER_KEY}') FROM sessions WHERE projectId = ?1 AND sessionId = ?2"
+                "SELECT json_extract(runtimeSettingsJson, '$.{key}') FROM sessions WHERE projectId = ?1 AND sessionId = ?2"
             ),
             rusqlite::params![project_id, session_id],
             |row| row.get(0),
@@ -150,19 +188,30 @@ fn write_later(
     session_id: &str,
     ids: &[String],
 ) -> anyhow::Result<()> {
+    write_id_list(state, db, project_id, session_id, LATER_KEY, ids)
+}
+
+fn write_id_list(
+    state: &AppState,
+    db: &rusqlite::Connection,
+    project_id: &str,
+    session_id: &str,
+    key: &str,
+    ids: &[String],
+) -> anyhow::Result<()> {
     let changed = if ids.is_empty() {
         db.execute(
             &format!(
-                r#"UPDATE sessions SET runtimeSettingsJson = json_remove(runtimeSettingsJson, '$.{LATER_KEY}')
+                r#"UPDATE sessions SET runtimeSettingsJson = json_remove(runtimeSettingsJson, '$.{key}')
                 WHERE projectId = ?1 AND sessionId = ?2
-                AND json_extract(runtimeSettingsJson, '$.{LATER_KEY}') IS NOT NULL"#
+                AND json_extract(runtimeSettingsJson, '$.{key}') IS NOT NULL"#
             ),
             rusqlite::params![project_id, session_id],
         )?
     } else {
         db.execute(
             &format!(
-                r#"UPDATE sessions SET runtimeSettingsJson = json_set(runtimeSettingsJson, '$.{LATER_KEY}', json(?3))
+                r#"UPDATE sessions SET runtimeSettingsJson = json_set(runtimeSettingsJson, '$.{key}', json(?3))
                 WHERE projectId = ?1 AND sessionId = ?2"#
             ),
             rusqlite::params![project_id, session_id, serde_json::to_string(ids)?],
@@ -201,6 +250,34 @@ pub(crate) fn set_later(
         ids.retain(|known| known != id);
     }
     write_later(state, &db, project_id, session_id, &ids)?;
+    refresh(state, project_id, session_id, None);
+    Ok(())
+}
+
+/// `answerSessionChatPrompt` with `kind: "questionRemove"`: removes a form or page without
+/// answering it (it leaves the For later list too), then brings the session's count up to date.
+/// Nothing reaches the agent. Blocking.
+pub(crate) fn set_removed(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+    id: &str,
+) -> anyhow::Result<()> {
+    let db = open_gxserver_database(&state.paths)?;
+    let mut removed = read_removed_ids(&db, project_id, session_id);
+    if removed.iter().any(|known| known == id) {
+        return Ok(());
+    }
+    removed.push(id.to_string());
+    if removed.len() > REMOVED_LIMIT {
+        removed.drain(..removed.len() - REMOVED_LIMIT);
+    }
+    let mut later = read_later_ids(&db, project_id, session_id);
+    if later.iter().any(|known| known == id) {
+        later.retain(|known| known != id);
+        write_later(state, &db, project_id, session_id, &later)?;
+    }
+    write_id_list(state, &db, project_id, session_id, REMOVED_KEY, &removed)?;
     refresh(state, project_id, session_id, None);
     Ok(())
 }
@@ -435,6 +512,7 @@ pub(crate) fn refresh(
     };
     // For later questions still wait, but they are not counted and never notify. A mark whose
     // question was answered, withdrawn or asked again is forgotten.
+    let (open, newly) = leave_out_removed(open, newly, &removed_ids(&session));
     let later = later_ids(&session);
     let (open, newly, still) = leave_out_later(open, newly, &later);
     if !is_thread && still.len() != later.len() {
@@ -460,6 +538,19 @@ pub(crate) fn refresh(
             turn_end == Some(true),
         );
     }
+}
+
+/// Drops the questions the user removed without answering: they are not counted and never notify.
+fn leave_out_removed(
+    open: Vec<OpenAsker>,
+    newly: Vec<OpenAsker>,
+    removed: &[String],
+) -> (Vec<OpenAsker>, Vec<OpenAsker>) {
+    let kept = |asker: &OpenAsker| !removed.contains(&asker.id);
+    (
+        open.into_iter().filter(kept).collect(),
+        newly.into_iter().filter(kept).collect(),
+    )
 }
 
 /// Splits the For later questions off: what is counted, what may notify, and the marks still worth
@@ -713,6 +804,25 @@ mod tests {
             vec!["b".to_string()],
             "a mark whose question settled is forgotten"
         );
+    }
+
+    #[test]
+    fn removed_questions_are_not_counted_and_never_notify() {
+        let open = vec![asker("a", 2), asker("b", 3)];
+        let newly = vec![asker("b", 3)];
+        let (counted, notify) = leave_out_removed(open, newly, &["b".to_string()]);
+        assert_eq!(counted.iter().map(OpenAsker::count).sum::<usize>(), 2);
+        assert!(notify.is_empty());
+    }
+
+    #[test]
+    fn the_removed_list_reads_from_the_session_record() {
+        let session = json!({"runtimeSettings": {REMOVED_KEY: ["p1", 3, "f2"], LATER_KEY: ["x"]}});
+        assert_eq!(
+            removed_ids(&session),
+            vec!["p1".to_string(), "f2".to_string()]
+        );
+        assert!(removed_ids(&json!({})).is_empty());
     }
 
     #[test]

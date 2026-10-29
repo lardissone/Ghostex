@@ -145,6 +145,8 @@ pub struct SessionChatQueueSnapshot {
     pub retired_async_question_ids: Vec<String>,
     /// The question forms and pages put off "For later" (`session_chat_open_questions::read_later_ids`).
     pub later_question_ids: Vec<String>,
+    /// The question forms and pages the user removed without answering (`session_chat_open_questions::read_removed_ids`).
+    pub removed_question_ids: Vec<String>,
     pub pending_model_selection: Option<crate::session_chat_model_selection::PendingModelSelection>,
 }
 
@@ -166,6 +168,10 @@ impl SessionChatQueueSnapshot {
         target.insert(
             "laterQuestionIds".to_string(),
             json!(self.later_question_ids),
+        );
+        target.insert(
+            "removedQuestionIds".to_string(),
+            json!(self.removed_question_ids),
         );
         target.insert(
             "accountSwitch".to_string(),
@@ -206,6 +212,7 @@ impl SessionChatQueueSnapshot {
         revision
             .push_str(&serde_json::to_string(&self.retired_async_question_ids).unwrap_or_default());
         revision.push_str(&serde_json::to_string(&self.later_question_ids).unwrap_or_default());
+        revision.push_str(&serde_json::to_string(&self.removed_question_ids).unwrap_or_default());
         for prompt in &self.queue {
             revision.push_str(&prompt.id);
             revision.push(':');
@@ -838,6 +845,9 @@ fn read_snapshot(
         ),
         forked_at: crate::session_chat_open_questions::read_forked_at(db, project_id, session_id),
         later_question_ids: crate::session_chat_open_questions::read_later_ids(
+            db, project_id, session_id,
+        ),
+        removed_question_ids: crate::session_chat_open_questions::read_removed_ids(
             db, project_id, session_id,
         ),
         account_switch: crate::accounts::switch_progress::read(db, project_id, session_id),

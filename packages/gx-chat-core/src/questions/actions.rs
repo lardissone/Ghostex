@@ -110,6 +110,13 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                 .unwrap_or(true);
             effects.extend(crate::questions::later::set(state, id, later));
         }
+        ActionKind::QuestionRemove => {
+            let id = action
+                .param("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            effects.extend(crate::questions::later::remove(state, id));
+        }
         ActionKind::FormNotes => {
             let id = action
                 .param("form")

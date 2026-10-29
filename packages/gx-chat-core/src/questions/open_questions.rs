@@ -240,13 +240,15 @@ pub fn unanswered(state: &ChatState) -> Vec<&Asker> {
 }
 
 /// The forms and question pages no answer, withdrawal or later question has settled yet, For later
-/// ones included, oldest first.
+/// ones included and removed ones left out, oldest first.
 pub fn waiting(state: &ChatState) -> Vec<&Asker> {
+    let removed = crate::questions::later::removed_ids(state);
     state
         .transcript_view
         .askers
         .iter()
         .filter(|asker| !asker.answered && !asker.obsolete && !asker.inherited)
+        .filter(|asker| !removed.contains(&asker.id))
         .filter(|asker| {
             asker.kind != AskerKind::Form
                 || state
@@ -275,6 +277,7 @@ fn status_of(
     asker: &Asker,
     waiting: &[&Asker],
     later: &std::collections::BTreeSet<String>,
+    removed: &std::collections::BTreeSet<String>,
     on_the_way: &[String],
 ) -> Option<&'static str> {
     if waiting.iter().any(|known| known.id == asker.id) {
@@ -290,9 +293,9 @@ fn status_of(
     if asker.inherited {
         return None;
     }
-    // Neither waiting nor answered: withdrawn, asked again later, or a form whose answers are on
-    // their way (answered, as the pill counts it).
-    if asker.obsolete {
+    // Neither waiting nor answered: withdrawn (by the agent, or removed by the reader), asked again
+    // later, or a form whose answers are on their way (answered, as the pill counts it).
+    if asker.obsolete || removed.contains(&asker.id) {
         Some("withdrawn")
     } else {
         Some("answered")
@@ -314,6 +317,7 @@ const GROUPS: [(&str, &str); 2] = [("unanswered", "Unanswered"), ("earlier", "Ea
 pub fn list(state: &ChatState, context: &ChatContext) -> Vec<QuestionListSection> {
     let waiting = waiting(state);
     let later = crate::questions::later::later_ids(state);
+    let removed = crate::questions::later::removed_ids(state);
     let on_the_way: Vec<String> = answers_on_the_way(state)
         .into_iter()
         .map(|answers| answers.page_id)
@@ -324,7 +328,7 @@ pub fn list(state: &ChatState, context: &ChatContext) -> Vec<QuestionListSection
         .iter()
         .enumerate()
         .filter_map(|(index, asker)| {
-            let status = status_of(asker, &waiting, &later, &on_the_way)?;
+            let status = status_of(asker, &waiting, &later, &removed, &on_the_way)?;
             let mut row = list_row(asker, context);
             row.status = status.to_string();
             Some((asker.at, index, row))
@@ -966,6 +970,75 @@ mod tests {
         // The click still starts at the newest waiting question and steps back.
         assert_eq!(clicked(&mut state).as_deref(), Some("q194"));
         assert_eq!(clicked(&mut state).as_deref(), Some("q192"));
+    }
+
+    /// The X on a For later row: the question leaves Unanswered, the counts and the ? pill's
+    /// stepping at once, lands in Earlier marked withdrawn, and stays there once the wire carries it.
+    #[test]
+    fn a_removed_question_leaves_the_counts_and_lands_in_earlier_as_withdrawn() {
+        let mut state = chat_asking(vec![
+            asker("a", AskerKind::Form, Some(1_000)),
+            asker("b", AskerKind::Page, Some(2_000)),
+            asker("c", AskerKind::Form, Some(3_000)),
+        ]);
+        state.session.later_question_ids = vec!["a".to_string(), "b".to_string()];
+        let pill = project(&state, &ChatContext::default());
+        assert_eq!(pill.summary, "1 unanswered \u{b7} 2 for later");
+        assert_eq!(section(&pill, "unanswered"), vec!["c", "a", "b"]);
+
+        let effects = crate::questions::later::remove(&mut state, "a");
+        assert_eq!(effects.len(), 1, "one call to gxserver");
+        assert!(
+            crate::questions::later::remove(&mut state, "a").is_empty(),
+            "already removed"
+        );
+        let pill = project(&state, &ChatContext::default());
+        assert_eq!(pill.summary, "1 unanswered \u{b7} 1 for later");
+        assert_eq!(pill.count, 1);
+        assert_eq!(section(&pill, "unanswered"), vec!["c", "b"]);
+        assert_eq!(section(&pill, "earlier"), vec!["a"]);
+        assert_eq!(with_status(&pill, "withdrawn"), vec!["a"]);
+        assert_eq!(pill.total, 3, "the list still holds it");
+        assert!(later_waiting(&state).iter().all(|id| id != "a"));
+
+        // The wire agrees: the pending removal settles and the row stays under Earlier.
+        state.session.removed_question_ids = vec!["a".to_string()];
+        crate::questions::later::settle(&mut state);
+        assert!(state.questions.later.removing.is_empty());
+        let pill = project(&state, &ChatContext::default());
+        assert_eq!(with_status(&pill, "withdrawn"), vec!["a"]);
+
+        // Removing the waiting one too leaves no pill count, and the click has nowhere to go.
+        crate::questions::later::remove(&mut state, "c");
+        crate::questions::later::set(&mut state, "b", true);
+        let pill = project(&state, &ChatContext::default());
+        assert_eq!((pill.count, pill.newest), (0, None));
+        assert_eq!(pill.summary, "0 unanswered \u{b7} 1 for later");
+    }
+
+    /// The ? pill never steps to a removed question, even one that was the newest.
+    #[test]
+    fn the_pill_click_skips_a_removed_question() {
+        let mut state = chat_asking(vec![
+            asker("old", AskerKind::Form, Some(1_000)),
+            asker("new", AskerKind::Form, Some(2_000)),
+        ]);
+        state.session.removed_question_ids = vec!["new".to_string()];
+        assert_eq!(pool_ids(&state), ["old"]);
+        assert_eq!(clicked(&mut state).as_deref(), Some("old"));
+        assert_eq!(
+            project(&state, &ChatContext::default()).newest.as_deref(),
+            Some("old")
+        );
+    }
+
+    /// A removed question that is answered afterwards is simply answered.
+    #[test]
+    fn an_answer_after_a_removal_still_reads_as_answered() {
+        let mut state = chat_asking(vec![answered("a", AskerKind::Form, 1_000)]);
+        state.session.removed_question_ids = vec!["a".to_string()];
+        let pill = project(&state, &ChatContext::default());
+        assert_eq!(with_status(&pill, "answered"), vec!["a"]);
     }
 
     #[test]

@@ -169,6 +169,7 @@ action_kinds! {
     PreviousQuestion => "previousQuestion",
     JumpToQuestion => "jumpToQuestion",
     QuestionForLater => "questionForLater",
+    QuestionRemove => "questionRemove",
     QuestionListFilter => "questionListFilter",
     QuestionListMore => "questionListMore",
     QuestionListReset => "questionListReset",

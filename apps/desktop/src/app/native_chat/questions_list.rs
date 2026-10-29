@@ -81,6 +81,21 @@ fn later_action(status: &str, kind: &str, id: &str) -> Option<(&'static str, Val
     }
 }
 
+/// The second button of a For later row: removes the question without answering it
+/// (`questionRemove`, gx-chat-core questions/later.rs). Only a put-off form or page gets it.
+fn remove_action(status: &str, kind: &str, id: &str) -> Option<(&'static str, Value)> {
+    (status == "later" && kind != "chart").then(|| {
+        (
+            "Remove without answering",
+            json!({"type": "questionRemove", "id": id}),
+        )
+    })
+}
+
+/// A row's hover button is this wide, with this gap between two of them.
+const BUTTON_SIZE: f32 = 20.0;
+const BUTTON_GAP: f32 = 2.0;
+
 /// The list's folding, per chat.
 #[derive(Default)]
 pub(super) struct QuestionList {
@@ -537,11 +552,13 @@ impl NativeChatView {
     ) -> AnyElement {
         let s = p.scale;
         div()
-            .id(SharedString::from(format!("chat-questions-later:{id}")))
+            .id(SharedString::from(format!(
+                "chat-questions-later:{id}:{label}"
+            )))
             .role(gpui::Role::Button)
             .aria_label(label)
             .flex_shrink_0()
-            .size(px(20.0 * s))
+            .size(px(BUTTON_SIZE * s))
             .flex()
             .items_center()
             .justify_center()
@@ -561,6 +578,80 @@ impl NativeChatView {
             .into_any_element()
     }
 
+    /// A row's right end: "For later" (a put-off row) and its age, right-aligned like every row's.
+    /// While the pointer is on the row its buttons take that spot instead, so nothing is reserved
+    /// for them at rest.
+    #[allow(clippy::too_many_arguments)]
+    fn row_trailing(
+        &self,
+        id: &str,
+        status: &str,
+        age: &str,
+        buttons: Vec<(&'static str, Value, &'static str)>,
+        group: SharedString,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let s = p.scale;
+        let n = buttons.len();
+        let slot = if n == 0 {
+            0.0
+        } else {
+            n as f32 * BUTTON_SIZE + (n - 1) as f32 * BUTTON_GAP
+        };
+        let hide_for_buttons = n > 0;
+        div()
+            .relative()
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_end()
+            .gap(px(8.0 * s))
+            .min_w(px(slot * s))
+            .h_full()
+            .when(status == "later", |this| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .text_size(px(11.0 * s))
+                        .text_color(p.card_muted)
+                        .when(hide_for_buttons, |this| {
+                            this.group_hover(group.clone(), |style| style.opacity(0.0))
+                        })
+                        .child("For later"),
+                )
+            })
+            .when(!age.is_empty(), |this| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .text_size(px(11.0 * s))
+                        .text_color(p.muted)
+                        .font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
+                        .when(hide_for_buttons, |this| {
+                            this.group_hover(group.clone(), |style| style.opacity(0.0))
+                        })
+                        .child(age.to_string()),
+                )
+            })
+            .when(n > 0, |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right_0()
+                        .flex()
+                        .items_center()
+                        .gap(px(BUTTON_GAP * s))
+                        .children(buttons.into_iter().map(|(label, action, icon)| {
+                            self.later_row_button(id, label, action, group.clone(), icon, p, cx)
+                        })),
+                )
+            })
+            .into_any_element()
+    }
+
     fn question_list_row(
         &self,
         headed: bool,
@@ -574,7 +665,13 @@ impl NativeChatView {
         let age = row_age(row, crate::app::gx_chat::now_millis());
         let kind = text(row, "kind");
         let status = text(row, "status");
-        let later = later_action(&status, &kind, &id);
+        let mut buttons: Vec<(&'static str, Value, &'static str)> = Vec::new();
+        if let Some((label, action)) = later_action(&status, &kind, &id) {
+            buttons.push((label, action, later_icon(&status)));
+        }
+        if let Some((label, action)) = remove_action(&status, &kind, &id) {
+            buttons.push((label, action, "titlebar/x.svg"));
+        }
         let icon = kind_icon(&kind);
         let group = SharedString::from(format!("chat-questions-row-group:{id}"));
         // Answered forms and pages are green, withdrawn ones dimmed; the rest are the usual grey.
@@ -621,36 +718,7 @@ impl NativeChatView {
                     .text_color(title_color)
                     .child(title),
             )
-            .when(status == "later", |this| {
-                this.child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(px(11.0 * s))
-                        .text_color(p.card_muted)
-                        .child("For later"),
-                )
-            })
-            .when(!age.is_empty(), |this| {
-                this.child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(px(11.0 * s))
-                        .text_color(p.muted)
-                        .font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
-                        .child(age),
-                )
-            })
-            .children(later.map(|(label, action)| {
-                self.later_row_button(
-                    &id,
-                    label,
-                    action,
-                    group.clone(),
-                    later_icon(&status),
-                    p,
-                    cx,
-                )
-            }))
+            .child(self.row_trailing(&id, &status, &age, buttons, group, p, cx))
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
                 this.invoke(json!({"type": "jumpToQuestion", "id": jump}), cx);
@@ -716,6 +784,17 @@ mod tests {
         assert!(later_action("waiting", "chart", "c").is_none());
         assert_eq!(later_icon("later"), "titlebar/arrow-back-up.svg");
         assert_eq!(later_icon("waiting"), "titlebar/clock.svg");
+    }
+
+    #[test]
+    fn only_a_for_later_row_offers_remove() {
+        let (label, action) = remove_action("later", "form", "f1").unwrap();
+        assert_eq!(label, "Remove without answering");
+        assert_eq!(action, json!({"type": "questionRemove", "id": "f1"}));
+        for status in ["waiting", "answered", "withdrawn", "other"] {
+            assert!(remove_action(status, "form", "x").is_none(), "{status}");
+        }
+        assert!(remove_action("later", "chart", "c").is_none());
     }
 
     #[test]

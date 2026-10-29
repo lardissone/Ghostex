@@ -54,9 +54,10 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
         .get("kind")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    // "For later" on a question form or page is the chat's own bookkeeping: nothing reaches the
-    // agent (session_chat_open_questions.rs, `set_later`).
-    if kind == "questionForLater" {
+    // "For later" and removing a question form or page without answering it are the chat's own
+    // bookkeeping: nothing reaches the agent (session_chat_open_questions.rs, `set_later` and
+    // `set_removed`).
+    if kind == "questionForLater" || kind == "questionRemove" {
         let Some(question_id) = params
             .get("questionId")
             .and_then(Value::as_str)
@@ -72,24 +73,34 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                 },
             );
         };
+        let remove = kind == "questionRemove";
         let later = params.get("later").and_then(Value::as_bool).unwrap_or(true);
         let worker_state = state.clone();
         let (project_id, session_id) = (target.project_id.clone(), target.session_id.clone());
         let result = tokio::task::spawn_blocking(move || {
-            crate::session_chat_open_questions::set_later(
-                &worker_state,
-                &project_id,
-                &session_id,
-                &question_id,
-                later,
-            )
+            if remove {
+                crate::session_chat_open_questions::set_removed(
+                    &worker_state,
+                    &project_id,
+                    &session_id,
+                    &question_id,
+                )
+            } else {
+                crate::session_chat_open_questions::set_later(
+                    &worker_state,
+                    &project_id,
+                    &session_id,
+                    &question_id,
+                    later,
+                )
+            }
         })
         .await;
         return match result {
             Ok(Ok(())) => routed_json(
                 Some(endpoint_path),
                 StatusCode::OK,
-                rpc_success(request_id, json!({ "later": later })),
+                rpc_success(request_id, json!({ "later": later, "removed": remove })),
             ),
             Ok(Err(error)) => domain_error_response(
                 endpoint_path,
@@ -104,7 +115,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                 request_id,
                 DomainStateError {
                     code: "internalError",
-                    message: "Could not save For later.".to_string(),
+                    message: "Could not save the question's state.".to_string(),
                 },
             ),
         };
