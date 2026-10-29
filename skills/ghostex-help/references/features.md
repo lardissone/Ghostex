@@ -3409,8 +3409,8 @@ project of the repository's main folder, even when started from a worktree.
   claude.ai Link**, **Account** (which saved Claude account it runs on, pickable
   until it starts), **Start a Copy on Another Account…** while its account is out
   of usage, and **Bring to This Computer**.
-- **The row**: a plain cloud icon after the title; hover it for the account,
-  branch and latest status. Clicking it opens the session, whose chat pane is its
+- **The row**: it starts with the orange cloud of the Claude (cloud) agent; hover
+  its title for the account, branch and latest status. Clicking it opens the session, whose chat pane is its
   claude.ai page; the row's menu has **Open on claude.ai** (the page in Ghostex's
   Browser) and **Copy > Copy claude.ai Link**. The row shows working (orange), needs you (blue) and Done
   like any session, read from claude.ai every few seconds whether or not the page

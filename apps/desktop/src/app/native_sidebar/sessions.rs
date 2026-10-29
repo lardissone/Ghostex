@@ -119,6 +119,12 @@ impl GhostexGpuiApp {
             .and_then(Value::as_str)
             .unwrap_or(session.title())
             .to_owned();
+        // A Claude cloud row says where it runs and its status under its own lines (CDXC:ClaudeCloud in claude_cloud.rs).
+        let cloud_lines = super::claude_cloud::claude_cloud_tooltip_lines(session);
+        let tooltip = match &cloud_lines {
+            Some(lines) => format!("{tooltip}\n\n{lines}"),
+            None => tooltip,
+        };
         // CDXC:Tooltips 2026-10-29 DECISION: User: "please let me disable the tooltip for sessions in the sidebar with a toggle (advanced setting)". `showSidebarSessionTooltips` (on unless saved off) gates only this title tooltip; this one row renderer draws every sidebar session row (project lists, a coordinator's thread rows, the peek), and the Running Agents panel has no session tooltip. Chip, badge, hover-button and project-row tooltips stay.
         let session_tooltips =
             hud["settings"]["showSidebarSessionTooltips"].as_bool() != Some(false);
@@ -169,6 +175,11 @@ impl GhostexGpuiApp {
             session.activity.as_str(),
             if session.is_pinned { "pinned" } else { "" },
             if session.is_draft { "draft" } else { "" },
+            if cloud_lines.is_some() {
+                "runs in Claude's cloud"
+            } else {
+                ""
+            },
             if approval { "waiting for approval" } else { "" },
             if question { "needs an answer" } else { "" },
             time.as_str(),
@@ -213,7 +224,6 @@ impl GhostexGpuiApp {
                 .when(!buttons_shown, |row| row.children(super::threads::coordinator_badge(session, appearance)))
                 .when(!buttons_shown, |row| row.children(self.render_voice_call_badge(&session.session_id, appearance)))
                 .when(!buttons_shown, |row| row.children(super::agentbox::agentbox_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
-                .when(!buttons_shown, |row| row.children(super::claude_cloud::claude_cloud_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
                 .when(!buttons_shown && folded_dots.is_none() && !question && !approval, |row| row.children(super::status::activity_indicator(&session.activity, session.has_background_work, session.model_selection_failed || session.program_status_failed, scale)))
                 // CDXC:SessionStatus 2026-09-13 DECISION: User: hide Last Active while the question dot is shown so they do not overlap, including when the session is not working.
                 .when(!buttons_shown && folded_dots.is_none() && !question && !approval && !session.model_selection_failed && !session.program_status_failed && (timer.is_some() || (show_time && session.activity != "working" && session.activity != "attention" && !session.has_background_work)), |row| row.child(div().text_size(px(13.55 * scale)).text_color(if sleeping { chrome_color(0x686868, 0x959595) } else { chrome_color(0xa6a6a6, 0x424242) }).child(time)))
