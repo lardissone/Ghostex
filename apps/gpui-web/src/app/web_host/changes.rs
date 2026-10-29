@@ -39,27 +39,7 @@ impl GhostexGpuiApp {
         };
         let (agents, default_agent_id) = self.changes_commit_agents();
         let info = ChangesHostInfo {
-            // TEMP-COMMIT-MENU-TEST: never commit.
-            palette: {
-                let query = web_sys::window()
-                    .and_then(|w| w.location().search().ok())
-                    .unwrap_or_default();
-                if query.contains("light=1") {
-                    use std::sync::atomic::Ordering;
-                    crate::app::helpers::titlebar::CHROME_LIGHT_APPEARANCE.store(true, Ordering::Relaxed);
-                    crate::app::helpers::titlebar::GPUI_MENU_BACKGROUND_RGB.store(
-                        crate::app::helpers::titlebar::sidebar_titlebar_menu_background_for_chrome(0xf5f5f5),
-                        Ordering::Relaxed,
-                    );
-                }
-                let p = self.gpui_native_modal_palette();
-                let glass = query.contains("glass=1");
-                if glass {
-                    p.frosted(crate::app::helpers::frosted_modal_fill(p.surface.into()).into())
-                } else {
-                    p
-                }
-            },
+            palette: self.gpui_native_modal_palette(),
             agents,
             default_agent_id,
         };
