@@ -30,10 +30,10 @@ use crate::app::window::settings_modal::catalog::settings_catalog;
 use crate::app::window::*;
 use crate::*;
 
-#[path = "panel_controls.rs"]
-pub(crate) mod controls;
 #[path = "panel_confirm_card.rs"]
 mod confirm_card;
+#[path = "panel_controls.rs"]
+pub(crate) mod controls;
 // The card reads its frame's data as `super::rows`.
 use super::rows;
 #[path = "panel_focus_strip.rs"]

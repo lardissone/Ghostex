@@ -3062,8 +3062,12 @@ and Linux) does the same from anywhere in the window. Ask what your sessions are
 which ones are waiting on you, have it read you the last messages of a session,
 tell it to send a prompt to a session (it sends right away and says what it
 sent, but for anything risky or destructive, like deleting files or removing a
-project, it reads the prompt back and sends only after you say yes), answer a question card or approve or deny a permission prompt, or start
-a new agent in a project you name. Say "draft it" or "let me check it first"
+project, it reads the prompt back and sends only after you say yes), answer a question card or approve or deny a permission prompt, start
+a new agent in a project you name, or start a coordinator there ("start a coordinator in
+Ghostex to work through the Discord requests": what you said becomes its first message).
+Say "stop the Discord one" and it stops that session's running turn at once, like the
+chat's Stop button (the session stays open); when your words could mean another session
+too, it asks first and shows a card with Stop and Cancel. It cannot close a session. Say "draft it" or "let me check it first"
 and it puts the message in that session's chat box without sending it: edit it
 and press Enter yourself, or say "send it" and it sends the draft as it is now,
 your edits included (if you already had unsent text there, it asks whether to

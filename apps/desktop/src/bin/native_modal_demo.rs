@@ -109,11 +109,11 @@ mod space_editor_modal;
 mod update_available_demo;
 #[path = "../app/window/update_available_modal.rs"]
 mod update_available_modal;
-#[path = "../app/voice_agent/panel_controls.rs"]
-mod voice_panel_controls;
 /// The voice panel's confirm card reads `super::controls` and `super::rows`, as in the panel.
 #[path = "../app/voice_agent/panel_confirm_card.rs"]
 mod voice_confirm_card;
+#[path = "../app/voice_agent/panel_controls.rs"]
+mod voice_panel_controls;
 use voice_panel_controls as controls;
 #[allow(dead_code)]
 #[path = "../app/voice_agent/rows.rs"]

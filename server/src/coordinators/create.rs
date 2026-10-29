@@ -99,7 +99,8 @@ pub fn coordinator_launcher_family(row: &Value) -> Option<&'static str> {
     let by_icon =
         crate::agents::default_agent_icon_to_id(row_text(row, "icon")).map(str::to_string);
     let by_id = Some(row_text(row, "agentId").to_string());
-    let by_command = crate::agents::infer_agent_id_from_command_executable(row_text(row, "command"));
+    let by_command =
+        crate::agents::infer_agent_id_from_command_executable(row_text(row, "command"));
     [by_icon, by_id, by_command]
         .into_iter()
         .flatten()
@@ -174,9 +175,11 @@ pub fn coordinator_create_params(launch: CoordinatorLaunch<'_>) -> Value {
         "coordinator": { "goal": launch.goal, "firstRequest": launch.task },
     });
     // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's Medium/High/XHigh decision, 2026-10-29); without an effort an orchestrator starts on High where its launch takes an effort. ZCode takes no effort choice; its model rides agentModel and gxserver queues it as a `/model` line ahead of the first message.
-    let effort = launch
-        .effort
-        .or_else(|| family.and_then(super::default_orchestrator_effort).map(str::to_string));
+    let effort = launch.effort.or_else(|| {
+        family
+            .and_then(super::default_orchestrator_effort)
+            .map(str::to_string)
+    });
     if let Some(effort) = effort {
         params["agentEffort"] = Value::String(effort);
     }

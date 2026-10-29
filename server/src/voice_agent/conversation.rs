@@ -685,7 +685,11 @@ impl Conversation {
                         finished["label"] = json!(control::UNSURE_LABEL);
                         self.close_confirm("replaced");
                     } else if let Some(stopped) = control::stopped_ref(&outcome.output) {
-                        if self.confirm.as_ref().is_some_and(|open| open.title_of(stopped).is_some()) {
+                        if self
+                            .confirm
+                            .as_ref()
+                            .is_some_and(|open| open.title_of(stopped).is_some())
+                        {
                             self.close_confirm("stopped");
                         }
                     }
@@ -730,8 +734,6 @@ impl Conversation {
         }
         Ok(())
     }
-
-
 
     /// Once every tool of a reply has answered and the reply itself is done, ask for the next
     /// reply after the current audio has played, so the follow-up does not talk over it.

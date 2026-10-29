@@ -168,9 +168,11 @@ impl Render for VoicePanelDemo {
                     .child("Checking which session to stop")
                     .into_any_element(),
             );
-            lines.push(confirm_card::confirm_card(&card, colors, |session, _, _| {
-                eprintln!("confirm answered: {session:?}")
-            }));
+            lines.push(confirm_card::confirm_card(
+                &card,
+                colors,
+                |session, _, _| eprintln!("confirm answered: {session:?}"),
+            ));
         }
         let panel = cx.entity().downgrade();
         let hold = controls::hold_button(look, tooltip, colors, move |_, cx| {
@@ -277,15 +279,17 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
 
 /// The `confirm` frame gxserver sends for the demo's states, read the way the panel reads it.
 fn demo_card(state: &str) -> Option<rows::ConfirmCard> {
-    let choice = |session: &str, title: &str| {
-        serde_json::json!({"session": session, "title": title, "detail": "Ghostex · working"})
-    };
+    let choice = |session: &str, title: &str| serde_json::json!({"session": session, "title": title, "detail": "Ghostex · working"});
     let frame = match state {
-        "confirm" => serde_json::json!({"type": "confirm", "id": "c1", "title": "Stop Discord triage?",
-            "choices": [choice("P1:S1", "Discord triage")], "confirmLabel": "Stop", "cancelLabel": "Cancel"}),
-        "confirm-many" => serde_json::json!({"type": "confirm", "id": "c1", "title": "Stop which session?",
+        "confirm" => {
+            serde_json::json!({"type": "confirm", "id": "c1", "title": "Stop Discord triage?",
+            "choices": [choice("P1:S1", "Discord triage")], "confirmLabel": "Stop", "cancelLabel": "Cancel"})
+        }
+        "confirm-many" => {
+            serde_json::json!({"type": "confirm", "id": "c1", "title": "Stop which session?",
             "choices": [choice("P1:S1", "Discord triage"), choice("P1:S2", "Sidebar triage fix")],
-            "confirmLabel": "Stop", "cancelLabel": "Cancel"}),
+            "confirmLabel": "Stop", "cancelLabel": "Cancel"})
+        }
         _ => return None,
     };
     rows::confirm_card(&frame)

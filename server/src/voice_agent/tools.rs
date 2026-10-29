@@ -1360,7 +1360,9 @@ pub(super) async fn project_named(
                 .collect::<Vec<_>>()
                 .join(" or ")
         )),
-        Match::None => Err(format!("No project matches \"{query}\". Call list_projects.")),
+        Match::None => Err(format!(
+            "No project matches \"{query}\". Call list_projects."
+        )),
     }
 }
 
