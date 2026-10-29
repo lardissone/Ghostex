@@ -36,6 +36,7 @@ impl NativeChatView {
         }
         self.pane_hidden = true;
         self.close_own_menu(cx);
+        self.close_reply_popover(cx);
         self.pending_model_menu = None;
         self.hide_frosted_overlays(cx);
         self.sync_pane_modal_windows(cx);

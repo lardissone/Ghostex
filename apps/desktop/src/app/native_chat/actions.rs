@@ -420,6 +420,8 @@ impl NativeChatView {
             self.image_viewer_action(action.command["action"].as_str().unwrap_or_default(), cx);
         } else if action.command["type"] == "appendToDraft" {
             self.append_to_draft(action.command["text"].as_str().unwrap_or_default(), cx);
+        } else if action.command["type"] == "replyToSelection" {
+            self.open_reply_popover(&action.command, window, cx);
         } else if action.command["type"] == "host" {
             self.host(
                 action.command["action"].as_str().unwrap_or_default(),

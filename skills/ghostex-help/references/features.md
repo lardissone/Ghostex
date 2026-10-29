@@ -1281,10 +1281,15 @@ again. Copy still copies the whole message.
 Hover a message to show its actions and the time it was sent in a row below
 it: Copy message, Reply by Annotating, and Save to md under an agent's final
 reply; Rewind to here, Save prompt, and Copy message under your own messages.
+Select words in the chat and right-click them for Copy, Add to Chat (quotes
+them into the chat box) and Reply, which opens a small box for your answer:
+Add to prompt (Enter) adds the quote with your reply under it to the end of the
+chat box, and Send reply (Cmd+Enter, Ctrl+Enter on Windows and Linux) also
+sends it, as Send would. Shift+Enter starts a new line and Escape closes it.
 On the phone there is no hover. Hold a message's words to select them (drag
 the handles to change the selection); the menu that appears offers Copy, Add to
 Chat, which quotes the selected words into the chat box, and More, which opens
-the message's menu with Copy and Add to Chat for the whole message and the same
+the message's menu with Copy, Add to Chat and Reply for the whole message and the same
 actions. A selection stays inside one paragraph, list item, table cell or code
 block, so use More > Copy for a whole message. Holding a message beside its
 words opens that menu straight away, and holding a link opens the link's own

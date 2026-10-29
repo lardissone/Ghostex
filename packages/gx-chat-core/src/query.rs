@@ -43,6 +43,15 @@ pub fn answer_query(
             let question_active = request.get("questionActive") == Some(&Value::Bool(true));
             to_json(&transcript_menu(href, selection, question_active))
         }
+        Query::TranscriptReply => {
+            let request = first?;
+            let field = |name: &str| request.get(name).and_then(Value::as_str);
+            to_json(&crate::composer::transcript_menu::transcript_reply_draft(
+                field("draft").unwrap_or_default(),
+                field("quote")?,
+                field("reply").unwrap_or_default(),
+            ))
+        }
         Query::SendBlockedToast => {
             // The renderer passes the reason it already has; when it passes none, the helper asks
             // the composer for the current one.
@@ -145,6 +154,8 @@ pub enum Query {
     ReferenceMenu,
     /// The context menu for a transcript selection.
     TranscriptMenu,
+    /// `transcriptReply({draft, quote, reply})`: the chat box after the Reply popover adds a reply.
+    TranscriptReply,
     /// The toast text for a send the composer refused.
     SendBlockedToast,
     /// A question answer with the references for the files a paste uploaded.
@@ -173,6 +184,7 @@ impl Query {
             Self::ComposerKeyIntent => "composerKeyIntent",
             Self::ReferenceMenu => "referenceMenu",
             Self::TranscriptMenu => "transcriptMenu",
+            Self::TranscriptReply => "transcriptReply",
             Self::SendBlockedToast => "sendBlockedToast",
             Self::InsertAnswerAttachments => "insertAnswerAttachments",
             Self::RemoveChatReference => "removeChatReference",
@@ -191,6 +203,7 @@ impl Query {
             "composerKeyIntent" => Self::ComposerKeyIntent,
             "referenceMenu" => Self::ReferenceMenu,
             "transcriptMenu" => Self::TranscriptMenu,
+            "transcriptReply" => Self::TranscriptReply,
             "sendBlockedToast" => Self::SendBlockedToast,
             "insertAnswerAttachments" => Self::InsertAnswerAttachments,
             "removeChatReference" => Self::RemoveChatReference,

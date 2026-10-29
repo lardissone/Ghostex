@@ -73,6 +73,8 @@ pub(crate) struct NativeChatView {
     /// The chat box's pill strip (pills_strip.rs).
     pub(super) pills_strip: super::pills_strip::PillsStripCells,
     pub(super) save_markdown_window: super::save_markdown::SaveMarkdownWindowState,
+    /// The transcript menu's Reply popover (reply_popover.rs).
+    pub(super) reply_popover: super::reply_popover::ReplyPopoverState,
     pub(super) rewind_window: super::rewind::RewindWindowState,
     pub(super) image_viewer: super::image_viewer::ImageViewerState,
     /// The larger preview of one transcript table (table_preview/).
@@ -389,6 +391,7 @@ impl NativeChatView {
             pills_strip: Default::default(),
             context_editor_window: Default::default(),
             save_markdown_window: Default::default(),
+            reply_popover: Default::default(),
             rewind_window: Default::default(),
             image_viewer: Default::default(),
             table_preview: Default::default(),

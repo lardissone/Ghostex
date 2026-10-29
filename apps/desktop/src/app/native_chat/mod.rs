@@ -101,6 +101,7 @@ mod message_actions;
 mod page_answers;
 mod page_card;
 mod permission_card;
+mod reply_popover;
 mod rich_markdown;
 mod row_details;
 mod send_control;
