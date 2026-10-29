@@ -306,7 +306,11 @@ fn status_of(
 /// User, of the Chat Resources list: "show 12 here when first opened please. and don't split pages from answered from withdrawn, just different icon or icon color is enough. Just split unanswered from the others". The list has two groups only: Unanswered (the waiting questions, then the For later ones, which still need an answer and carry their own marker and button) and "Earlier", every answered form, page, chart and withdrawn question in one list, newest first, told apart by the row's icon and `status` (a withdrawn row's icon is dimmed). "Earlier" has no header while nothing is unanswered. The first page is 12 rows (`LIST_PAGE`). Supersedes the 2026-10-27 sections (Unanswered, For later, Answered, Withdrawn, Pages, Charts).
 const GROUPS: [(&str, &str); 2] = [("unanswered", "Unanswered"), ("earlier", "Earlier")];
 
-/// The pill's list: every form, page and chart in its group, newest first, all kinds.
+/// The pill's list: every form, page and chart in its group, all kinds. Earlier is newest first;
+/// Unanswered is oldest first, so the waiting questions read in the order they were asked.
+///
+/// CDXC:SessionChat 2026-10-30 DECISION:
+/// User, of the Chat Resources panel's Unanswered group (Q194, Q192, Q191, Q190 from the top): it lists oldest first (Q190, Q191, Q192, Q194), "so the questions read in the order they were asked". Only Unanswered flips (waiting ones, then the For later ones, each oldest first); Earlier stays newest first. The ? pill's click order (`previous`) and its `newest` ping id do not read this list.
 pub fn list(state: &ChatState, context: &ChatContext) -> Vec<QuestionListSection> {
     let waiting = waiting(state);
     let later = crate::questions::later::later_ids(state);
@@ -337,10 +341,10 @@ pub fn list(state: &ChatState, context: &ChatContext) -> Vec<QuestionListSection
         b_at.cmp(a_at).then(b_index.cmp(a_index))
     });
     let rows: Vec<QuestionListRow> = placed.into_iter().map(|(_, _, row)| row).collect();
-    // Waiting first, then the put-off ones, each newest first.
+    // Waiting first, then the put-off ones, each oldest first (`rows` is newest first).
     let unanswered: Vec<QuestionListRow> = ["waiting", "later"]
         .iter()
-        .flat_map(|status| rows.iter().filter(move |row| row.status == *status))
+        .flat_map(|status| rows.iter().rev().filter(move |row| row.status == *status))
         .cloned()
         .collect();
     let earlier: Vec<QuestionListRow> = rows
@@ -937,6 +941,33 @@ mod tests {
         );
     }
 
+    /// The Unanswered group reads in the order the questions were asked: waiting ones oldest
+    /// first, then the For later ones oldest first; the ? pill's own stepping is unchanged.
+    #[test]
+    fn unanswered_group_lists_oldest_first() {
+        let mut state = chat_asking(
+            [
+                ("q190", 1_000),
+                ("q191", 2_000),
+                ("q192", 3_000),
+                ("q193", 4_000),
+                ("q194", 5_000),
+            ]
+            .map(|(id, at)| asker(id, AskerKind::Form, Some(at)))
+            .to_vec(),
+        );
+        state.session.later_question_ids = vec!["q193".to_string(), "q191".to_string()];
+        let pill = project(&state, &ChatContext::default());
+        assert_eq!(
+            section(&pill, "unanswered"),
+            vec!["q190", "q192", "q194", "q191", "q193"]
+        );
+        assert_eq!(pill.newest.as_deref(), Some("q194"));
+        // The click still starts at the newest waiting question and steps back.
+        assert_eq!(clicked(&mut state).as_deref(), Some("q194"));
+        assert_eq!(clicked(&mut state).as_deref(), Some("q192"));
+    }
+
     #[test]
     fn two_groups_unanswered_then_everything_else_newest_first() {
         let mut state = ChatState::default();
@@ -968,7 +999,11 @@ mod tests {
             .map(|section| section.id.as_str())
             .collect();
         assert_eq!(order, vec!["unanswered", "earlier"], "two groups only");
-        assert_eq!(section(&pill, "unanswered"), vec!["open-new", "open-old"]);
+        assert_eq!(
+            section(&pill, "unanswered"),
+            vec!["open-old", "open-new"],
+            "Unanswered reads oldest first"
+        );
         assert_eq!(
             section(&pill, "earlier"),
             vec!["new-answer", "withdrawn", "old-answer", "undated"],
