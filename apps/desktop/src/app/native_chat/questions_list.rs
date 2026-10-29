@@ -81,6 +81,16 @@ fn later_action(status: &str, kind: &str, id: &str) -> Option<(&'static str, Val
     }
 }
 
+/// The word a row carries before its age: "For later" on a put-off form or page, "Canceled" on
+/// one the reader removed without answering.
+fn status_label(status: &str) -> Option<&'static str> {
+    match status {
+        "later" => Some("For later"),
+        "canceled" => Some("Canceled"),
+        _ => None,
+    }
+}
+
 /// The second button of a For later row: removes the question without answering it
 /// (`questionRemove`, gx-chat-core questions/later.rs). Only a put-off form or page gets it.
 fn remove_action(status: &str, kind: &str, id: &str) -> Option<(&'static str, Value)> {
@@ -233,6 +243,7 @@ impl NativeChatView {
             .map(|(section, row)| match text(row, "status").as_str() {
                 "waiting" => "unanswered".to_string(),
                 "later" => "later".to_string(),
+                "canceled" => "canceled".to_string(),
                 _ => text(section, "id"),
             })
     }
@@ -609,7 +620,7 @@ impl NativeChatView {
             .gap(px(8.0 * s))
             .min_w(px(slot * s))
             .h_full()
-            .when(status == "later", |this| {
+            .when_some(status_label(status), |this, label| {
                 this.child(
                     div()
                         .flex_shrink_0()
@@ -618,7 +629,7 @@ impl NativeChatView {
                         .when(hide_for_buttons, |this| {
                             this.group_hover(group.clone(), |style| style.opacity(0.0))
                         })
-                        .child("For later"),
+                        .child(label),
                 )
             })
             .when(!age.is_empty(), |this| {
@@ -677,7 +688,7 @@ impl NativeChatView {
         // Answered forms and pages are green, withdrawn ones dimmed; the rest are the usual grey.
         let (icon_color, title_color) = match status.as_str() {
             "answered" => (p.success(), p.foreground),
-            "withdrawn" => (p.muted.opacity(0.6), p.card_muted),
+            "withdrawn" | "canceled" => (p.muted.opacity(0.6), p.card_muted),
             _ => (p.card_muted, p.foreground),
         };
         let tooltip = row_tooltip(row);
@@ -784,6 +795,17 @@ mod tests {
         assert!(later_action("waiting", "chart", "c").is_none());
         assert_eq!(later_icon("later"), "titlebar/arrow-back-up.svg");
         assert_eq!(later_icon("waiting"), "titlebar/clock.svg");
+    }
+
+    #[test]
+    fn put_off_and_canceled_rows_are_labelled_and_a_canceled_row_has_no_buttons() {
+        assert_eq!(status_label("later"), Some("For later"));
+        assert_eq!(status_label("canceled"), Some("Canceled"));
+        for status in ["waiting", "answered", "withdrawn", "other"] {
+            assert_eq!(status_label(status), None, "{status}");
+        }
+        assert!(later_action("canceled", "form", "f").is_none());
+        assert!(remove_action("canceled", "form", "f").is_none());
     }
 
     #[test]

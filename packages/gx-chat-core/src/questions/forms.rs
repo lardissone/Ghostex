@@ -46,6 +46,7 @@ fn received_answers<'a>(state: &'a ChatState, id: &str) -> Option<&'a Value> {
 /// late, and picks the reader makes first win over it.
 fn open(state: &ChatState, id: &str) -> bool {
     received_answers(state, id).is_none()
+        && !crate::questions::later::removed_ids(state).contains(id)
         && state
             .questions
             .forms
@@ -499,6 +500,7 @@ fn notes_from_answers(form: &QuestionForm, answers: &Value) -> String {
 /// The document's `questionForms`: each form with what the reader picked, or what was sent.
 pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
     let later = crate::questions::open_questions::later_waiting(state);
+    let removed = crate::questions::later::removed_ids(state);
     state
         .transcript_view
         .question_forms
@@ -532,6 +534,13 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
                     vec![QuestionDraft::default(); form.questions.len()],
                     String::new(),
                 ),
+            };
+            // A form the reader removed without answering reads Canceled: it opens to be read but
+            // takes no answer (`questions/later.rs`).
+            let phase = if phase == "open" && removed.contains(&form.id) {
+                "canceled"
+            } else {
+                phase
             };
             let takes_notes = takes_notes(form);
             let mut value = serde_json::to_value(form).unwrap_or_default();
@@ -622,4 +631,46 @@ pub fn any_waiting_for_server(state: &ChatState) -> bool {
         .forms
         .values()
         .any(|entry| entry.send.as_ref().is_some_and(|send| send.retry.due()))
+}
+
+#[cfg(test)]
+mod canceled_tests {
+    use super::*;
+    use crate::transcript::question_forms::parse_form;
+
+    fn state_with_form() -> (ChatState, String) {
+        let form = parse_form(
+            r#"{"title": "T", "questions": [{"title": "Pick?", "choices": ["Yes", "No"]}]}"#,
+        );
+        let id = form.id.clone();
+        let mut state = ChatState::default();
+        state.transcript_view.question_forms.push(form);
+        state
+            .questions
+            .forms
+            .insert(id.clone(), FormState::default());
+        (state, id)
+    }
+
+    /// A removed form reads `canceled`: it can be read but takes no pick, note, Skip all or Send.
+    #[test]
+    fn a_canceled_form_is_read_only() {
+        let (mut state, id) = state_with_form();
+        assert_eq!(project(&state)[&id]["state"], "open");
+        assert_eq!(project(&state)[&id]["canSend"], true);
+
+        crate::questions::later::remove(&mut state, &id);
+        let value = &project(&state)[&id];
+        assert_eq!(value["state"], "canceled");
+        assert_eq!(value["canSend"], false);
+        assert_eq!(value["later"], false);
+        assert_eq!(value["collapsed"], false, "it opens to be read");
+
+        let context = ChatContext::default();
+        assert!(pick(&mut state, &context, &id, 0, 0).is_empty());
+        assert!(send(&mut state, &context, &id).is_empty());
+        assert!(skip_all(&mut state, &context, &id).is_empty());
+        assert!(state.questions.forms[&id].send.is_none());
+        assert!(!state.questions.forms[&id].touched, "no pick landed");
+    }
 }

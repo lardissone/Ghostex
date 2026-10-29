@@ -39,11 +39,11 @@ pub fn later_ids(state: &ChatState) -> BTreeSet<String> {
 }
 
 /// The forms and pages the reader removed without answering: gxserver's list with this client's
-/// removals on top. They no longer wait, count or notify, and the list shows them under Earlier
-/// dimmed like a withdrawn question.
+/// removals on top. They no longer wait, count or notify, and the list shows them under Earlier,
+/// dimmed, as Canceled.
 ///
 /// CDXC:SessionChat 2026-10-30 DECISION:
-/// User, of the Chat Resources list's For later rows: "when i hover on it then we should show the restore button and a new x button to remove a question without answering it". The X removes a form or page for good: it leaves the unanswered and For later counts, the ? pill's stepping and the header's "N for later", moves to Earlier marked like a withdrawn question, is kept across restarts in gxserver beside the For later list, and sends nothing to the agent.
+/// User, of the Chat Resources list's For later rows: "when i hover on it then we should show the restore button and a new x button to remove a question without answering it". The X removes a form or page for good: it leaves the unanswered and For later counts, the ? pill's stepping and the header's "N for later", moves to Earlier, is kept across restarts in gxserver beside the For later list, and sends nothing to the agent. Then (2026-10-30, Q797): "Canceled" is the word, on the row in the list and on the question's card in the chat in place of For later or Waiting; the form still opens to be read but takes no answer (no picks, notes, Skip all or Send), and the phone's rows and form card do the same. Supersedes the row being marked like a withdrawn question.
 pub fn removed_ids(state: &ChatState) -> BTreeSet<String> {
     state
         .session

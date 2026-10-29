@@ -345,14 +345,20 @@ impl NativeChatView {
         let (glyph, state) = match phase.as_str() {
             "sending" => (None, "Sending…"),
             "queued" => (Some("titlebar/clock.svg"), "Queued"),
+            "canceled" => (Some("titlebar/x.svg"), "Canceled"),
             _ if later => (Some("titlebar/clock.svg"), "For later"),
             _ => (Some("titlebar/clock.svg"), "Waiting"),
         };
+        let canceled = phase == "canceled";
         let state = SINGLE_LINE_CARD
             .pill(
                 glyph,
                 Some(state.to_string()),
-                if later { p.muted } else { ask_color(p) },
+                if later || canceled {
+                    p.muted
+                } else {
+                    ask_color(p)
+                },
                 p,
             )
             .into_any_element();
@@ -375,6 +381,8 @@ impl NativeChatView {
                 "Reconnecting to Ghostex… your answers go out as soon as it's back.".to_string()
             }
             "sending" => "Sending…".to_string(),
+            // Removed from Chat Resources without an answer (gx-chat-core questions/later.rs).
+            "canceled" => "Canceled: it takes no answer.".to_string(),
             _ if !send_error.is_empty() => send_error.clone(),
             // Nothing to say: the (i) icon holds the sentence about blank questions (`ask_info_hint`).
             _ => String::new(),
@@ -390,31 +398,37 @@ impl NativeChatView {
             "queued" => "Queued".to_string(),
             _ => text(form, "submit"),
         };
-        let footer = vec![
-            div()
-                .flex_1()
-                .min_w_0()
-                .text_size(px(12.5 * s))
-                .line_height(px(18.0 * s))
-                .text_color(status_color)
-                .when(!status.is_empty(), |slot| slot.child(status))
-                .when(status_is_hint, |slot| {
-                    slot.child(ask_info_hint(SKIPPED_HINT, p))
-                })
-                .into_any_element(),
-            self.later_button(id, enabled, later, p, cx),
-            self.skip_all_button(id, enabled, p, cx),
-            self.ask_primary_button(
-                SharedString::from(format!("question-form-send:{id}")),
-                send_label,
-                None,
-                enabled.then(|| ("Send answers".to_string(), send_chord())),
-                json!({"type":"formSend","form":id}),
-                !can_send,
-                p,
-                cx,
-            ),
-        ];
+        let status_slot = div()
+            .flex_1()
+            .min_w_0()
+            .text_size(px(12.5 * s))
+            .line_height(px(18.0 * s))
+            .text_color(status_color)
+            .when(!status.is_empty(), |slot| slot.child(status))
+            .when(status_is_hint, |slot| {
+                slot.child(ask_info_hint(SKIPPED_HINT, p))
+            })
+            .into_any_element();
+        // A canceled form has no buttons: it opens to be read and takes no answer.
+        let footer = if canceled {
+            vec![status_slot]
+        } else {
+            vec![
+                status_slot,
+                self.later_button(id, enabled, later, p, cx),
+                self.skip_all_button(id, enabled, p, cx),
+                self.ask_primary_button(
+                    SharedString::from(format!("question-form-send:{id}")),
+                    send_label,
+                    None,
+                    enabled.then(|| ("Send answers".to_string(), send_chord())),
+                    json!({"type":"formSend","form":id}),
+                    !can_send,
+                    p,
+                    cx,
+                ),
+            ]
+        };
         // CDXC:SessionChat 2026-10-11 DECISION: User: Ctrl+Enter (Cmd+Enter on macOS) presses the form's send button from anywhere in it, a note box included; the page kit (server/src/visual_pages/kit.rs) does the same. Adding Shift presses Skip all (2026-10-16, the SessionChat DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs).
         let send_form = id.to_string();
         div()

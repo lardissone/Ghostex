@@ -223,6 +223,21 @@ impl NativeChatView {
             .and_then(|page_id| self.question_section_of(page_id))
             .filter(|section| section == "unanswered" || section == "later");
         let later = waiting.as_deref() == Some("later");
+        // Removed from Chat Resources without an answer (gx-chat-core questions/later.rs): the card
+        // says Canceled where a withdrawn page says Withdrawn.
+        let canceled = page_id
+            .as_deref()
+            .filter(|_| !answered)
+            .and_then(|page_id| self.question_section_of(page_id))
+            .is_some_and(|section| section == "canceled");
+        let withdrawn = if canceled {
+            Some((
+                "Canceled".to_string(),
+                "Canceled, no answer needed".to_string(),
+            ))
+        } else {
+            withdrawn
+        };
         let picture = page_id
             .as_deref()
             .and_then(|page_id| self.page_thumbnail(page_id, answered, cx));

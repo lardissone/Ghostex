@@ -80,7 +80,7 @@ pub struct QuestionListFilter {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuestionListSection {
-    /// `unanswered`, `later`, `answered`, `withdrawn`, `pages` or `charts`.
+    /// `unanswered`, `later`, `answered`, `withdrawn`, `canceled`, `pages` or `charts`.
     pub id: String,
     pub title: String,
     pub count: u32,
@@ -98,7 +98,7 @@ pub struct QuestionListRow {
     pub kind: String,
     pub title: String,
     /// Where it stands: `waiting` (unanswered), `later` (put off For later, still unanswered),
-    /// `answered`, `withdrawn`, or `other` for a page or chart that asks nothing. The renderers
+    /// `answered`, `withdrawn`, `canceled` (removed by the reader), or `other` for a page or chart that asks nothing. The renderers
     /// tell rows apart by it (the icon's colour, the For later marker and button).
     #[serde(default)]
     pub status: String,
@@ -293,9 +293,11 @@ fn status_of(
     if asker.inherited {
         return None;
     }
-    // Neither waiting nor answered: withdrawn (by the agent, or removed by the reader), asked again
+    // Neither waiting nor answered: canceled (removed by the reader), withdrawn by the agent, asked again
     // later, or a form whose answers are on their way (answered, as the pill counts it).
-    if asker.obsolete || removed.contains(&asker.id) {
+    if removed.contains(&asker.id) {
+        Some("canceled")
+    } else if asker.obsolete {
         Some("withdrawn")
     } else {
         Some("answered")
@@ -973,9 +975,9 @@ mod tests {
     }
 
     /// The X on a For later row: the question leaves Unanswered, the counts and the ? pill's
-    /// stepping at once, lands in Earlier marked withdrawn, and stays there once the wire carries it.
+    /// stepping at once, lands in Earlier marked canceled, and stays there once the wire carries it.
     #[test]
-    fn a_removed_question_leaves_the_counts_and_lands_in_earlier_as_withdrawn() {
+    fn a_removed_question_leaves_the_counts_and_lands_in_earlier_as_canceled() {
         let mut state = chat_asking(vec![
             asker("a", AskerKind::Form, Some(1_000)),
             asker("b", AskerKind::Page, Some(2_000)),
@@ -997,7 +999,7 @@ mod tests {
         assert_eq!(pill.count, 1);
         assert_eq!(section(&pill, "unanswered"), vec!["c", "b"]);
         assert_eq!(section(&pill, "earlier"), vec!["a"]);
-        assert_eq!(with_status(&pill, "withdrawn"), vec!["a"]);
+        assert_eq!(with_status(&pill, "canceled"), vec!["a"]);
         assert_eq!(pill.total, 3, "the list still holds it");
         assert!(later_waiting(&state).iter().all(|id| id != "a"));
 
@@ -1006,7 +1008,7 @@ mod tests {
         crate::questions::later::settle(&mut state);
         assert!(state.questions.later.removing.is_empty());
         let pill = project(&state, &ChatContext::default());
-        assert_eq!(with_status(&pill, "withdrawn"), vec!["a"]);
+        assert_eq!(with_status(&pill, "canceled"), vec!["a"]);
 
         // Removing the waiting one too leaves no pill count, and the click has nowhere to go.
         crate::questions::later::remove(&mut state, "c");
