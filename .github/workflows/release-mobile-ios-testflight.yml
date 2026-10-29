@@ -25,11 +25,19 @@ concurrency:
 
 jobs:
   build-and-upload:
-    runs-on: macos-26
+    # CDXC:Release 2026-10-29 DECISION:
+    # Asked "The Duo layout only works when the iPhone app is built with Xcode 27.1, which GitHub offers on a preview runner (may queue). Move the iPhone build to it?" (Q768), the user answered "Move it, with a test build first". The iPhone Duo code (ghostex-mobile#4) is behind `canImport(UIKit, _version: 9127.0.85)` and compiles out with an older SDK, so the build runs on GitHub's `xcode-27` preview image and refuses any Xcode older than 27.1.
+    runs-on: xcode-27
     timeout-minutes: 120
     steps:
-      - name: Select Expo 57 toolchain
-        run: sudo xcode-select --switch /Applications/Xcode_26.4.1.app
+      - name: Select Xcode 27.1 or newer (the iPhone Duo layout needs the iOS 27.1 SDK)
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app
+          version="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
+          echo "Xcode $version"
+          case "$version" in
+            27.0* | 2[0-6].* | 1[0-9].*) echo "::error::Xcode $version is older than 27.1, which the iPhone Duo layout needs"; exit 1 ;;
+          esac
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 1
