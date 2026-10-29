@@ -33,7 +33,7 @@ pub(crate) fn about() -> Section {
     )
 }
 
-/// CDXC:Settings 2026-10-29 DECISION: User (Q5): with the Advanced group gone, Experimental lives on the About page, after the links. Its rows stay advanced (`ADVANCED_MAIN_SETTING_KEYS`), so About shows them with Show Advanced on or a matching search, as General did.
+/// CDXC:Settings 2026-10-29 DECISION: User (Q5): with the Advanced group gone, Experimental lives on the About page, after the links. Its rows stay advanced (`ADVANCED_MAIN_SETTING_KEYS`), so About folds them into its Advanced section, or shows them in place for a matching search.
 pub(crate) fn beta() -> Section {
     section(
         "beta",

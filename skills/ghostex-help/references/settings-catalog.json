@@ -66,8 +66,8 @@
     },
     {
       "key": "sessionChatCustomTranscriptWidthEnabled",
-      "title": "Custom transcript width",
-      "subtitle": "Let the transcript use a different width from the prompt composer.",
+      "title": "Custom transcript width (set with Transcript width)",
+      "subtitle": "On once Transcript width is dragged to a percentage; off keeps Auto, where the transcript matches the prompt composer's width.",
       "tab": "chat",
       "tabTitle": "Chat",
       "section": "chat",
@@ -80,7 +80,7 @@
     {
       "key": "sessionChatTranscriptWidthPercent",
       "title": "Transcript width",
-      "subtitle": "Set the centered transcript width without changing the prompt composer.",
+      "subtitle": "The centered transcript's width on wide panes. Auto matches the prompt composer; drag to set a percentage of the pane instead. The prompt composer keeps its standard width either way.",
       "tab": "chat",
       "tabTitle": "Chat",
       "section": "chat",
@@ -107,7 +107,7 @@
     },
     {
       "key": "sessionChatMutedThinking",
-      "title": "Grey thinking",
+      "title": "Show thinking in grey",
       "subtitle": "Show the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart.",
       "tab": "chat",
       "tabTitle": "Chat",
@@ -154,18 +154,6 @@
       "type": "boolean",
       "default": true,
       "advanced": true,
-      "agentWritable": true
-    },
-    {
-      "key": "sessionChatSimpleMode",
-      "title": "Simple mode",
-      "subtitle": "Simplify all chats: hide tool command previews and group file edits behind an expandable file count.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "boolean",
-      "default": true,
       "agentWritable": true
     },
     {
@@ -220,89 +208,8 @@
       "agentWritable": true
     },
     {
-      "key": "markedHandovers",
-      "title": "Marked handovers in every session",
-      "subtitle": "Coordinators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "boolean",
-      "default": false,
-      "agentWritable": true
-    },
-    {
-      "key": "markedHandoversEmoji",
-      "title": "Show marker emojis",
-      "subtitle": "Not recommended. Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
-      "key": "markedHandoversStyle",
-      "title": "Marked sections style",
-      "subtitle": "How the chat colours the sections an agent marks: coloured labels, a thin left rule, or a coloured badge in place of the emoji. Shown while Marked handovers is on.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "enum",
-      "default": "labels",
-      "options": [
-        {
-          "label": "Coloured labels",
-          "value": "labels"
-        },
-        {
-          "label": "Thin left rule",
-          "value": "rule"
-        },
-        {
-          "label": "Coloured badge",
-          "value": "badge"
-        }
-      ],
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
-      "key": "markedHandoversHeadingStrength",
-      "title": "Handover heading color strength",
-      "subtitle": "How strongly the coloured section headings in agents' handovers (Done, Needs you, Untested and the rest) stand out. 100% is full colour; lower values blend the headings toward the normal text colour, and 0% leaves them in plain bold text.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "number",
-      "default": 60,
-      "min": 0,
-      "max": 100,
-      "step": 10,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
-      "key": "orchestratorPlainReplies",
-      "title": "Coordinators answer without markers",
-      "subtitle": "Not recommended. Coordinators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the coordinator. Applies to coordinators started or resumed after you change it.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
       "key": "orchestratorAllEfforts",
-      "title": "Show all effort levels",
+      "title": "Every effort level in coordinator pickers",
       "subtitle": "Lists every effort level in the coordinator effort pickers. Anything below Medium isn't recommended for coordinators.",
       "tab": "chat",
       "tabTitle": "Chat",
@@ -324,19 +231,6 @@
       "type": "ui",
       "advanced": true,
       "agentWritable": false
-    },
-    {
-      "key": "sessionChatVerboseMode",
-      "title": "Verbose mode",
-      "subtitle": "Expand thinking blocks to show their tool calls by default. Each chat can override it from its composer.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "agentWritable": true
     },
     {
       "key": "readAloudVoice",
@@ -411,6 +305,111 @@
       "agentWritable": true
     },
     {
+      "key": "sessionChatSimpleMode",
+      "title": "Simple mode by default",
+      "subtitle": "New chats open in Simple mode (on by default). More actions > View in a chat picks Simple, Detailed or Verbose for that chat.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
+      "key": "sessionChatVerboseMode",
+      "title": "Verbose mode by default",
+      "subtitle": "New chats open in Verbose mode when Simple mode by default is off. More actions > View in a chat picks the level for that chat.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "markedHandovers",
+      "title": "Marked handovers in every session",
+      "subtitle": "Coordinators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "markedHandovers",
+      "sectionTitle": "Marked handovers",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "markedHandoversEmoji",
+      "title": "Show marker emojis",
+      "subtitle": "Not recommended. Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "markedHandovers",
+      "sectionTitle": "Marked handovers",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "markedHandoversStyle",
+      "title": "Marked sections style",
+      "subtitle": "How the chat colours the sections an agent marks: coloured labels, a thin left rule, or a coloured badge in place of the emoji. Shown while Marked handovers is on.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "markedHandovers",
+      "sectionTitle": "Marked handovers",
+      "type": "enum",
+      "default": "labels",
+      "options": [
+        {
+          "label": "Coloured labels",
+          "value": "labels"
+        },
+        {
+          "label": "Thin left rule",
+          "value": "rule"
+        },
+        {
+          "label": "Coloured badge",
+          "value": "badge"
+        }
+      ],
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "markedHandoversHeadingStrength",
+      "title": "Heading colour strength",
+      "subtitle": "How strongly the coloured section headings in agents' handovers (Done, Needs you, Untested and the rest) stand out. 100% is full colour; lower values blend the headings toward the normal text colour, and 0% leaves them in plain bold text.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "markedHandovers",
+      "sectionTitle": "Marked handovers",
+      "type": "number",
+      "default": 60,
+      "min": 0,
+      "max": 100,
+      "step": 10,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "orchestratorPlainReplies",
+      "title": "Coordinators answer without markers",
+      "subtitle": "Not recommended. Coordinators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the coordinator. Applies to coordinators started or resumed after you change it.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "markedHandovers",
+      "sectionTitle": "Marked handovers",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
       "key": "sidebarSettingsPreset",
       "title": "Preset",
       "subtitle": "Apply a sidebar UI preset or show Custom when controlled settings diverge.",
@@ -467,7 +466,7 @@
     },
     {
       "key": "sidebarSpaceFollowActiveSession",
-      "title": "Follow the active session's Space",
+      "title": "Switch Space when opening a session from another Space",
       "subtitle": "Switch the selected Space to the one that owns a session you open from outside it, such as through Back/Forward or Search by Prompt. Shown while the Spaces extension is on.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -480,7 +479,7 @@
     },
     {
       "key": "projectSwitchKeepAliveMinutes",
-      "title": "Keep the previous project live for",
+      "title": "Keep the last project running for",
       "subtitle": "After you switch to another project or Space, keep the terminals, chats, and view that were open in the previous project running for this many minutes so switching back is instant. 0 releases them right away. Keep views loaded (Auto Sleep) keeps every side panel view until its Auto Sleep time instead.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -495,8 +494,8 @@
     },
     {
       "key": "sidebarVisibilityMemory",
-      "title": "Sidebar visibility memory",
-      "subtitle": "Keep one sidebar state everywhere, or remember it separately for Agents and for the wide views (Browser, Code, Files, Kanban, Automate).",
+      "title": "Remember sidebar per view",
+      "subtitle": "Off: hiding the sidebar hides it everywhere. On: Agents and the wide views (Browser, Code, Files, Kanban, Automate) each keep their own open or hidden sidebar; the Commands pane follows the same split.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
       "section": "sidebar",
@@ -518,7 +517,7 @@
     },
     {
       "key": "showProjectIcons",
-      "title": "Show project icons",
+      "title": "Card details: project icons",
       "subtitle": "Show project artwork or a square with the project’s first letter beside project names.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -531,7 +530,7 @@
     },
     {
       "key": "hideSessionAgentIconUntilHover",
-      "title": "Hide agent icon until hover",
+      "title": "Card details: agent icon",
       "subtitle": "Hide session agent icons until a session row is hovered.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -544,7 +543,7 @@
     },
     {
       "key": "hideBrowserFaviconUntilHover",
-      "title": "Hide browser favicon until hover",
+      "title": "Card details: browser favicon",
       "subtitle": "Hide browser page favicons until a session row is hovered.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -557,7 +556,7 @@
     },
     {
       "key": "hideLastActiveTimeOnSessionCards",
-      "title": "Hide last active time",
+      "title": "Card details: last active time",
       "subtitle": "Hide Last Active timestamps from session-card title rows.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -583,7 +582,7 @@
     },
     {
       "key": "hideProjectHeaderDiffStats",
-      "title": "Hide project git stats",
+      "title": "Card details: project git stats",
       "subtitle": "Hide +added/-removed line counts in sidebar project rows.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -596,7 +595,7 @@
     },
     {
       "key": "showProjectEditorDiffFileCount",
-      "title": "Show changed-file count",
+      "title": "Card details: changed-file count",
       "subtitle": "Show changed-file counts in sidebar project row git stats.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -608,9 +607,9 @@
       "agentWritable": true
     },
     {
-      "key": "hideMenuBarSessionStatusIndicators",
-      "title": "Show Menu Bar Session Indicators",
-      "subtitle": "Show the menu bar session status badges.",
+      "key": "showUntrackedProjectDiffWhenNoTrackedChanges",
+      "title": "Card details: untracked lines",
+      "subtitle": "Count untracked lines in a project's git stats when the tracked diff is +0 -0 (prompts like Starship ignore untracked lines).",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
       "section": "sidebar",
@@ -622,7 +621,7 @@
     },
     {
       "key": "sidebarCollapseAnimationDurationMs",
-      "title": "Collapse animation speed",
+      "title": "Animations (fold speed, set with Animations)",
       "subtitle": "Set how quickly sidebar sections, groups, and projects expand or collapse, and how quickly the floating sidebar and Agents Panel slide in from the window edge. Set to 0 for no animation.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -638,7 +637,7 @@
     },
     {
       "key": "panelAnimationSpeed",
-      "title": "Panel animations",
+      "title": "Animations",
       "subtitle": "Set how fast the sidebar, the side panel, the Agents Panel and the bottom or right panel slide open and closed: Off, Slow, Normal or Fast. Reduce Motion in your computer settings always turns it off.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -682,7 +681,7 @@
     },
     {
       "key": "sidebarTooltipDelayMs",
-      "title": "Tooltip Delay",
+      "title": "Session tooltips delay (set with Session tooltips)",
       "subtitle": "Set how long sidebar hover labels wait before appearing. Set to 0 to show them immediately.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -698,7 +697,7 @@
     },
     {
       "key": "sidebarDefaultWidthPx",
-      "title": "Default Width",
+      "title": "Sidebar width on double-click",
       "subtitle": "Width restored when double-clicking the sidebar resize handle.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -713,7 +712,7 @@
     },
     {
       "key": "commandsPanelDefaultHeightPx",
-      "title": "Command Pane Default Height",
+      "title": "Commands pane height on double-click",
       "subtitle": "Height used when opening the command pane and when double-clicking its top resize rail.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -728,7 +727,7 @@
     },
     {
       "key": "commandsPanelSide",
-      "title": "Command Pane Side",
+      "title": "Commands pane side",
       "subtitle": "Dock the command pane below the workspace or to its right.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -751,7 +750,7 @@
     {
       "key": "commandsPanelAutoMinimize",
       "title": "Auto-minimize Commands pane",
-      "subtitle": "Minimize the Commands pane after you stop using it and move focus elsewhere. Commands keep running.",
+      "subtitle": "Minimize the Commands pane this long after you move focus elsewhere and the pointer leaves it. Commands keep running. Off keeps the pane open.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
       "section": "sidebar",
@@ -763,7 +762,7 @@
     },
     {
       "key": "commandsPanelAutoMinimizeDelaySeconds",
-      "title": "Minimize after",
+      "title": "Minimize after (set with Auto-minimize Commands pane)",
       "subtitle": "How long the Commands pane stays open after focus and the pointer leave it.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -797,32 +796,6 @@
       "agentWritable": true
     },
     {
-      "key": "hideTabStripNewTerminalButton",
-      "title": "Hide New Terminal button",
-      "subtitle": "Hide the New Terminal button from the tab strip.",
-      "tab": "sidebar",
-      "tabTitle": "Sidebar & Sessions",
-      "section": "sidebar",
-      "sectionTitle": "Sidebar",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
-      "key": "hideTabStripNewBrowserButton",
-      "title": "Hide New Browser Tab button",
-      "subtitle": "Hide the New Browser Tab button from the tab strip.",
-      "tab": "sidebar",
-      "tabTitle": "Sidebar & Sessions",
-      "section": "sidebar",
-      "sectionTitle": "Sidebar",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
       "key": "groupWorkingSessions",
       "title": "Group working sessions",
       "subtitle": "Move sessions into a collapsed Working section under their project while their agent works; they return to Sessions when it stops or needs you. Also in the sidebar's Sort & Filter menu.",
@@ -836,7 +809,7 @@
     },
     {
       "key": "agentManagerZoomPercent",
-      "title": "Sidebar Interface Size",
+      "title": "Sidebar zoom (%)",
       "subtitle": "Scale the sidebar interface.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -887,7 +860,7 @@
     },
     {
       "key": "showTagMenuWhenParking",
-      "title": "Park & Snooze with tags",
+      "title": "Ask for a tag when parking or snoozing",
       "subtitle": "Open the Tag as menu when a session is parked or snoozed so it can be tagged right away.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -1062,7 +1035,7 @@
     },
     {
       "key": "sidebarSessionTagListItems",
-      "title": "Tag Filter List",
+      "title": "Tag filter list",
       "subtitle": "Add your own tags, then reorder, hide, disable, or delete tags and their separators for the sidebar and the Tag as menu.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
@@ -1386,21 +1359,8 @@
       "agentWritable": true
     },
     {
-      "key": "terminalBackgroundBlur",
-      "title": "Background blur",
-      "subtitle": "How soft what shows behind the window looks, in points; 0 shows it sharp. It is the window's Blur, the same setting as Settings > Theme > Transparency (`windowGlassBlurRadius`), since a window has one blur. Shown while transparency is on.",
-      "tab": "terminal",
-      "tabTitle": "Terminal",
-      "section": "terminal",
-      "sectionTitle": "Terminal",
-      "type": "ui",
-      "advanced": true,
-      "agentWritable": false,
-      "availability": "Not shown on Windows while Behind the glass is Desktop and windows."
-    },
-    {
       "key": "terminalBackgroundImage",
-      "title": "Background Image",
+      "title": "Background image",
       "subtitle": "Absolute path to an image drawn behind terminal panes.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1413,7 +1373,7 @@
     },
     {
       "key": "terminalBackgroundImageOpacity",
-      "title": "Background Image Opacity",
+      "title": "Background image opacity",
       "subtitle": "Blend the background image toward the terminal background color.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1425,39 +1385,8 @@
       "agentWritable": true
     },
     {
-      "key": "terminalBackgroundImageFit",
-      "title": "Background Image Fit",
-      "subtitle": "How the background image is scaled inside each pane.",
-      "tab": "terminal",
-      "tabTitle": "Terminal",
-      "section": "terminal",
-      "sectionTitle": "Terminal",
-      "type": "enum",
-      "default": "cover",
-      "options": [
-        {
-          "label": "Cover",
-          "value": "cover"
-        },
-        {
-          "label": "Contain",
-          "value": "contain"
-        },
-        {
-          "label": "Stretch",
-          "value": "stretch"
-        },
-        {
-          "label": "Natural size",
-          "value": "natural"
-        }
-      ],
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
       "key": "terminalFontFamily",
-      "title": "Font Family",
+      "title": "Font family",
       "subtitle": "Type a Ghostty font-family name.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1469,7 +1398,7 @@
     },
     {
       "key": "terminalFontSize",
-      "title": "Font Size",
+      "title": "Font size",
       "subtitle": "Set terminal text size.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1481,7 +1410,7 @@
     },
     {
       "key": "terminalFontWeight",
-      "title": "Font Weight",
+      "title": "Font weight",
       "subtitle": "Set terminal text weight.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1507,7 +1436,7 @@
     },
     {
       "key": "terminalLineHeight",
-      "title": "Line Height",
+      "title": "Line height",
       "subtitle": "Adjust terminal row height.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1520,7 +1449,7 @@
     },
     {
       "key": "terminalLetterSpacing",
-      "title": "Letter Spacing",
+      "title": "Letter spacing",
       "subtitle": "Adjust spacing between glyphs.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1533,7 +1462,7 @@
     },
     {
       "key": "terminalViewWidthMode",
-      "title": "Terminal width mode",
+      "title": "Match chat width",
       "subtitle": "Use the full pane, match the chat transcript, or set an independent terminal width.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1560,7 +1489,7 @@
     },
     {
       "key": "terminalViewWidthPercent",
-      "title": "Terminal Width (%)",
+      "title": "Terminal width (%)",
       "subtitle": "Set the centered terminal body width as a percentage.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1576,7 +1505,7 @@
     },
     {
       "key": "terminalWidthApplyToCommandPaneTerminals",
-      "title": "Apply Width to Command Pane Terminals",
+      "title": "Use this width in the Commands pane too",
       "subtitle": "Apply the narrower terminal width to command pane terminals too.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1589,7 +1518,7 @@
     },
     {
       "key": "terminalPaneHorizontalPaddingPx",
-      "title": "Horizontal Padding",
+      "title": "Padding",
       "subtitle": "Add left and right inner padding inside the terminal content area.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1604,7 +1533,7 @@
     },
     {
       "key": "terminalPaneVerticalPaddingPx",
-      "title": "Vertical Padding",
+      "title": "Vertical padding (set with Padding)",
       "subtitle": "Add top and bottom inner padding inside the terminal content area.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1619,7 +1548,7 @@
     },
     {
       "key": "terminalCursorStyle",
-      "title": "Cursor Style",
+      "title": "Cursor style",
       "subtitle": "Choose the cursor shape.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1658,7 +1587,7 @@
     },
     {
       "key": "clickToWakeSleepingSessions",
-      "title": "Click to Wake Sleeping Panes",
+      "title": "Keep sleeping tabs asleep until clicked",
       "subtitle": "Select sleeping pane tabs without waking them until the empty pane is clicked.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1695,20 +1624,8 @@
       "agentWritable": true
     },
     {
-      "key": "showNotificationOnTerminalBell",
-      "title": "Show notification on terminal bell",
-      "subtitle": "Treat terminal bell events as session attention.",
-      "tab": "terminal",
-      "tabTitle": "Terminal",
-      "section": "terminal",
-      "sectionTitle": "Terminal",
-      "type": "boolean",
-      "default": false,
-      "agentWritable": true
-    },
-    {
       "key": "promptEditorBackend",
-      "title": "⌃G prompt editor",
+      "title": "Editor for ⌃G and $EDITOR prompts",
       "subtitle": "Choose which editor ⌃G uses when a terminal prompt asks for $EDITOR.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1871,7 +1788,7 @@
     },
     {
       "key": "terminalPastePreviewableImages",
-      "title": "Paste previewable images",
+      "title": "Paste images as preview links",
       "subtitle": "Paste clipboard images as previewable Markdown links with ⌘V. Hold ⌘ over the linked path to preview it in the terminal, and see the same image preview in the ⌃G Rich Prompt Editor.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1920,7 +1837,7 @@
     },
     {
       "key": "terminalMouseScrollMultiplierPrecision",
-      "title": "Precision scroll multiplier",
+      "title": "Trackpad scroll speed",
       "subtitle": "Trackpads and high-resolution scroll wheels. Ghostty default is 1.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1933,7 +1850,7 @@
     },
     {
       "key": "terminalMouseScrollMultiplierDiscrete",
-      "title": "Discrete scroll multiplier",
+      "title": "Mouse wheel scroll speed",
       "subtitle": "Traditional notched mouse wheels. Ghostty default is 3.",
       "tab": "terminal",
       "tabTitle": "Terminal",
@@ -1958,9 +1875,21 @@
       "agentWritable": true
     },
     {
+      "key": "showNotificationOnTerminalBell",
+      "title": "Show notification on terminal bell",
+      "subtitle": "Treat terminal bell events as session attention.",
+      "tab": "notifications",
+      "tabTitle": "Notifications",
+      "section": "sounds",
+      "sectionTitle": "Sounds",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "completionSound",
-      "title": "Completion Sound",
-      "subtitle": "Sound for terminal completions, or Off.",
+      "title": "Agent finished sound",
+      "subtitle": "The sound when an agent finishes a task or needs you, or Off.",
       "tab": "notifications",
       "tabTitle": "Notifications",
       "section": "sounds",
@@ -2109,7 +2038,7 @@
     },
     {
       "key": "showMacOSAttentionNotifications",
-      "title": "Attention Notifications",
+      "title": "System notification when a session needs you",
       "subtitle": "Show a system notification when a session needs attention.",
       "tab": "notifications",
       "tabTitle": "Notifications",
@@ -2121,7 +2050,7 @@
     },
     {
       "key": "resetExpirySystemNotifications",
-      "title": "Reset Expiry Notifications",
+      "title": "Warn before a banked usage reset expires",
       "subtitle": "Show a system notification when a banked Claude or Codex usage reset expires within 3 days and again within 24 hours. The red notification in the bell stays either way.",
       "tab": "notifications",
       "tabTitle": "Notifications",
@@ -2134,8 +2063,8 @@
     },
     {
       "key": "attentionNotificationActions",
-      "title": "Agent Completion Alert Test",
-      "subtitle": "Test the current completion alert settings or open Notification Settings.",
+      "title": "Test alerts",
+      "subtitle": "Play the agent finished sound and show the notification as they are set now, or open the system's notification settings for Ghostex.",
       "tab": "notifications",
       "tabTitle": "Notifications",
       "section": "sounds",
@@ -2146,8 +2075,8 @@
     },
     {
       "key": "actionCompletionSound",
-      "title": "Action Completion Sound",
-      "subtitle": "Sound for action completions.",
+      "title": "Command finished sound",
+      "subtitle": "The sound when a command run from the Commands pane finishes.",
       "tab": "notifications",
       "tabTitle": "Notifications",
       "section": "sounds",
@@ -2293,7 +2222,7 @@
     },
     {
       "key": "copySound",
-      "title": "Copy Sound",
+      "title": "Copy sound",
       "subtitle": "Play a short sound when copying to the clipboard, including text from the chat composer.",
       "tab": "notifications",
       "tabTitle": "Notifications",
@@ -2682,19 +2611,6 @@
       "agentWritable": true
     },
     {
-      "key": "showUntrackedProjectDiffWhenNoTrackedChanges",
-      "title": "Show untracked lines without tracked changes",
-      "subtitle": "When tracked git diff is +0 -0, show untracked line counts in project headers (Starship-style prompts ignore untracked lines).",
-      "tab": "tools",
-      "tabTitle": "Files & Links",
-      "section": "editor",
-      "sectionTitle": "Editor",
-      "type": "boolean",
-      "default": false,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
       "key": "terminalDevServerDetectionEnabled",
       "title": "Detect running servers in terminals",
       "subtitle": "Detect localhost dev server URLs from terminal output.",
@@ -2730,8 +2646,53 @@
       "agentWritable": false
     },
     {
+      "key": "autoSleepViews",
+      "title": "Views auto sleep after",
+      "subtitle": "When inactive VS Code, Git, Project and Browser panes sleep, or Off. Sets the four per-view times below.",
+      "tab": "system",
+      "tabTitle": "Power & Sleep",
+      "section": "autoSleep",
+      "sectionTitle": "Auto Sleep",
+      "type": "ui",
+      "options": [
+        {
+          "label": "Off",
+          "value": "0"
+        },
+        {
+          "label": "5 minutes",
+          "value": "5"
+        },
+        {
+          "label": "10 minutes",
+          "value": "10"
+        },
+        {
+          "label": "15 minutes",
+          "value": "15"
+        },
+        {
+          "label": "30 minutes",
+          "value": "30"
+        },
+        {
+          "label": "1 hour",
+          "value": "60"
+        },
+        {
+          "label": "2 hours",
+          "value": "120"
+        },
+        {
+          "label": "5 hours",
+          "value": "300"
+        }
+      ],
+      "agentWritable": false
+    },
+    {
       "key": "autoSleepCodeEditorIdleMinutes",
-      "title": "VS Code Auto Sleep",
+      "title": "VS Code sleeps after",
       "subtitle": "Choose when inactive VS Code panes sleep, or turn Auto Sleep off. Off also keeps Code awake when more than three views are open.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -2778,7 +2739,7 @@
     },
     {
       "key": "autoSleepGitEditorIdleMinutes",
-      "title": "Git Auto Sleep",
+      "title": "Git sleeps after",
       "subtitle": "Choose when inactive Git panes sleep, or turn Auto Sleep off.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -2825,7 +2786,7 @@
     },
     {
       "key": "autoSleepProjectEditorIdleMinutes",
-      "title": "Project Auto Sleep",
+      "title": "Project sleeps after",
       "subtitle": "Choose when inactive Project panes sleep, or turn Auto Sleep off. Off also keeps Files, Kanban and Automate awake when more than three views are open.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -2872,7 +2833,7 @@
     },
     {
       "key": "autoSleepBrowserIdleMinutes",
-      "title": "Browser Auto Sleep",
+      "title": "Browser sleeps after",
       "subtitle": "Choose when inactive browser panes sleep, or turn Auto Sleep off. Off also keeps the Browser awake when more than three views are open.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -2932,7 +2893,7 @@
     },
     {
       "key": "autoSleepAgentIdleMinutes",
-      "title": "Agent Auto Sleep",
+      "title": "Agents sleep after",
       "subtitle": "Choose when eligible agent terminals sleep, or turn Auto Sleep off.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -2978,7 +2939,7 @@
     },
     {
       "key": "autoSleepRequireAgentResumeCommand",
-      "title": "Require resume command",
+      "title": "Only sleep agents that can be resumed",
       "subtitle": "Only auto-sleep agent sessions Ghostex can wake with a resume command.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -2991,7 +2952,7 @@
     },
     {
       "key": "autoSleepFavoriteAgentSessions",
-      "title": "Include favorite agents",
+      "title": "Sleep favourite sessions too",
       "subtitle": "Allow favorite agent sessions to auto-sleep.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -3004,7 +2965,7 @@
     },
     {
       "key": "hideKeepAwakeTitlebarControl",
-      "title": "Hide Keep Awake",
+      "title": "Hide Keep Awake from the sidebar menu",
       "subtitle": "Hide the Keep Awake entry from the sidebar menu.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -3017,7 +2978,7 @@
     },
     {
       "key": "keepAwakeDefaultDurationMinutes",
-      "title": "Default keep-awake duration",
+      "title": "Keep Awake lasts",
       "subtitle": "Choose the duration Keep Awake uses by default.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -3043,7 +3004,7 @@
     },
     {
       "key": "keepAwakeAllowDisplaySleep",
-      "title": "Allow display sleep",
+      "title": "Let the display sleep while Keep Awake is on",
       "subtitle": "Keep the computer awake but allow the display to turn off.",
       "tab": "system",
       "tabTitle": "Power & Sleep",
@@ -3066,6 +3027,28 @@
       "default": false,
       "advanced": true,
       "agentWritable": true
+    },
+    {
+      "key": "keepAwakeActivation",
+      "title": "Turn on automatically",
+      "subtitle": "When Keep Awake turns itself on: when Ghostex launches, when an external display is connected, or while a session is working.",
+      "tab": "system",
+      "tabTitle": "Power & Sleep",
+      "section": "power",
+      "sectionTitle": "Power",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "keepAwakeDeactivation",
+      "title": "Turn off automatically",
+      "subtitle": "When Keep Awake turns itself off: in Low Power Mode, when this user session is no longer active, or below a battery level.",
+      "tab": "system",
+      "tabTitle": "Power & Sleep",
+      "section": "power",
+      "sectionTitle": "Power",
+      "type": "ui",
+      "agentWritable": false
     },
     {
       "key": "keepAwakeActivateOnLaunch",
@@ -7522,6 +7505,20 @@
       "agentWritable": true
     },
     {
+      "key": "windowGlassSameForLightAndDark",
+      "title": "Same for light and dark",
+      "subtitle": "Use the dark-mode picture, video, Live background and tints in light mode too. Turn off to pick them for light mode separately.",
+      "tab": "theme",
+      "tabTitle": "Theme",
+      "group": "appearance",
+      "groupTitle": "Theme",
+      "section": "theming",
+      "sectionTitle": "Theme",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
       "key": "windowGlassImagePlacement",
       "title": "Picture position",
       "subtitle": "Where the wallpaper, custom picture or your own Live video sits behind the glass. Stays with the desktop can trail the window while you drag it.",
@@ -8109,18 +8106,6 @@
       "type": "boolean",
       "default": false,
       "advanced": true,
-      "agentWritable": true
-    },
-    {
-      "key": "showAdvancedSettings",
-      "title": "Show Advanced settings",
-      "subtitle": "Show the rows marked Advanced in Settings.",
-      "tab": "about",
-      "tabTitle": "About",
-      "section": "settingsModal",
-      "sectionTitle": "Settings window",
-      "type": "boolean",
-      "default": false,
       "agentWritable": true
     },
     {

@@ -1,8 +1,8 @@
 //! Settings preview. States (`GHOSTEX_NATIVE_MODAL_DEMO_STATE`): default (General at the top,
 //! the Storybook story's settings), `search` (the query "font", or
 //! `GHOSTEX_NATIVE_MODAL_DEMO_QUERY`), `search-other` (a query only
-//! other pages match: the no-matches notice), `advanced` (Show Advanced on),
-//! `terminal` (Show Advanced on, scrolled to Terminal), `pick-color` (a custom terminal background
+//! other pages match: the no-matches notice), `advanced` (General, as it opens: the advanced rows
+//! are folded at the bottom of each page), `terminal` (scrolled to Terminal), `pick-color` (a custom terminal background
 //! with its Pick Color dialog open), `select` (the Command Pane Side dropdown open), `tags`
 //! (Sidebar Tags with the New tag form, from the sidebar's New tag deep link), `hotkeys` (the
 //! Hotkeys entry point), `marked-preview` (the Marked sections style Preview dialog open). Saves are
@@ -55,9 +55,6 @@ fn story_settings(state: &str) -> serde_json::Map<String, Value> {
     settings.insert("terminalFontSize".into(), json!(16));
     settings.insert("terminalFontWeight".into(), json!(400));
     settings.insert("terminalLineHeight".into(), json!(1.35));
-    if matches!(state, "advanced" | "terminal" | "pick-color") {
-        settings.insert("showAdvancedSettings".into(), json!(true));
-    }
     if state == "pick-color" {
         settings.insert("terminalBackgroundMode".into(), json!("custom"));
         settings.insert("workspaceBackgroundColor".into(), json!("#1d3b53"));

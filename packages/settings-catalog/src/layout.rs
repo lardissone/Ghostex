@@ -7,7 +7,8 @@
 //! Projects and About; Extensions and its folded pages stay at the bottom. Q7: the Tools group is
 //! called Files & Links. Q8: the Terminal page is always in the rail. The old Advanced group is
 //! gone too: Sleeping Sessions joined Sidebar & Sessions and Experimental moved to About. Q6 ("keep
-//! mode"): Show Advanced keeps working as before, hiding advanced rows inside each page. A group's id
+//! mode", superseded the same day by the Advanced fold, CDXC:Settings 2026-10-29 in
+//! data/sections.rs): advanced rows fold at the bottom of each page. A group's id
 //! is its page's tab id (`SettingsTabId::id`), and `settings` still opens the first page, Chat.
 //! SEE-ALSO: apps/desktop/src/app/window/settings_modal/model.rs (`SettingsTabId::RAIL_ORDER`, `general_page`).
 
@@ -31,7 +32,7 @@ pub struct NavItem {
 /// the Theme page, which has its own tab.
 pub const GENERAL_GROUPS: &[GeneralGroup] = &[
     group("appearance", "Theme", &["theming"]),
-    group("chat", "Chat", &["chat"]),
+    group("chat", "Chat", &["chat", "markedHandovers"]),
     group(
         "sidebar",
         "Sidebar & Sessions",

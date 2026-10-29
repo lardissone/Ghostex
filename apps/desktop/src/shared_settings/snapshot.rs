@@ -81,13 +81,13 @@ impl SharedSidebarSettingsSnapshot {
     the user's own layout choice — but a button whose only outcome is a
     workarea that no longer exists has nothing left to do.
     */
+    /// CDXC:Settings 2026-10-29 DECISION (cleanup Q14): the old tab strip is gone, so its Hide New
+    /// Terminal / Hide New Browser Tab settings went with it; only a hidden Browser view still
+    /// removes the New Browser button.
     pub fn tab_strip_built_in_buttons(&self) -> SharedTabStripBuiltInButtons {
         SharedTabStripBuiltInButtons {
-            show_new_browser: strict_bool_field(&self.object, "hideTabStripNewBrowserButton")
-                != Some(true)
-                && strict_bool_field(&self.object, "browserViewTabHidden") != Some(true),
-            show_new_terminal: strict_bool_field(&self.object, "hideTabStripNewTerminalButton")
-                != Some(true),
+            show_new_browser: strict_bool_field(&self.object, "browserViewTabHidden") != Some(true),
+            show_new_terminal: true,
         }
     }
 
@@ -361,11 +361,11 @@ impl SharedSidebarSettingsSnapshot {
                 DEFAULT_TERMINAL_BACKGROUND_IMAGE_OPACITY,
             )
             .clamp(0.0, 1.0) as f32,
-            background_image_fit: normalize_terminal_background_image_fit(read_string_field(
-                &self.object,
-                "terminalBackgroundImageFit",
+            // CDXC:Settings 2026-10-29 DECISION (cleanup Q16): the image always covers the pane; the
+            // Background Image Fit setting is gone.
+            background_image_fit: normalize_terminal_background_image_fit(
                 DEFAULT_TERMINAL_BACKGROUND_IMAGE_FIT,
-            )),
+            ),
             letter_spacing: read_finite_number_field(
                 &self.object,
                 "terminalLetterSpacing",

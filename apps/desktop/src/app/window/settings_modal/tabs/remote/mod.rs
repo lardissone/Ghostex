@@ -1016,7 +1016,7 @@ impl Render for RemoteTab {
             // Each tab answers the Settings search on its own; a search that matches nothing on the
             // open tab lands on the first tab that has a match.
             let shown = RemoteSection::ALL
-                .map(|section| should_show_section(&search.section(section.anchor()), true));
+                .map(|section| should_show_section(&search.section(section.anchor()), None));
             if searching
                 && !shown[self.section.index()]
                 && let Some(first) = RemoteSection::ALL

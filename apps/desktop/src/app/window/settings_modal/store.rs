@@ -275,6 +275,12 @@ pub(crate) struct SettingsStore {
     navigation_task: Option<Task<()>>,
     /// The scroll top restored for each page on its first frame, so it is applied once.
     restored_scroll: HashMap<SettingsTabId, bool>,
+    /// The pages whose Advanced fold is open (CDXC:Settings 2026-10-29 in search.rs). Kept here,
+    /// not on the page view, so opening it re-renders the whole modal like a setting change: a
+    /// page-only notify left the scroll area's reach at the pre-fold height until the next
+    /// store change (the fast layers' tracked scroll handle), so the opened rows could not be
+    /// scrolled to.
+    advanced_folds: HashMap<SettingsTabId, bool>,
     closed: bool,
     /// The dialogs and forms the last visit left open (settings_modal/restore.rs).
     open_forms: OpenFormMemory,
@@ -328,6 +334,7 @@ impl SettingsStore {
             pending_patch_task: None,
             navigation_task: None,
             restored_scroll: HashMap::new(),
+            advanced_folds: HashMap::new(),
             closed: false,
             open_forms,
             extensions_group_open: false,
@@ -699,12 +706,7 @@ impl SettingsStore {
         cx.notify();
     }
 
-    pub(crate) fn show_advanced(&self) -> bool {
-        self.bool("showAdvancedSettings")
-    }
-
     fn refresh_search(&mut self) {
-        let show_advanced = self.show_advanced();
         let show_experimental = self.bool("showBetaFeatures");
         let mut hidden_keys =
             ghostex_settings_catalog::built_in_extensions::hidden_setting_keys_with(|key| {
@@ -716,17 +718,12 @@ impl SettingsStore {
         ));
         let tab_hidden_keys = hidden_keys.clone();
         if self.general_search.query != self.search_query
-            || self.general_search.show_advanced != show_advanced
             || self.general_search.show_experimental != show_experimental
             || self.general_search.hidden_keys != hidden_keys
             || self.general_search.sections.is_empty()
         {
-            self.general_search = GeneralSearch::new(
-                &self.search_query,
-                show_advanced,
-                show_experimental,
-                hidden_keys,
-            );
+            self.general_search =
+                GeneralSearch::new(&self.search_query, show_experimental, hidden_keys);
         }
         let debugging_mode = self.bool("debuggingMode");
         self.tab_searches = settings_catalog()
@@ -983,6 +980,23 @@ impl SettingsStore {
                 .await;
             let _ = this.update(cx, |this, cx| this.persist_navigation(cx));
         }));
+    }
+
+    /// Whether page `tab`'s Advanced fold is open.
+    pub(crate) fn advanced_fold_open(&self, tab: SettingsTabId) -> bool {
+        self.advanced_folds.get(&tab).copied().unwrap_or(false)
+    }
+
+    /// Opens page `tab`'s Advanced fold without a re-render (a deep link found its section there
+    /// while the page was already rendering).
+    pub(crate) fn open_advanced_fold(&mut self, tab: SettingsTabId) {
+        self.advanced_folds.insert(tab, true);
+    }
+
+    pub(crate) fn toggle_advanced_fold(&mut self, tab: SettingsTabId, cx: &mut Context<Self>) {
+        let open = !self.advanced_fold_open(tab);
+        self.advanced_folds.insert(tab, open);
+        cx.notify();
     }
 
     /// `getRememberedSettingsModalNavigationState(activeTab, stored)`.

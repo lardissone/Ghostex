@@ -444,13 +444,13 @@ impl Render for HotkeysTab {
         let mut blocks: Vec<PageBlock> = Vec::new();
         let mut any_visible = false;
         for (section_id, title, result) in &searches {
-            if !should_show_section(result, true) {
+            if !should_show_section(result, None) {
                 continue;
             }
             any_visible = true;
             let mut rows: Vec<AnyElement> = Vec::new();
             if section_id == "projects"
-                && should_show_setting(result, "expandCollapsedProjectsOnJump", true)
+                && should_show_setting(result, "expandCollapsedProjectsOnJump", None)
             {
                 rows.push(self.toggle(
                         "expandCollapsedProjectsOnJump",
@@ -478,7 +478,7 @@ impl Render for HotkeysTab {
                 else {
                     continue;
                 };
-                if !should_show_setting(result, &definition.id, true) {
+                if !should_show_setting(result, &definition.id, None) {
                     continue;
                 }
                 let value = section_hotkeys
@@ -529,7 +529,7 @@ impl Render for HotkeysTab {
                             should_show_setting(
                                 navigation,
                                 "sidebarSessionCycleSkipsSleeping",
-                                true,
+                                None,
                             )
                         })
                 {

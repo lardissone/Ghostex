@@ -21,6 +21,9 @@ pub(crate) fn theming() -> Section {
             row("terminalGhosttyTheme", "Terminal palette in dark mode", "Uses the dark theme set in Ghostex's terminal config, or GitHub Dark when none is set.").options(GHOSTTY_THEME_SETTING_OPTIONS),
             row("windowGlass", "Transparency", "Let your desktop show through the window: Off, Dark only (light mode stays solid) or Always.").options(WINDOW_GLASS_OPTIONS),
             row("windowGlassSource", "Behind the glass", "Desktop and windows, your wallpaper, a picture you choose, or Live: a calm animation in your theme colours or your own video.").options(WINDOW_GLASS_SOURCE_OPTIONS),
+            // CDXC:Settings 2026-10-29 DECISION (cleanup Q19): one switch keeps the light-mode picture, video, Live
+            // background and tints the same as the dark-mode ones; off shows the light-mode rows again.
+            row("windowGlassSameForLightAndDark", "Same for light and dark", "Use the dark-mode picture, video, Live background and tints in light mode too. Turn off to pick them for light mode separately."),
             row("windowGlassImagePlacement", "Picture position", "Where the wallpaper, custom picture or your own Live video sits behind the glass. Stays with the desktop can trail the window while you drag it.").options(WINDOW_GLASS_IMAGE_PLACEMENT_OPTIONS),
             row("windowGlassImageDark", "Picture for dark mode", "The picture the glass blurs in dark mode when Picture shows behind the glass."),
             row("windowGlassImageLight", "Picture for light mode", "The picture the glass blurs in light mode when Picture shows behind the glass."),

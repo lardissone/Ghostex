@@ -100,7 +100,7 @@ pub fn default_value(key: &str) -> Option<&'static J> {
         .map(|(_, value)| value)
 }
 
-/// Rows shown only while Show Advanced is on (`isAdvancedMainSetting`).
+/// Rows a page folds into its collapsed Advanced section (`isAdvancedMainSetting`).
 pub fn is_advanced_setting(key: &str) -> bool {
     data::ADVANCED_MAIN_SETTING_KEYS.contains(&key)
 }

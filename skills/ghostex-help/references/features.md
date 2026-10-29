@@ -93,7 +93,7 @@ for this project are not in the list; **Manage views and where they appear…** 
 the bottom opens their settings, and **Hidden here** on the `+` menu brings one
 back. Closing the panel's last tab closes the whole panel; to bring the picker
 back instead, turn off **Close side panel with its last tab** in Settings >
-Sidebar with Show Advanced on (`closeSidePanelWithLastTab`, on by default).
+Sidebar & Sessions, under Advanced at the bottom of the page (`closeSidePanelWithLastTab`, on by default).
 
 While a view in the side panel has focus, the session shortcuts act on that view
 instead of the session beside it: Cmd+W or Cmd+Shift+Backspace closes its tab,
@@ -642,7 +642,7 @@ Settings > Projects or, from the command line, `ghostex remove-project` with
 them. Removing a project deletes its session records, so close its sessions first
 (`ghostex close-session`) if they are still running.
 Session rows show the agent icon, title, status, tags, and last-active time.
-In Settings > Sidebar & Sessions, enable Show Advanced to find **Highlight unanswered
+In Settings > Sidebar & Sessions, open Advanced at the bottom of the page to find **Highlight unanswered
 questions**. It adds a soft pink background to sessions with a detected unanswered
 question, even while the agent keeps working. It is off by default and currently
 supports Codex asynchronous questions (`highlightPendingQuestions`).
@@ -769,7 +769,7 @@ last used in that Space, in the view its project was in (Agents, Code, Browser,
 Kanban, Automate, or Files). If that session was closed, the one before it is
 used; a Space you have never used opens its first project. Choose "Don't switch
 projects" to make a Space switch change only the sidebar filter
-(`sidebarSpaceSwitchBehavior`). "Follow the active session's Space"
+(`sidebarSpaceSwitchBehavior`). "Switch Space when opening a session from another Space"
 (`sidebarSpaceFollowActiveSession`, off by default) switches the selected Space
 to the one that owns a session you open from outside it, for example through
 Back/Forward, Search by Prompt, a notification, or Previous Sessions; otherwise
@@ -780,7 +780,7 @@ Clicking a session opens it in the Agents Panel, which is always on screen, so i
 never closes the view you are looking at.
 Leaving a project (by switching Spaces or projects) does not close what you had
 open there: the terminals, chats, and view page that were on screen stay running
-in the background for the "Keep the previous project live for" number of minutes
+in the background for the "Keep the last project running for" number of minutes
 (`projectSwitchKeepAliveMinutes`, default 10, 0 to 60), so switching back is
 instant. Set it to 0 to release them as soon as you leave. The page each other
 Space opens on is the exception: it stays loaded for as long as that Space opens
@@ -809,13 +809,13 @@ where they are while you open, change and close views.
   stronger background and border in light mode.
 - Pane memory: each project remembers whether its Commands pane is open or minimized,
   and opening, closing or switching a view never changes it. The sidebar keeps one
-  state everywhere by default; "Sidebar visibility memory" (`sidebarVisibilityMemory`,
-  Advanced) can instead remember it once for a window with no view open and once for
+  state everywhere by default; "Remember sidebar per view" (`sidebarVisibilityMemory`,
+  Advanced; its values stay `shared` and `perView`) can instead remember it once for a window with no view open and once for
   a window with one open, and then a project switch that hides it leaves it
   floating while you hover it. While collapsed, hovering the window's left 10px (an
   invisible hover zone over whatever is there) floats the sidebar back over your work, and it slides away when you
-  move off it; the slide runs at the sidebar's Collapse animation speed
-  (`sidebarCollapseAnimationDurationMs`, 0 for no animation), whatever the
+  move off it; the slide runs at the sidebar's Animations speed (Settings >
+  Sidebar & Sessions > Animations, which also sets `sidebarCollapseAnimationDurationMs`; Off for no animation), whatever the
   system's Reduce Motion setting says. If you have also expanded a view to fill the window, that edge
   splits in two: hovering the top half floats the sidebar and the bottom half
   floats the Agents Panel, so you can glance at your agents without
@@ -851,7 +851,7 @@ where they are while you open, change and close views.
 - Session cards: agent icon, favicon, last-active time, git stats, colored
   icons, and rename-on-double-click are all toggles.
 - Session hover buttons (click to toggle, drag to reorder), under Sidebar & Sessions >
-  Session Cards (shown with Show Advanced), is a strip
+  Session Cards (under the page's Advanced fold), is a strip
   of icons: Rename, Pin, Note, Snooze, Close After Done, Tag, Park, Sleep,
   Close, and a chevron. Click an icon to turn that hover button on or off;
   drag icons to reorder them. Buttons to the right of the chevron always show
@@ -871,11 +871,11 @@ where they are while you open, change and close views.
   off puts Close back as the menu's last row. Hover buttons also in context
   menu (on by default) controls the rest; turn it off and every enabled
   button leaves the menu (and its Advanced submenu).
-  Both rows live under Sidebar & Sessions > Session Cards and need Show Advanced. Settings:
+  Both rows live under Sidebar & Sessions > Session Cards, in the page's Advanced fold. Settings:
   `sessionCardHoverButtons` (a list of `{ id, enabled }` with ids `rename`,
   `pin`, `note`, `snooze`, `closeAfterDone`, `tag`, `park`, `sleep`,
   `close`, `chevron`) and `showSessionCardHoverButtonsInContextMenu`.
-  Session tooltips (Sidebar & Sessions > Session Cards, needs Show Advanced, on by default)
+  Session tooltips (Sidebar & Sessions > Session Cards, in the page's Advanced fold, on by default)
   controls the tooltip that shows a session's full name when you rest the pointer
   on its row in the sidebar; turn it off to show none. Other sidebar tooltips stay.
   Setting: `showSidebarSessionTooltips`.
@@ -905,8 +905,8 @@ where they are while you open, change and close views.
   header a subtle square background and replaces the dots with a chevron.
   Click anywhere across the heading row, including the empty space to its
   right, to animate the section closed or open. Sessions keep their full size
-  and spacing while the section reveals or clips the list. The animation follows Sidebar
-  Collapse Animation and reduced-motion preferences. Related setting:
+  and spacing while the section reveals or clips the list. The animation follows the
+  Animations row (Settings > Sidebar & Sessions) and reduced-motion preferences. Related setting:
   `sidebarCollapseAnimationDurationMs`.
 - A red dot on a session usually means its agent is stuck waiting for your
   approval (a permission prompt such as "Run shell command? Yes / No"). It wins
@@ -937,14 +937,14 @@ where they are while you open, change and close views.
   mobile, and web, including when ordinary sessions use manual sorting.
   Mobile parking needs a connected computer with the `ghostex park-session
 <selector> true|false --json` command. Parking keeps sessions running unless Sleep session when
-  parking is enabled (off by default). Park & Snooze with tags (on by
+  parking is enabled (off by default). Ask for a tag when parking or snoozing (on by
   default) makes Park and Snooze open the Tag As menu: pick a tag to tag and
   park in one step, or the No Tag Change row at the top to park as is.
   Closing that menu without choosing does not park. Unpark after sending a
   message (on by default) moves a parked or snoozed session back out of its
   section as soon as you send it a message from chat or type a prompt into
   its terminal; Codex only notices chat sends. All four settings are in
-  Sidebar & Sessions > Sidebar without Show Advanced: `enableSessionParking`,
+  Sidebar & Sessions > Sidebar, outside the Advanced fold: `enableSessionParking`,
   `sleepSessionWhenParking`, `showTagMenuWhenParking`,
   `unparkAfterSendingMessage`. Right-click the Parked header to Sleep All or
   Close All of its sessions.
@@ -959,13 +959,13 @@ where they are while you open, change and close views.
   machine could not connect, and its tab explains why.
 
 Related settings: everything under Sidebar & Sessions > Sidebar, `agentManagerZoomPercent`
-(sidebar interface size), `sidebarSpacesEnabled`,
+(sidebar zoom), `sidebarSpacesEnabled`,
 `sidebarSpaceSwitchBehavior`, `sidebarSpaceFollowActiveSession`.
 
 ## Commands pane
 
 The Commands pane holds command terminals below the workspace, or on its right
-when Command Pane Side is set to Right. Open it with Cmd+J (Mac), Shift+Esc or F12; Settings > Hotkeys can
+when Commands pane side is set to Right. Open it with Cmd+J (Mac), Shift+Esc or F12; Settings > Hotkeys can
 change the first two (Open Commands Panel and its Second Key). The **Terminal** view
 (see Views) is the same kind of terminal opened as a tab of the view panel
 instead; it has its own tabs and does not affect the Commands pane. Auto-minimize Commands
@@ -973,8 +973,8 @@ pane is on by default: after you move focus elsewhere and leave the pointer
 outside the pane for 1 minute, it minimizes while commands keep running.
 Focusing, hovering, selecting text, scrolling, or resizing keeps it open and
 restarts the countdown. Background command output does not restart it.
-In Settings > Sidebar & Sessions > Sidebar, turn auto-minimize off or set Minimize after
-to 15 seconds, 30 seconds, 1 minute, 2 minutes, or 5 minutes. When auto-minimize
+In Settings > Sidebar & Sessions > Sidebar, Auto-minimize Commands pane is one
+select: Off, 15 seconds, 30 seconds, 1 minute, 2 minutes, or 5 minutes. When auto-minimize
 is enabled, the Keep open button appears beside the minimize chevron. It shows
 an open lock when off and a highlighted closed lock when on. Keep open pauses
 auto-minimize for the current project, useful for watching logs. Click
@@ -1047,7 +1047,7 @@ when you open it.
   window is closed, and it never sleeps a session a Ghostex window or the phone
   app is showing. Web pages sleep the same way: a browser tab in
   any project, or a Files, website or extension view, that has been off screen
-  for its Browser or Project Auto Sleep time closes to free its memory and
+  for its Browser sleeps after or Project sleeps after time closes to free its memory and
   reloads when you select it again. Tabs playing sound, tabs where you typed
   text you have not sent, and the page another Space opens on stay awake. The side panel
   also keeps only the view on screen and the two you used last awake; with more views open,
@@ -1069,7 +1069,7 @@ when you open it.
   coming back to a project after restarting Ghostex shows a small bar with
   its name and a Resume button instead; click anywhere in the pane or press a key to
   wake the session. With
-  Click to Wake Sleeping Panes turned off, those wake right away
+  Keep sleeping tabs asleep until clicked turned off, those wake right away
   (`clickToWakeSleepingSessions`). To stop a sidebar click from waking a
   sleeping session, turn off Settings > Sidebar & Sessions > Sleeping Sessions > Wake sleeping sessions when
   selected: the click then opens the session with its Resume button, and it
@@ -1585,7 +1585,7 @@ struck through once the agent withdrew it. When you answer a question another
 way, by telling the agent in the chat or by doing what it asked, the agent
 withdraws it so it stops counting as open. Settings: `chatPageOpenTarget` (`popup`,
 `files` or `system-browser`) and
-(under Show Advanced) `chatSendOnPick`, which makes picking an answer send a
+(under the page's Advanced fold) `chatSendOnPick`, which makes picking an answer send a
 card that asks a single choice question right away, without Send answers
 (off by default; cards with several questions, multiple choice, Other or text
 answers still wait for Send). Commands:
@@ -1790,7 +1790,7 @@ and hold on the phone) to see the command itself. When one finishes, a row in
 the chat says so, with its exit code only when it did not succeed.
 Chat follows the app theme by default. In Settings > Theme > Advanced, set Chat theme to Light, Dark, or System for a separate appearance, or choose Follow app to use the main Appearance (`sessionChatTheme`, `sidebarTheme`).
 
-Set Default Chat Zoom (%) in Settings > Chat to scale the desktop chat interface, including messages, controls, and the prompt composer. Choose 70% to 200% in 5% steps; the initial default is 100%. The saved level applies to every open chat and when chats open again (`sessionChatZoomPercent`). With a chat focused, Cmd+= and Cmd+- (Ctrl on Windows and Linux) step this same level, so every chat changes size together and the new level is saved; Cmd+0 sets it back to 100%.
+Set Default chat zoom (%) in Settings > Chat to scale the desktop chat interface, including messages, controls, and the prompt composer. Choose 70% to 200% in 5% steps; the initial default is 100%. The saved level applies to every open chat and when chats open again (`sessionChatZoomPercent`). With a chat focused, Cmd+= and Cmd+- (Ctrl on Windows and Linux) step this same level, so every chat changes size together and the new level is saved; Cmd+0 sets it back to 100%.
 
 To search a chat, press Cmd+F (Ctrl+F on Windows and Linux) with the chat focused, including while typing in the chat box. Only what you can see is searched: text inside a folded turn, tool group, thinking or collapsed card, or the hidden part of a long message behind Show more, is skipped until you open it. Every matching word is highlighted, the current one more strongly, and the counter shows which match you are on; Enter or the down arrow goes to the next match, Shift+Enter or the up arrow to the previous one, and the chat scrolls to it. Escape or the close button ends the search and returns you to the chat box. On the phone, Search Conversation in the session's menu opens the same search.
 
@@ -1803,16 +1803,16 @@ the agent.
 When an assistant message
 has tool calls, click its text or the chevron beside it to expand the tools directly
 under that message. Its full text and formatting stay visible when collapsed;
-links and code controls keep their own actions. Verbose mode, and any chat with
-Simple mode off, opens these tools by default (`sessionChatVerboseMode`,
-`sessionChatSimpleMode`), along with each finished turn's "Worked for" log; close
+links and code controls keep their own actions. A chat at the Verbose or
+Detailed level (More actions > View) opens these tools by default, along with
+each finished turn's "Worked for" log; close
 one with a click and it stays closed. A tool call the agent described (for
 example "Search for config files") is named by that description in every mode,
 in the reply's own font and a slightly dimmer colour, instead of the tool's name
 and its command; click the row to see the full command and its result. File writes and code
 edits appear outside the tool groups while the agent works. As soon as the agent
 finishes a turn, its tool work folds away under "Worked for Xs" above the final
-reply (open by default with Simple mode off or Verbose mode on); click that
+reply (open by default at the Detailed and Verbose levels); click that
 line to open or close it. When a turn shows
 "Worked for", all its file changes are grouped in a collapsed "N files changed"
 section directly below it. Older history loads with completed turns already
@@ -1862,22 +1862,28 @@ also toggle the diff. After expanding or collapsing, the header stays visible;
 chat scrolls to it if needed. This covers Claude's Write and Edit tools and Codex's apply_patch
 changes.
 
-More actions > View holds the chat's display modes: Simple, Verbose and Summary.
-Each one is its own switch, and the View row names the ones that are on.
+More actions > View picks the chat's detail level, one of Simple, Detailed and
+Verbose, and holds the Summary switch. The View row names the level that is on,
+and adds "Summary" while Summary mode is on.
 
-Simple mode (More actions > View, or Settings > Chat) applies to every chat. Tool groups
+Simple is the level new chats start at. Tool groups
 without a message above them collapse to a tool-call count, tool rows hide
 command previews, and the work under each reply stays folded until you open it;
 expand a tool to inspect its full input and result. File edits
 collapse under "Edited 1 file" or "Edited X files", counting each path once; expand
-the row to see the usual file and diff cards. The menu and Settings use the same
-toggle (`sessionChatSimpleMode`, on by default). The phone app has Simple mode too,
-under More actions > View in its chat box or in its Settings > Chat; the phone keeps
-its own switch, also on by default.
+the row to see the usual file and diff cards. Detailed shows the tool calls and
+file edits under each reply, folded; Verbose opens them. The level is kept per
+chat (the `simple` and `verbose` records in the chat's own storage). The settings
+keys `sessionChatSimpleMode` (on by default) and `sessionChatVerboseMode` only say
+which level a chat starts at and have no Settings row. Summary mode shows the
+Simple look while it is on; turning it off gives the chat its picked level back,
+and picking a level while Summary is on turns Summary off. The phone app has
+Simple mode too, under More actions > View in its chat box or in its Settings >
+Chat; the phone keeps its own switch, also on by default.
 
 While the agent is working, its thinking shows as a closed "Thinking…" card with the newest finished line beside it, so it never pushes the rest of the chat away; click (or tap) the card to read the whole thought, which keeps the newest lines in view as they arrive, and click again to close it. The commands the thought runs stay in view below the card, and when the turn ends everything folds into its "Previous turn" card as before. This works the same for every agent, on the computer, the web and the phone.
 
-Grey thinking (Settings > Chat, off by default) shows the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart (`sessionChatMutedThinking`); the phone has the same switch in its Settings > Chat.
+Show thinking in grey (Settings > Chat, off by default) shows the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart (`sessionChatMutedThinking`); the phone has the same switch in its Settings > Chat.
 
 Tool call cards (Settings > Chat, a preview, off by default) show each run of tool calls between two pieces of the agent's text as one card: its header stacks the tools' icons and says "Using 3 tools" while they run and "Used 6 tools" with any failures and the time once done, and each call reads like a sentence that changes tense when it ends ("Reading main.rs", then "Read main.rs · 92 lines · 30ms"), with its result and time on the right. A failed call says what failed with the reason underneath, and calls to apps such as Linear, GitHub or Notion show the app's logo. The card folds to one line as soon as the agent writes again; click (or tap) it to open it again, and click a call to see its command and output (`chatToolCallCards`). The phone has its own switch for it in its Settings > Chat.
 
@@ -1897,7 +1903,7 @@ side. Show marker emojis, under it and off by default (an advanced setting, not 
 to every style; while it is off the colour and the label show the kind.
 Copying a message still gives the agent's own text. The phone app sets both in
 its own Settings > Chat > Marked sections, which also offers Plain text.
-Handover heading color strength (Settings > Chat under the style, an advanced setting, 0% to 100%, default 100%) sets how strongly the coloured headings stand out: lower values fade them toward the normal text colour, and 0% leaves plain bold text; the phone follows the computer's value.
+Heading colour strength (Settings > Chat > Marked handovers, under the style, an advanced setting, 0% to 100%, default 100%) sets how strongly the coloured headings stand out: lower values fade them toward the normal text colour, and 0% leaves plain bold text; the phone follows the computer's value.
 Coordinators answer without markers (Settings > Chat, an advanced setting, off by default and not recommended) makes coordinators started or resumed afterwards answer normally, while their threads still mark the reports they send them.
 Settings: `markedHandovers`, `markedHandoversStyle` (`labels`, `rule`,
 `badge`), `markedHandoversEmoji`, `markedHandoversHeadingStrength`, `orchestratorPlainReplies`.
@@ -2355,7 +2361,8 @@ between them is temporarily hidden in this dialog.
 
 Related settings: `hideAccountEmails`, `preferredAgentInterface`, `sessionChatTheme`,
 `sessionChatFontFamily`, `sessionChatCustomTranscriptWidthEnabled`,
-`sessionChatTranscriptWidthPercent`, `sessionChatVerboseMode`,
+`sessionChatTranscriptWidthPercent` (Settings > Chat shows them as one Transcript width
+slider that reads Auto until dragged), `sessionChatVerboseMode`,
 `sessionChatFileEditPreviews`, `sessionChatMutedThinking`, `chatToolCallCards`,
 `sessionChatKeepComposerExpanded`, `sessionChatConfirmEscapeInterrupt`,
 `terminalViewWidthMode` (`match-chat` makes the terminal body the same width
@@ -2363,7 +2370,7 @@ as the chat transcript), `terminalWidthApplyToCommandPaneTerminals`.
 
 ## Terminal
 
-On Windows, Settings > Terminal > Windows Environment selects native
+On Windows, Settings > Terminal > Windows environment selects native
 PowerShell projects and agents or Linux projects in WSL. PowerShell is the default;
 an explicitly saved WSL choice is preserved. PowerShell uses Windows folders and
 installed Windows agent CLIs without requiring WSL. Switching environments opens a
@@ -2459,9 +2466,9 @@ or Always (Settings, Theme, Transparency; it starts Off on Windows and Dark only
 macOS and Linux). Background opacity (Settings, Terminal) then sets how much of the
 work area's tint terminals keep: 100% matches the rest of the work area, lower
 shows more of your desktop through them. While transparency is off the row offers
-Turn on transparency instead. Background blur in the same place is the window's
-Blur, the same setting as on the Theme page (on Windows with Desktop and windows, the
-same Acrylic, Plain blur or Off choice). Ghostty's own `background-opacity`
+Turn on transparency instead. The window's Blur (on Windows with Desktop and windows,
+the Acrylic, Plain blur or Off choice) is set on the Theme page only (Settings > Theme >
+Transparency). Ghostty's own `background-opacity`
 and `background-blur` lines in the terminal config do not change Ghostex's panes.
 
 On macOS, Custom shaders (experimental) runs the `custom-shader` files from
@@ -2753,7 +2760,7 @@ version of the Projects features in Cursor and Claude Code.
   still changes it; left blank, it is named once from its first conversation).
   A project can have several coordinators, one per stream of work. In an
   coordinator's chat the effort picker offers the same Medium, High and XHigh only.
-  To pick from every level the agent has, turn on **Show all effort levels**
+  To pick from every level the agent has, turn on **Every effort level in coordinator pickers**
   (an advanced setting in Settings > Chat); anything below Medium
   isn't recommended for a coordinator. From a terminal: `ghostex coordinator
   create [--agent <id>] [--goal <text>] [--task <first request>]`.
@@ -3371,7 +3378,7 @@ Ghostex on the desktop later replaces it with one started from the desktop. The 
 runs in your desktop session; if Ghostex says it cannot show it, quit Ghostex
 together with its background service and open it again from the Start menu.
 Leave Advanced > Windows WSL distribution blank to use the
-Windows Environment selected in Windows Ghostex: native PowerShell with Windows
+Windows environment selected in Windows Ghostex: native PowerShell with Windows
 folders (the default), or WSL with Linux folders. Enter a distribution name to
 use that WSL2 distribution instead. Windows agent CLIs must be installed for native
 PowerShell projects. After changing the Windows environment and restarting the
@@ -3555,7 +3562,7 @@ on the pill still steps to the previous unanswered question; on the phone a tap
 opens it. The pill stays while the chat has anything to list, with its dot and
 count only while a question is unanswered.
 Every copy shows a small "Copied!" bubble at the pointer for a moment, whether
-it came from a terminal, a chat message, a copy button, or a menu. Copy Sound is
+it came from a terminal, a chat message, a copy button, or a menu. Copy sound is
 off by default. Enable it under Settings > Notifications > Sounds to also hear a
 short sound when copying from a terminal, a chat message, the chat composer
 (including its right-click Copy menu), a copy button, or a menu (`copySound`).
@@ -3610,8 +3617,7 @@ Debugging page records each time detection and a program's report disagree.
 
 Related settings: `completionSound`, `actionCompletionSound`, `copySound`,
 `showMacOSAttentionNotifications`, `resetExpirySystemNotifications`,
-`showNotificationOnTerminalBell`,
-`hideMenuBarSessionStatusIndicators`,
+`showNotificationOnTerminalBell` (Settings > Notifications),
 `notificationsTitlebarButtonHidden`.
 
 ### Floating Capture (floating button, screenshots, quick prompts)
@@ -4442,7 +4448,7 @@ Advanced holds Enable Experimental Features and Faster rendering (off by default
 redraws only the parts of a window that changed so Ghostex uses less CPU while agents stream
 and you scroll; it applies at once, and turning it off brings back the usual drawing if part
 of a window ever stops updating (`fasterRendering`). The separate Debugging page sits
-in the Settings sidebar's Extensions group and is listed whether or not Show Advanced is on,
+in the Settings sidebar's Extensions group and is listed
 while its Debugging extension is on (it is by default;
 switch it off in Settings > Extensions, or `debuggingHidden`, to drop the page). It starts with Show debug UI controls.
 Enable that switch to see Diagnostic logs. Diagnostic logs has one switch per area (terminals,
@@ -4558,7 +4564,7 @@ terminalViewWidthMode match-chat`.
   drive `ghostex automation-save`.
 - "Play a sound and notify me when an agent finishes": `completionSound`
   (any value except `off`), `showMacOSAttentionNotifications true`, the
-  menu bar badges via `hideMenuBarSessionStatusIndicators false`, and the
+  menu bar badges (always on; remove the item from the menu bar itself), and the
   sidebar bell (kept visible with `notificationsTitlebarButtonHidden false`)
   lists every finished turn with what the agent said.
 - "What does the Kanban board do": see Project board (Kanban).

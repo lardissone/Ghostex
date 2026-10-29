@@ -262,7 +262,7 @@ impl ExtensionsTab {
     pub(crate) fn show_official(&self, key: &str, cx: &App) -> bool {
         let search = self.store.read(cx).tab_search(SettingsTabId::Extensions);
         let section = search.section("official");
-        if !super::super::search::should_show_setting(&section, key, true) {
+        if !super::super::search::should_show_setting(&section, key, None) {
             return false;
         }
         let required = data::official_extensions()
@@ -533,7 +533,7 @@ impl Render for ExtensionsTab {
                 move |tab, _, cx| store.update(cx, |store, cx| store.set_active_tab(tab, cx)),
             )));
         }
-        if should_show_section(&search.section("viewOrder"), true)
+        if should_show_section(&search.section("viewOrder"), None)
             && let Some(section) = self.render_views_section(&p, cx)
         {
             blocks.push(PageBlock::section("viewOrder", section));

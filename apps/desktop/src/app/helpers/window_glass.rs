@@ -288,9 +288,12 @@ pub(crate) fn refresh_window_glass(object: &serde_json::Map<String, serde_json::
         SIDEBAR_GLASS_ALPHA_DARK,
         &SIDEBAR_GLASS_PERCENT_DARK,
     );
+    // Same for light and dark (cleanup Q19): light mode reads the dark-mode tints, picture and video.
+    let light_key =
+        |light: &'static str| crate::shared_settings::window_glass_light_key(object, light);
     let sidebar_light = store_sidebar_glass_percent(
         object,
-        "windowGlassSidebarOpacityLight",
+        light_key("windowGlassSidebarOpacityLight"),
         SIDEBAR_GLASS_ALPHA_LIGHT,
         &SIDEBAR_GLASS_PERCENT_LIGHT,
     );
@@ -304,8 +307,12 @@ pub(crate) fn refresh_window_glass(object: &serde_json::Map<String, serde_json::
     );
     store_work_area_glass_percent(
         object,
-        "windowGlassWorkAreaTintLight",
-        "windowGlassMainOpacityLight",
+        light_key("windowGlassWorkAreaTintLight"),
+        if light_key("windowGlassWorkAreaTintLight") == "windowGlassWorkAreaTintLight" {
+            "windowGlassMainOpacityLight"
+        } else {
+            "windowGlassMainOpacityDark"
+        },
         sidebar_light,
         WORK_AREA_GLASS_ALPHA_LIGHT,
         &WORK_AREA_GLASS_PERCENT_LIGHT,
@@ -369,7 +376,10 @@ pub(crate) fn refresh_window_glass(object: &serde_json::Map<String, serde_json::
         };
         images.custom = source == Some("customImage");
         images.dark = image("windowGlassImageDark");
-        images.light = image("windowGlassImageLight");
+        images.light = image(crate::shared_settings::window_glass_light_key(
+            object,
+            "windowGlassImageLight",
+        ));
     }
     if let Ok(mut videos) = WINDOW_GLASS_VIDEOS.lock() {
         let video = |key: &str| {
@@ -383,7 +393,10 @@ pub(crate) fn refresh_window_glass(object: &serde_json::Map<String, serde_json::
         videos.video = cfg!(any(target_os = "macos", target_os = "linux"))
             && matches!(source, Some("live" | "video"));
         videos.dark = video("windowGlassVideoDark");
-        videos.light = video("windowGlassVideoLight");
+        videos.light = video(crate::shared_settings::window_glass_light_key(
+            object,
+            "windowGlassVideoLight",
+        ));
         videos.only_on_power = object
             .get("windowGlassVideoOnlyOnPower")
             .and_then(serde_json::Value::as_bool)

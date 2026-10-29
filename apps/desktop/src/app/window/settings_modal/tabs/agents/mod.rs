@@ -481,17 +481,17 @@ impl Render for AgentsTab {
             ));
         }
         // CDXC:AgentLauncher 2026-10-06 DECISION: User: "ok implement the plan": the agents come first, the Defaults card (today's Config) below them, and the bulk hook tools in their own card at the bottom.
-        if (self.editor.is_some() || should_show_section(&search.section("agentList"), true))
+        if (self.editor.is_some() || should_show_section(&search.section("agentList"), None))
             && let Some(section) = self.render_roster(&p, window, cx)
         {
             blocks.push(PageBlock::section(ROSTER_ANCHOR, section));
         }
-        if should_show_section(&search.section("config"), true)
+        if should_show_section(&search.section("config"), None)
             && let Some(section) = self.render_config(&p, &search, window, cx)
         {
             blocks.push(PageBlock::section("config", section));
         }
-        if should_show_section(&search.section(HOOKS_ANCHOR), true)
+        if should_show_section(&search.section(HOOKS_ANCHOR), None)
             && let Some(section) = self.render_hooks_card(&p, &search, window, cx)
         {
             blocks.push(PageBlock::section(HOOKS_ANCHOR, section));

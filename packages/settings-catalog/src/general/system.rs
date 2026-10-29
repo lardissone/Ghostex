@@ -7,27 +7,31 @@ pub(crate) fn auto_sleep() -> Section {
         "autoSleep",
         "Auto Sleep",
         vec![
+            // CDXC:Settings 2026-10-29 DECISION (cleanup Q17): one Views auto sleep after row sets the four
+            // per-view times; the per-view rows stay under Show Advanced.
+            row("autoSleepViews", "Views auto sleep after", "When inactive VS Code, Git, Project and Browser panes sleep, or Off. Sets the four per-view times below.")
+            .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
                 "autoSleepCodeEditorIdleMinutes",
-                "VS Code Auto Sleep",
+                "VS Code sleeps after",
                 "Choose when inactive VS Code panes sleep, or turn Auto Sleep off. Off also keeps Code awake when more than three views are open.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
                 "autoSleepGitEditorIdleMinutes",
-                "Git Auto Sleep",
+                "Git sleeps after",
                 "Choose when inactive Git panes sleep, or turn Auto Sleep off.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
                 "autoSleepProjectEditorIdleMinutes",
-                "Project Auto Sleep",
+                "Project sleeps after",
                 "Choose when inactive Project panes sleep, or turn Auto Sleep off. Off also keeps Files, Kanban and Automate awake when more than three views are open.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
                 "autoSleepBrowserIdleMinutes",
-                "Browser Auto Sleep",
+                "Browser sleeps after",
                 "Choose when inactive browser panes sleep, or turn Auto Sleep off. Off also keeps the Browser awake when more than three views are open.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
@@ -38,18 +42,18 @@ pub(crate) fn auto_sleep() -> Section {
             ),
             row(
                 "autoSleepAgentIdleMinutes",
-                "Agent Auto Sleep",
+                "Agents sleep after",
                 "Choose when eligible agent terminals sleep, or turn Auto Sleep off.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
                 "autoSleepRequireAgentResumeCommand",
-                "Require resume command",
+                "Only sleep agents that can be resumed",
                 "Only auto-sleep agent sessions Ghostex can wake with a resume command.",
             ),
             row(
                 "autoSleepFavoriteAgentSessions",
-                "Include favorite agents",
+                "Sleep favourite sessions too",
                 "Allow favorite agent sessions to auto-sleep.",
             ),
         ],
@@ -63,18 +67,18 @@ pub(crate) fn power() -> Section {
         vec![
             row(
                 "hideKeepAwakeTitlebarControl",
-                "Hide Keep Awake",
+                "Hide Keep Awake from the sidebar menu",
                 "Hide the Keep Awake entry from the sidebar menu.",
             ),
             row(
                 "keepAwakeDefaultDurationMinutes",
-                "Default keep-awake duration",
+                "Keep Awake lasts",
                 "Choose the duration Keep Awake uses by default.",
             )
             .num_options(KEEP_AWAKE_DURATION_OPTIONS),
             row(
                 "keepAwakeAllowDisplaySleep",
-                "Allow display sleep",
+                "Let the display sleep while Keep Awake is on",
                 "Keep the computer awake but allow the display to turn off.",
             ),
             row(
@@ -82,6 +86,10 @@ pub(crate) fn power() -> Section {
                 "Prevent lid-close sleep",
                 "Optional. When Keep Awake is on, Ghostex can install a small privileged helper once so closing the lid stays awake only for that active keep-awake session.",
             ),
+            // CDXC:Settings 2026-10-29 DECISION (cleanup Q17): the three activate rows are the chips of Turn on
+            // automatically and the three deactivate rows the chips of Turn off automatically.
+            row("keepAwakeActivation", "Turn on automatically", "When Keep Awake turns itself on: when Ghostex launches, when an external display is connected, or while a session is working."),
+            row("keepAwakeDeactivation", "Turn off automatically", "When Keep Awake turns itself off: in Low Power Mode, when this user session is no longer active, or below a battery level."),
             row(
                 "keepAwakeActivateOnLaunch",
                 "Activate on launch",

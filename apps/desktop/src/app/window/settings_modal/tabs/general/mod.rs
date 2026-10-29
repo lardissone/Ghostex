@@ -2,8 +2,9 @@
 //! per page: Chat; Sidebar & Sessions (Sidebar, Session Cards, Sidebar Tags, Sleeping Sessions);
 //! Terminal (Terminal, Terminal Behavior, Terminal Scrolling); Notifications (Sounds); Files &
 //! Links (File opening, Browser, Editor, Dev Servers); Power & Sleep (Auto Sleep, Power). They
-//! share the General search (`GeneralSearch`) and its Show Advanced rules. Experimental and Reset
-//! to defaults moved to About.
+//! share the General search (`GeneralSearch`). Each page's advanced rows render in a second pass
+//! into a collapsed Advanced fold at its bottom (CDXC:Settings 2026-10-29 in search.rs).
+//! Experimental and Reset to defaults moved to About.
 mod chat_tools;
 mod marked_sections_preview;
 mod powershell;
@@ -14,6 +15,7 @@ mod terminal_font;
 mod terminal_transparency;
 
 use super::super::catalog::{SettingOption, module, settings_catalog};
+use super::super::fields::advanced_fold_header;
 use super::super::fields::{
     FieldStates, PageAction, RowSpec, SettingsPage, SliderBinding, reset_key, segmented_field,
     select_field, slider_number_field, toggle_field,
@@ -22,7 +24,7 @@ use super::super::model::SettingsTabId;
 use super::super::page::{PageBlock, settings_page};
 use super::super::palette::SettingsPalette;
 use super::super::rail::{rail_pages, render_no_matches};
-use super::super::search::GeneralSearch;
+use super::super::search::{GeneralSearch, RowTier};
 use super::super::store::{SettingsStore, SettingsValues};
 use gpui::{
     AnyElement, Context, Entity, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
@@ -102,6 +104,7 @@ impl SettingsPage for GeneralTab {
 }
 
 /// What every General section reads while it renders.
+#[derive(Clone)]
 pub(super) struct GeneralCx {
     pub(super) p: SettingsPalette,
     pub(super) values: SettingsValues,
@@ -116,6 +119,11 @@ impl GeneralCx {
     /// `mainSettingVisible(settingsSearch[section], key)`.
     pub(super) fn visible(&self, section: &str, key: &str) -> bool {
         self.search.setting_visible(section, key)
+    }
+
+    /// A row that stands for several settings (`GeneralSearch::any_visible`).
+    pub(super) fn any_visible(&self, section: &str, keys: &[&str]) -> bool {
+        self.search.any_visible(section, keys)
     }
 
     pub(super) fn options(&self, name: &str) -> Vec<SettingOption> {
@@ -335,18 +343,65 @@ impl Render for GeneralTab {
             (g, matching)
         };
         let tab = self.page;
-        let mut blocks: Vec<PageBlock> = match tab {
-            SettingsTabId::Chat => chat_tools::chat_sections(self, &g, window, cx),
-            SettingsTabId::Sidebar => sidebar::sections(self, &g, window, cx),
-            SettingsTabId::Terminal => terminal::sections(self, &g, window, cx),
-            SettingsTabId::Notifications => system::notifications_sections(self, &g, window, cx),
-            SettingsTabId::FilesLinks => chat_tools::files_links_sections(self, &g, window, cx),
-            SettingsTabId::PowerSleep => system::power_sleep_sections(self, &g, window, cx),
-            _ => Vec::new(),
-        };
+        let sections =
+            |page: &mut Self, g: &GeneralCx, window: &mut Window, cx: &mut Context<Self>| match tab
+            {
+                SettingsTabId::Chat => chat_tools::chat_sections(page, g, window, cx),
+                SettingsTabId::Sidebar => sidebar::sections(page, g, window, cx),
+                SettingsTabId::Terminal => terminal::sections(page, g, window, cx),
+                SettingsTabId::Notifications => system::notifications_sections(page, g, window, cx),
+                SettingsTabId::FilesLinks => chat_tools::files_links_sections(page, g, window, cx),
+                SettingsTabId::PowerSleep => system::power_sleep_sections(page, g, window, cx),
+                _ => Vec::new(),
+            };
         let has_visible = tab
             .general_group()
             .is_some_and(|group| g.search.group_visible(group));
+        // The everyday rows, then the advanced rows for the fold (CDXC:Settings 2026-10-29 in
+        // search.rs). A search renders every match in the first pass and nothing in the second.
+        let everyday = GeneralCx {
+            search: g.search.clone().with_tier(RowTier::Everyday),
+            ..g.clone()
+        };
+        let mut blocks: Vec<PageBlock> = sections(self, &everyday, window, cx);
+        let advanced = GeneralCx {
+            search: g.search.clone().with_tier(RowTier::Advanced),
+            ..g.clone()
+        };
+        let advanced_blocks = sections(self, &advanced, window, cx);
+        if !advanced_blocks.is_empty() {
+            // A deep link to a section that only has advanced rows opens the fold.
+            let pending = self.store.update(cx, |store, _| {
+                store.tracker(tab).borrow().pending_scroll.clone()
+            });
+            if let Some(anchor) = pending
+                && !blocks
+                    .iter()
+                    .any(|block| block.anchor.as_deref() == Some(&anchor))
+                && advanced_blocks
+                    .iter()
+                    .any(|block| block.anchor.as_deref() == Some(&anchor))
+            {
+                self.store
+                    .update(cx, |store, _| store.open_advanced_fold(tab));
+            }
+            let open = self.store.read(cx).advanced_fold_open(tab);
+            blocks.push(PageBlock::section(
+                "advancedFold",
+                advanced_fold_header(
+                    &g.p,
+                    open,
+                    move |page: &mut Self, _window, cx| {
+                        let store = page.store.clone();
+                        store.update(cx, |store, cx| store.toggle_advanced_fold(tab, cx));
+                    },
+                    cx,
+                ),
+            ));
+            if open {
+                blocks.extend(advanced_blocks);
+            }
+        }
         if !has_visible {
             let store = self.store.clone();
             // `SettingsSearchNoMatches` is not a section: no 12px section margin above it.

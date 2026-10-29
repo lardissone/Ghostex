@@ -327,6 +327,7 @@ fn adopt_boot_read(state: &mut ChatState, read: &ComposerBootRead) {
     // (`docs/2026-09-21/rust-chat/FAMILIES.md`, "Two assignments the seam map left ambiguous").
     state.transcript_view.summary_mode = read.summary_mode;
     state.transcript_view.verbose_override = read.verbose_override.as_bool();
+    state.transcript_view.simple_override = read.simple_override.as_bool();
 }
 
 /// `requestSkills()`, which was `load()` in `packages/shared/session-chat-controller/skills.ts:36`.

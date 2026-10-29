@@ -5,8 +5,8 @@
 use super::super::super::native_modal_kit::*;
 use super::super::catalog::settings_catalog;
 use super::super::fields::{
-    ButtonVariant, FieldStates, RowSpec, SettingsPage, card_inset, settings_button, settings_icon,
-    settings_section, toggle_field,
+    ButtonVariant, FieldStates, RowSpec, SettingsPage, advanced_fold_header, card_inset,
+    settings_button, settings_icon, settings_section, toggle_field,
 };
 use super::super::model::SettingsTabId;
 use super::super::page::{PageBlock, page_separator, settings_page};
@@ -172,7 +172,7 @@ impl SettingsPage for AboutTab {
 
 impl Render for AboutTab {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (p, search, matching, values, show_advanced) = {
+        let (p, search, matching, values) = {
             let store = self.store.read(cx);
             let search = store.tab_search(SettingsTabId::About);
             let matching: Vec<SettingsTabId> = if store.is_searching() {
@@ -180,13 +180,7 @@ impl Render for AboutTab {
             } else {
                 Vec::new()
             };
-            (
-                store.palette(),
-                search,
-                matching,
-                store.values(),
-                store.show_advanced(),
-            )
+            (store.palette(), search, matching, store.values())
         };
         let mut blocks = Vec::new();
         if search.tab.is_searching && !search.tab.has_visible() {
@@ -304,12 +298,33 @@ impl Render for AboutTab {
                     .children(links),
             );
         blocks.push(PageBlock::plain(page));
-        // Experimental's rows are advanced (General showed them with Show Advanced on, or when a
-        // search matched them); the extra pages' search does not apply that rule, so apply it here.
+        // Experimental's rows are advanced: a search shows the matching ones in place, otherwise
+        // they sit in the collapsed Advanced fold (CDXC:Settings 2026-10-29 in search.rs).
         let searching = search.tab.is_searching;
-        let visible = |key: &str| (show_advanced || searching) && search.row_visible("beta", key);
-        if let Some(section) = self.experimental_section(&p, &values, &visible, cx) {
-            blocks.push(PageBlock::section("beta", section));
+        let visible = |key: &str| search.row_visible("beta", key);
+        if searching {
+            if let Some(section) = self.experimental_section(&p, &values, &visible, cx) {
+                blocks.push(PageBlock::section("beta", section));
+            }
+        } else {
+            let open = self.store.read(cx).advanced_fold_open(SettingsTabId::About);
+            blocks.push(PageBlock::section(
+                "advancedFold",
+                advanced_fold_header(
+                    &p,
+                    open,
+                    |page: &mut Self, _window, cx| {
+                        let store = page.store.clone();
+                        store.update(cx, |store, cx| {
+                            store.toggle_advanced_fold(SettingsTabId::About, cx)
+                        });
+                    },
+                    cx,
+                ),
+            ));
+            if open && let Some(section) = self.experimental_section(&p, &values, &visible, cx) {
+                blocks.push(PageBlock::section("beta", section));
+            }
         }
         blocks.push(PageBlock::plain(page_separator(&p)));
         blocks.push(PageBlock::plain(

@@ -325,13 +325,12 @@ impl ThemeCx {
         (self.visible)(key)
     }
 
-    /// `getSettingModificationProps(key)` with the advanced marker off (`advanced={false}`).
+    /// `getSettingModificationProps(key)` with the asterisk after the label.
     pub(super) fn spec_plain(&self, key: &str, label: &str, description: &str) -> RowSpec {
         RowSpec::new(label.to_string())
             .description(description.to_string())
             .keyed(&self.values, key)
             .marker_after_label()
-            .advanced(false)
     }
 
     /// `getSettingModificationProps(key)`.

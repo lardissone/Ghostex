@@ -251,6 +251,7 @@ action_kinds! {
     // Modes and loading.
     ToggleSummary => "toggleSummary",
     SetVerbose => "setVerbose",
+    SetDetailLevel => "setDetailLevel",
     Retry => "retry",
     Refresh => "refresh",
     LoadEarlier => "loadEarlier",

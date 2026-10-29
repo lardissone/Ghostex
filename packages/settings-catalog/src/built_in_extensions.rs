@@ -50,7 +50,7 @@ pub const CONNECTORS: &str = "connectors";
 pub const SESSION_DETAILS: &str = "sessionDetailsPanel";
 /// OS Integration (Settings > OS Integration). Gated by Enable Experimental Features.
 pub const OS_INTEGRATION: &str = "osIntegration";
-/// Debugging (Settings > Debugging). Gated by Show Advanced.
+/// Debugging (Settings > Debugging). Listed while its switch is on; never gated.
 pub const DEBUGGING: &str = "debugging";
 
 fn entry(id: &str) -> Option<&'static J> {

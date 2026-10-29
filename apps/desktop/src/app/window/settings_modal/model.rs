@@ -8,8 +8,9 @@ use std::rc::Rc;
 /// User (Q5, "tiers"): the General page is gone; each of its rail groups is a page of its own
 /// (Chat, Sidebar & Sessions, Terminal, Notifications, Files & Links, Power & Sleep), and the rail
 /// shows three labelled tiers (`RailTier`): App, Setup and More. Q7: the Tools group is called
-/// Files & Links. Q8: Terminal is always in the rail. Q6 ("keep mode"): Show Advanced still hides
-/// advanced rows inside pages, nothing else. Sleeping Sessions joined Sidebar & Sessions and
+/// Files & Links. Q8: Terminal is always in the rail. Q6 ("keep mode", superseded the same day
+/// by the Advanced fold, CDXC:Settings 2026-10-29 in search.rs): advanced rows fold at the bottom
+/// of their page. Sleeping Sessions joined Sidebar & Sessions and
 /// Experimental (with Reset to defaults) moved to About. The `settings` id still opens the first
 /// page, Chat, so saved navigation, `ghostex settings open --tab settings` and old deep links keep
 /// working; a General section deep link (`initialSection`) opens the page that renders it.

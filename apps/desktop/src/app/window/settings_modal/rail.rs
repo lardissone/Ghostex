@@ -2,10 +2,11 @@
 //! Setup, More: CDXC:Settings 2026-10-29 in model.rs), the expandable Hotkeys sections (titles
 //! navigate, only the chevrons expand: CDXC:Settings 2026-09-12 DECISION), About last of the Setup
 //! tier, the Extensions page and its folding pages at the bottom (CDXC:Settings 2026-10-27 in
-//! model.rs), and Show Advanced in the footer.
+//! model.rs). The Show Advanced switch that stood in the footer is gone (CDXC:Settings
+//! 2026-10-29 in search.rs): advanced rows fold at the bottom of their page.
 use super::super::native_modal_kit::*;
 use super::catalog::{module, settings_catalog};
-use super::fields::{settings_icon, settings_switch};
+use super::fields::settings_icon;
 use super::model::{RailTier, SettingsTabId};
 use super::palette::SettingsPalette;
 use super::search::{SectionSearch, should_show_section, title_matches};
@@ -127,7 +128,7 @@ pub(crate) fn rail_pages(store: &SettingsStore) -> Vec<RailPage> {
         .unwrap_or_else(|| "general".to_string());
     let visible_hotkey_sections: Vec<RailSection> = hotkey_sections
         .iter()
-        .filter(|(_, _, result)| should_show_section(result, true))
+        .filter(|(_, _, result)| should_show_section(result, None))
         .map(|(id, title, _)| RailSection {
             id: id.clone(),
             title: title.clone(),
@@ -652,10 +653,8 @@ pub(crate) fn render_rail(
     p: &SettingsPalette,
     pages: Vec<RailPage>,
     active_tab: SettingsTabId,
-    show_advanced: bool,
     cx: &mut Context<GpuiSettingsModalWindow>,
 ) -> AnyElement {
-    let accent = p.raised_hover;
     let (group_open, searching) = {
         let store = shell.store.read(cx);
         (
@@ -701,52 +700,6 @@ pub(crate) fn render_rail(
         ));
     }
     groups.push(bottom.into_any_element());
-    let footer = div()
-        .w_full()
-        .flex_shrink_0()
-        .pt(px(10.0))
-        .pr(px(RAIL_PADDING))
-        .border_t_1()
-        .border_color(hsla(p.hairline))
-        .child(
-            h_flex()
-                .id("settings-show-advanced")
-                .role(gpui::Role::Switch)
-                .aria_label("Show Advanced")
-                .aria_toggled(a11y_toggled(show_advanced))
-                .accessibility_id("settings-show-advanced")
-                .w_full()
-                .min_h(px(36.0))
-                .px(px(10.0))
-                .py(px(6.0))
-                .gap(px(10.0))
-                .items_center()
-                .justify_between()
-                .rounded(px(MODAL_RADIUS_CONTROL))
-                .border_1()
-                .border_color(transparent())
-                .cursor_pointer()
-                .hover(move |this| this.bg(hsla(accent)))
-                .on_press(cx, move |shell, _window, cx| {
-                    let store = shell.store.clone();
-                    store.update(cx, |store, cx| {
-                        store.update_setting(
-                            "showAdvancedSettings",
-                            serde_json::json!(!show_advanced),
-                            cx,
-                        );
-                    });
-                })
-                .child(
-                    div()
-                        .min_w_0()
-                        .text_size(px(13.0))
-                        .line_height(px(18.0))
-                        .text_color(hsla(p.foreground))
-                        .child("Show Advanced"),
-                )
-                .child(settings_switch(p, show_advanced, false)),
-        );
     let list_scroll = shell.rail_scroll.clone();
     v_flex()
         .w(px(RAIL_WIDTH))
@@ -787,7 +740,6 @@ pub(crate) fn render_rail(
                 )
                 .child(app_vertical_scrollbar(&list_scroll)),
         )
-        .child(footer)
         .into_any_element()
 }
 

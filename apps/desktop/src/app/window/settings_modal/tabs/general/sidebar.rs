@@ -1,9 +1,9 @@
 //! The Sidebar group of General: Sidebar, Session Cards and Sidebar Tags.
 use super::super::super::catalog::{SettingOption, module, settings_catalog};
 use super::super::super::fields::{
-    RowSpec, card_inset, custom_note, hover_actions_field, hover_buttons_are_default,
-    normalize_hover_buttons, reset_key, segmented_field, settings_section, tag_list_field,
-    toggle_field_with,
+    Chip, PageAction, RowSpec, card_inset, chips_field, custom_note, hover_actions_field,
+    hover_buttons_are_default, normalize_hover_buttons, reset_key, segmented_field, select_field,
+    settings_section, tag_list_field, toggle_field_with,
 };
 use super::super::super::page::PageBlock;
 use super::super::super::store::SettingsStore;
@@ -122,7 +122,7 @@ fn sidebar_section(
             g,
             s,
             "sidebarSpaceFollowActiveSession",
-            "Follow the active session's Space",
+            "Switch Space when opening a session from another Space",
             "Switch the selected Space to the one that owns a session you open from outside it, such as through Back/Forward, Search by Prompt, a notification, or Previous Sessions.",
             false,
             cx,
@@ -132,7 +132,7 @@ fn sidebar_section(
         g,
         s,
         "projectSwitchKeepAliveMinutes",
-        "Keep the previous project live for (minutes)",
+        "Keep the last project running for (minutes)",
         "After you switch to another project or Space, keep the terminals, chats, and view that were open in the previous project running for this many minutes so switching back is instant. 0 releases them right away. Keep views loaded (Auto Sleep) keeps every side panel view until its Auto Sleep time instead.",
         (
             g.number("MIN_PROJECT_SWITCH_KEEP_ALIVE_MINUTES"),
@@ -143,46 +143,92 @@ fn sidebar_section(
         window,
         cx,
     ));
-    rows.extend(page.select(
-        g,
-        s,
-        "sidebarVisibilityMemory",
-        "Sidebar visibility memory",
-        "Keep one sidebar state everywhere, or remember it separately for a window with no view open and a window with one open. The Commands pane always follows that same distinction.",
-        g.options("SIDEBAR_VISIBILITY_MEMORY_OPTIONS"),
-        Some(256.0),
-        false,
-        window,
-        cx,
-    ));
-    rows.extend(page.toggle(g, s, "showProjectIcons", "Show project icons", "Show project artwork or a square with the project\u{2019}s first letter beside project names.", false, cx));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "hideSessionAgentIconUntilHover",
-        "Hide agent icon until hover",
-        "Hide session agent icons until a session row is hovered.",
-        false,
-        cx,
-    ));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "hideBrowserFaviconUntilHover",
-        "Hide browser favicon until hover",
-        "Hide browser page favicons until a session row is hovered.",
-        false,
-        cx,
-    ));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "hideLastActiveTimeOnSessionCards",
-        "Hide last active time",
-        "Hide Last Active timestamps from session-card title rows.",
-        false,
-        cx,
-    ));
+    // CDXC:Settings 2026-10-29 DECISION (wording Q23): Sidebar visibility memory, a select of Same in
+    // every view / Remembered per view, is the switch Remember sidebar per view; the key keeps its
+    // two values.
+    if g.visible(s, "sidebarVisibilityMemory") {
+        let per_view = g.values.string("sidebarVisibilityMemory") == "perView";
+        rows.push(toggle_field_with(
+            &g.p,
+            "sidebarVisibilityMemory",
+            g.spec(
+                "sidebarVisibilityMemory",
+                "Remember sidebar per view",
+                "Off: hiding the sidebar hides it everywhere. On: Agents and the wide views (Browser, Code, Files, Kanban, Automate) each keep their own open or hidden sidebar; the Commands pane follows the same split.",
+            ),
+            per_view,
+            Some(reset_key::<GeneralTab>("sidebarVisibilityMemory")),
+            |page: &mut GeneralTab, checked, _window, cx| {
+                save(
+                    page,
+                    "sidebarVisibilityMemory",
+                    json!(if checked { "perView" } else { "shared" }),
+                    cx,
+                )
+            },
+            cx,
+        ));
+    }
+    // CDXC:Settings 2026-10-29 DECISION (cleanup Q13): the six card-detail switches are one Card
+    // details row of chips; each chip still writes its own key, so presets keep working. Q18: the
+    // Show Menu Bar Session Indicators row is gone with its setting.
+    // Wording Q28: Show untracked lines without tracked changes moved here from Files & Links > Editor.
+    const CARD_DETAILS: [(&str, &str, bool); 7] = [
+        ("showProjectIcons", "Project icons", false),
+        ("hideSessionAgentIconUntilHover", "Agent icon", true),
+        ("hideBrowserFaviconUntilHover", "Browser favicon", true),
+        ("hideLastActiveTimeOnSessionCards", "Last active time", true),
+        ("hideProjectHeaderDiffStats", "Project git stats", true),
+        (
+            "showProjectEditorDiffFileCount",
+            "Changed-file count",
+            false,
+        ),
+        (
+            "showUntrackedProjectDiffWhenNoTrackedChanges",
+            "Untracked lines",
+            false,
+        ),
+    ];
+    if CARD_DETAILS.iter().any(|(key, _, _)| g.visible(s, key)) {
+        let chips: Vec<Chip> = CARD_DETAILS
+            .iter()
+            .map(|(key, label, inverted)| Chip {
+                id: key,
+                label,
+                on: g.values.bool(key) != *inverted,
+            })
+            .collect();
+        let spec = g
+            .spec(
+                "showProjectIcons",
+                "Card details",
+                "What session and project cards show: project icons, the agent icon and the browser favicon (shown on hover when off), the last active time, the project's git stats, its changed-file count, and untracked lines in the git stats when the tracked diff is +0 -0.",
+            )
+            .modified(CARD_DETAILS.iter().any(|(key, _, _)| g.values.is_modified(key)));
+        let reset: PageAction<GeneralTab> = Rc::new(|page: &mut GeneralTab, _window, cx| {
+            let store = page.store.clone();
+            store.update(cx, |store, cx| {
+                for (key, _, _) in CARD_DETAILS {
+                    store.reset_setting(key, cx);
+                }
+            });
+        });
+        rows.push(chips_field(
+            &g.p,
+            "sidebarCardDetails",
+            spec,
+            Some(reset),
+            chips,
+            |page: &mut GeneralTab, key, on, _window, cx| {
+                let inverted = CARD_DETAILS
+                    .iter()
+                    .any(|(candidate, _, inverted)| *candidate == key && *inverted);
+                save(page, key, json!(on != inverted), cx)
+            },
+            cx,
+        ));
+    }
     rows.extend(page.toggle(
         g,
         s,
@@ -192,89 +238,69 @@ fn sidebar_section(
         false,
         cx,
     ));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "hideProjectHeaderDiffStats",
-        "Hide project git stats",
-        "Hide +added/-removed line counts in sidebar project rows.",
-        false,
-        cx,
-    ));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "showProjectEditorDiffFileCount",
-        "Show changed-file count",
-        "Show changed-file counts in sidebar project row git stats.",
-        false,
-        cx,
-    ));
-    if g.visible(s, "hideMenuBarSessionStatusIndicators") {
-        // The row shows the inverse of the stored "hide" flag.
-        let spec = g.spec(
-            "hideMenuBarSessionStatusIndicators",
-            "Show Menu Bar Session Indicators",
-            "Show the menu bar session status badges.",
-        );
-        rows.push(toggle_field_with(
-            &g.p,
-            "hideMenuBarSessionStatusIndicators",
-            spec,
-            !g.values.bool("hideMenuBarSessionStatusIndicators"),
-            Some(reset_key::<GeneralTab>(
-                "hideMenuBarSessionStatusIndicators",
-            )),
-            |page: &mut GeneralTab, checked, _window, cx| {
-                save(
-                    page,
-                    "hideMenuBarSessionStatusIndicators",
-                    json!(!checked),
-                    cx,
-                )
-            },
-            cx,
-        ));
-    }
     rows.extend(page.slider(
         g,
         s,
         "sidebarDefaultWidthPx",
-        "Default Width",
+        "Sidebar width on double-click",
         "Used when double-clicking the sidebar resize handle. App restart still restores your last manually set sidebar width.",
         (g.number("MIN_SIDEBAR_DEFAULT_WIDTH_PX"), g.number("MAX_SIDEBAR_DEFAULT_WIDTH_PX"), 1.0),
         false,
         window,
         cx,
     ));
-    rows.extend(page.slider(
-        g,
+    // CDXC:Settings 2026-10-29 DECISION (cleanup Q13): one Animations row sets the panel slide
+    // speed and the sidebar fold speed together (Off 0 ms, Slow 600, Normal 400, Fast 200).
+    if g.any_visible(
         s,
-        "sidebarCollapseAnimationDurationMs",
-        "Collapse Animation Duration",
-        "Duration in milliseconds for expanding and collapsing sidebar sections, groups, and projects, and for the floating sidebar and Agents Panel sliding in from the window edge. Set to 0 for instant changes.",
-        (
-            g.number("MIN_SIDEBAR_COLLAPSE_ANIMATION_DURATION_MS"),
-            g.number("MAX_SIDEBAR_COLLAPSE_ANIMATION_DURATION_MS"),
-            g.number("SIDEBAR_COLLAPSE_ANIMATION_DURATION_STEP_MS"),
-        ),
-        false,
-        window,
-        cx,
-    ));
-    if g.visible(s, "panelAnimationSpeed") {
-        let spec = g.spec(
-            "panelAnimationSpeed",
-            "Panel Animations",
-            "How fast the sidebar, the side panel, the Agents Panel and the bottom or right panel slide open and closed. Reduce Motion in your computer settings always turns it off.",
-        );
-        rows.extend(page.segmented(
-            g,
-            s,
+        &["panelAnimationSpeed", "sidebarCollapseAnimationDurationMs"],
+    ) {
+        let spec = g
+            .spec(
+                "panelAnimationSpeed",
+                "Animations",
+                "How fast the sidebar, the side panel, the Agents Panel and the bottom or right panel slide open and closed, and how fast sidebar sections, groups and projects fold. Reduce Motion in your computer settings always turns them off.",
+            )
+            .modified(
+                g.values.is_modified("panelAnimationSpeed")
+                    || g.values.is_modified("sidebarCollapseAnimationDurationMs"),
+            );
+        let options = g.options("PANEL_ANIMATION_SPEED_OPTIONS");
+        let allowed: Vec<String> = options.iter().map(|option| option.value.clone()).collect();
+        let value = g.values.choice("panelAnimationSpeed", &allowed);
+        let reset: PageAction<GeneralTab> = Rc::new(|page: &mut GeneralTab, _window, cx| {
+            let store = page.store.clone();
+            store.update(cx, |store, cx| {
+                store.reset_setting("panelAnimationSpeed", cx);
+                store.reset_setting("sidebarCollapseAnimationDurationMs", cx);
+            });
+        });
+        rows.push(segmented_field(
+            &g.p,
             "panelAnimationSpeed",
             spec,
-            Some(reset_key::<GeneralTab>("panelAnimationSpeed")),
-            g.options("PANEL_ANIMATION_SPEED_OPTIONS"),
+            Some(reset),
+            &options,
+            Some(value.as_str()),
+            None,
+            |page: &mut GeneralTab, next, _window, cx| {
+                let fold_ms = match next.as_str() {
+                    "off" => 0,
+                    "slow" => 600,
+                    "fast" => 200,
+                    _ => 400,
+                };
+                let mut patch = Map::new();
+                patch.insert("panelAnimationSpeed".to_string(), json!(next));
+                patch.insert(
+                    "sidebarCollapseAnimationDurationMs".to_string(),
+                    json!(fold_ms),
+                );
+                let store = page.store.clone();
+                store.update(cx, |store, cx| {
+                    store.apply_patch(patch, "settings:control", cx)
+                });
+            },
             cx,
         ));
     }
@@ -282,23 +308,8 @@ fn sidebar_section(
     rows.extend(page.slider(
         g,
         s,
-        "sidebarTooltipDelayMs",
-        "Tooltip Delay",
-        "Delay in milliseconds before sidebar tooltips appear. Set to 0 to show them immediately.",
-        (
-            g.number("MIN_SIDEBAR_TOOLTIP_DELAY_MS"),
-            g.number("MAX_SIDEBAR_TOOLTIP_DELAY_MS"),
-            g.number("SIDEBAR_TOOLTIP_DELAY_STEP_MS"),
-        ),
-        false,
-        window,
-        cx,
-    ));
-    rows.extend(page.slider(
-        g,
-        s,
         "commandsPanelDefaultHeightPx",
-        "Command Pane Default Height",
+        "Commands pane height on double-click",
         "Used when opening the command pane (F12 or sidebar) and when double-clicking its top resize rail.",
         (
             g.number("MIN_COMMANDS_PANEL_DEFAULT_HEIGHT_PX"),
@@ -313,7 +324,7 @@ fn sidebar_section(
         g,
         s,
         "commandsPanelSide",
-        "Command Pane Side",
+        "Commands pane side",
         "Where terminal Actions and F12 open the command pane: below the workspace or as a column to its right.",
         g.options("COMMANDS_PANEL_SIDE_OPTIONS"),
         None,
@@ -321,40 +332,85 @@ fn sidebar_section(
         window,
         cx,
     ));
-    rows.extend(page.toggle(g, s, "commandsPanelAutoMinimize", "Auto-minimize Commands pane", "Minimize the Commands pane after you stop using it and move focus elsewhere. Commands keep running.", false, cx));
-    if g.values.bool("commandsPanelAutoMinimize") {
-        rows.extend(page.number_select(
-            g,
-            s,
+    // CDXC:Settings 2026-10-29 DECISION (cleanup Q21): Auto-minimize Commands pane and Minimize
+    // after are one select: Off, or how long the pane stays open after focus and the pointer leave.
+    if g.any_visible(
+        s,
+        &[
+            "commandsPanelAutoMinimize",
             "commandsPanelAutoMinimizeDelaySeconds",
-            "Minimize after",
-            "How long the Commands pane stays open after focus and the pointer leave it.",
-            g.options("COMMANDS_PANEL_AUTO_MINIMIZE_DELAY_OPTIONS"),
-            true,
+        ],
+    ) {
+        let delay = g
+            .values
+            .number_string("commandsPanelAutoMinimizeDelaySeconds");
+        let mut options = vec![SettingOption {
+            label: "Off".to_string(),
+            value: "off".to_string(),
+        }];
+        options.extend(g.options("COMMANDS_PANEL_AUTO_MINIMIZE_DELAY_OPTIONS"));
+        if !options.iter().any(|option| option.value == delay) {
+            options.insert(
+                1,
+                SettingOption {
+                    label: format!("After {delay} seconds"),
+                    value: delay.clone(),
+                },
+            );
+        }
+        let value = if g.values.bool("commandsPanelAutoMinimize") {
+            delay
+        } else {
+            "off".to_string()
+        };
+        let spec = g
+            .spec(
+                "commandsPanelAutoMinimize",
+                "Auto-minimize Commands pane",
+                "Minimize the Commands pane this long after you move focus elsewhere and the pointer leaves it. Commands keep running. Off keeps the pane open.",
+            )
+            .modified(
+                g.values.is_modified("commandsPanelAutoMinimize")
+                    || g.values.is_modified("commandsPanelAutoMinimizeDelaySeconds"),
+            );
+        let reset: PageAction<GeneralTab> = Rc::new(|page: &mut GeneralTab, _window, cx| {
+            let store = page.store.clone();
+            store.update(cx, |store, cx| {
+                store.reset_setting("commandsPanelAutoMinimize", cx);
+                store.reset_setting("commandsPanelAutoMinimizeDelaySeconds", cx);
+            });
+        });
+        rows.push(select_field(
+            page,
+            &g.p,
+            "commandsPanelAutoMinimize",
+            spec,
+            Some(reset),
+            &options,
+            &value,
+            None,
+            |page: &mut GeneralTab, next, _window, cx| {
+                let mut patch = Map::new();
+                if next == "off" {
+                    patch.insert("commandsPanelAutoMinimize".to_string(), json!(false));
+                } else if let Ok(seconds) = next.parse::<f64>() {
+                    patch.insert("commandsPanelAutoMinimize".to_string(), json!(true));
+                    patch.insert(
+                        "commandsPanelAutoMinimizeDelaySeconds".to_string(),
+                        json!(seconds.round() as i64),
+                    );
+                }
+                let store = page.store.clone();
+                store.update(cx, |store, cx| {
+                    store.apply_patch(patch, "settings:control", cx)
+                });
+            },
             window,
             cx,
         ));
     }
-    // The tab strip's own buttons moved here from the Actions page, which hides while the
-    // Actions extension is off (built_in_extensions.rs).
-    rows.extend(page.toggle(
-        g,
-        s,
-        "hideTabStripNewTerminalButton",
-        "Hide New Terminal button",
-        "Hide the New Terminal button from the tab strip.",
-        false,
-        cx,
-    ));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "hideTabStripNewBrowserButton",
-        "Hide New Browser Tab button",
-        "Hide the New Browser Tab button from the tab strip.",
-        false,
-        cx,
-    ));
+    // CDXC:Settings 2026-10-29 DECISION (cleanup Q14): the old tab strip's Hide New Terminal and
+    // Hide New Browser Tab rows are gone with it.
     // The sidebar's Sort & Filter menu writes the same setting (CDXC:Sidebar 2026-10-05 in gx-core
     // sidebar_view/ordering.rs `is_grouped_working`).
     rows.extend(page.toggle(
@@ -371,7 +427,7 @@ fn sidebar_section(
         g,
         s,
         "agentManagerZoomPercent",
-        "Sidebar Interface Size",
+        "Sidebar zoom (%)",
         "Scale the sidebar interface.",
         (50.0, 200.0, 1.0),
         false,
@@ -404,7 +460,7 @@ fn sidebar_section(
         g,
         s,
         "showTagMenuWhenParking",
-        "Park & Snooze with tags",
+        "Ask for a tag when parking or snoozing",
         "Open the Tag as menu when a session is parked or snoozed so it can be tagged right away.",
         true,
         cx,
@@ -513,15 +569,86 @@ fn session_cards_section(
         false,
         cx,
     ));
-    rows.extend(page.toggle(
-        g,
-        s,
-        "showSidebarSessionTooltips",
-        "Session tooltips",
-        "Show a tooltip with the full session name when you hover a session in the sidebar. Turn off to show none; other sidebar tooltips stay.",
-        false,
-        cx,
-    ));
+    // CDXC:Settings 2026-10-29 DECISION (cleanup Q13): Session tooltips and Tooltip Delay are one
+    // select: Off, or the delay before the tooltip shows.
+    if g.any_visible(s, &["showSidebarSessionTooltips", "sidebarTooltipDelayMs"])
+        || (g.search.is_searching() && g.visible("sidebar", "sidebarTooltipDelayMs"))
+    {
+        let delay = g.values.f64("sidebarTooltipDelayMs").round().max(0.0) as i64;
+        let mut options: Vec<SettingOption> = [
+            ("Off", "off"),
+            ("Instant", "0"),
+            ("After 300 ms", "300"),
+            ("After 600 ms", "600"),
+            ("After 1 second", "1000"),
+            ("After 2 seconds", "2000"),
+        ]
+        .into_iter()
+        .map(|(label, value)| SettingOption {
+            label: label.to_string(),
+            value: value.to_string(),
+        })
+        .collect();
+        if !options
+            .iter()
+            .any(|option| option.value == delay.to_string())
+        {
+            options.insert(
+                2,
+                SettingOption {
+                    label: format!("After {delay} ms"),
+                    value: delay.to_string(),
+                },
+            );
+        }
+        let value = if g.values.bool("showSidebarSessionTooltips") {
+            delay.to_string()
+        } else {
+            "off".to_string()
+        };
+        let spec = g
+            .spec(
+                "showSidebarSessionTooltips",
+                "Session tooltips",
+                "Show a tooltip with the full session name when you hover a session in the sidebar, after this delay. Off shows none; the other sidebar tooltips stay and wait the same delay.",
+            )
+            .modified(
+                g.values.is_modified("showSidebarSessionTooltips")
+                    || g.values.is_modified("sidebarTooltipDelayMs"),
+            );
+        let reset: PageAction<GeneralTab> = Rc::new(|page: &mut GeneralTab, _window, cx| {
+            let store = page.store.clone();
+            store.update(cx, |store, cx| {
+                store.reset_setting("showSidebarSessionTooltips", cx);
+                store.reset_setting("sidebarTooltipDelayMs", cx);
+            });
+        });
+        rows.push(select_field(
+            page,
+            &g.p,
+            "showSidebarSessionTooltips",
+            spec,
+            Some(reset),
+            &options,
+            &value,
+            None,
+            |page: &mut GeneralTab, next, _window, cx| {
+                let mut patch = Map::new();
+                if next == "off" {
+                    patch.insert("showSidebarSessionTooltips".to_string(), json!(false));
+                } else if let Ok(delay) = next.parse::<i64>() {
+                    patch.insert("showSidebarSessionTooltips".to_string(), json!(true));
+                    patch.insert("sidebarTooltipDelayMs".to_string(), json!(delay));
+                }
+                let store = page.store.clone();
+                store.update(cx, |store, cx| {
+                    store.apply_patch(patch, "settings:control", cx)
+                });
+            },
+            window,
+            cx,
+        ));
+    }
     settings_section(&g.p, "Session Cards", None, None, rows)
         .map(|section| PageBlock::section("sessionCards", section))
 }

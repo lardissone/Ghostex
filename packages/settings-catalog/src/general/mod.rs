@@ -20,6 +20,7 @@ pub fn sections(platform: Platform) -> Vec<Section> {
         sidebar::sidebar(),
         theme::theming(),
         chat::chat(),
+        chat::marked_handovers(),
         sidebar::sidebar_tags(),
         chat::sounds(),
         terminal::terminal(platform),

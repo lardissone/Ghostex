@@ -12,6 +12,7 @@ pub(crate) type Tab = (&'static str, &'static str);
 pub(crate) const THEME: Tab = ("theme", "Theme");
 /// The Terminal page, one of the pages General split into (layout.rs).
 const TERMINAL: Tab = ("terminal", "Terminal");
+const CHAT: Tab = ("chat", "Chat");
 const EXTENSIONS: Tab = ("extensions", "Extensions");
 const AGENTS: Tab = ("agents", "Agents");
 const PROJECTS: Tab = ("projects", "Projects");
@@ -36,6 +37,29 @@ pub(crate) struct Supplemental {
 }
 
 pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
+    // CDXC:Settings 2026-10-29 (cleanup Q11, general/chat.rs): no Settings row; the chat's View menu picks the level per chat.
+    Supplemental {
+        key: "sessionChatSimpleMode",
+        tab: CHAT,
+        group: None,
+        section: "chat",
+        section_title: "Chat",
+        title: "Simple mode by default",
+        subtitle: "New chats open in Simple mode (on by default). More actions > View in a chat picks Simple, Detailed or Verbose for that chat.",
+        options: &[],
+        user_only: false,
+    },
+    Supplemental {
+        key: "sessionChatVerboseMode",
+        tab: CHAT,
+        group: None,
+        section: "chat",
+        section_title: "Chat",
+        title: "Verbose mode by default",
+        subtitle: "New chats open in Verbose mode when Simple mode by default is off. More actions > View in a chat picks the level for that chat.",
+        options: &[],
+        user_only: false,
+    },
     Supplemental {
         key: "agentAcceptAllEnabled",
         tab: AGENTS,
@@ -99,17 +123,6 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section_title: "Floating Capture",
         title: "Switch to the session after sending",
         subtitle: "After a prompt is sent from Floating Capture, the Ghostex window shows the session it went to, without coming in front of the app you are in.",
-        options: &[],
-        user_only: false,
-    },
-    Supplemental {
-        key: "showAdvancedSettings",
-        tab: ABOUT,
-        group: None,
-        section: "settingsModal",
-        section_title: "Settings window",
-        title: "Show Advanced settings",
-        subtitle: "Show the rows marked Advanced in Settings.",
         options: &[],
         user_only: false,
     },

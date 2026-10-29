@@ -165,14 +165,23 @@ impl ChatAppearance {
         let settings = snapshot.object();
         let color = |dark, light_color| rgb(if light { light_color } else { dark }).into();
         let enabled = |name| settings.get(name).and_then(serde_json::Value::as_bool) == Some(true);
-        let verbose = state["verboseOverride"]
-            .as_bool()
-            .unwrap_or_else(|| enabled("sessionChatVerboseMode"));
+        // CDXC:SessionChat 2026-10-29 DECISION (Settings cleanup Q11, gx-chat-core transcript/actions.rs):
+        // the detail level is per chat (`simpleOverride` and `verboseOverride`; a new chat follows
+        // the Simple mode by default and Verbose mode by default keys, Simple on by default), and
+        // Summary mode shows the Simple look until it is turned off again.
+        let summary = state["summaryMode"].as_bool() == Some(true);
+        let verbose = !summary
+            && state["verboseOverride"]
+                .as_bool()
+                .unwrap_or_else(|| enabled("sessionChatVerboseMode"));
         // A missing key means the shared default, which is on (defaults.ts, CDXC:SessionChat 2026-09-27).
-        let simple = settings
-            .get("sessionChatSimpleMode")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(true);
+        let simple = summary
+            || state["simpleOverride"].as_bool().unwrap_or_else(|| {
+                settings
+                    .get("sessionChatSimpleMode")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true)
+            });
         // The transcript and its cards share one backing tone derived from the chat's own theme
         // variant (the chat may be dark while the app is light), see session_chat_background_for_chrome.
         let background_rgb = work_area_background_for_variant(settings, light);

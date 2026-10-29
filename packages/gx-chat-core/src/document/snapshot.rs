@@ -248,6 +248,8 @@ pub struct Document {
     pub summary_mode: bool,
     /// The user's verbose override, or `null` to follow the setting.
     pub verbose_override: Option<bool>,
+    /// The user's Simple override for this chat, or `null` to follow the setting.
+    pub simple_override: Option<bool>,
     pub empty_state: EmptyState,
     pub new_session_welcome: Option<NewSessionWelcome>,
     /// `blank`, `indicator` or `retry` while the transcript loads; `null` otherwise.

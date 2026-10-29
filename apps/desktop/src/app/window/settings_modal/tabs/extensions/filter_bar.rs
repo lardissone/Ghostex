@@ -59,9 +59,9 @@ impl ExtensionsTab {
         let search = store.tab_search(SettingsTabId::Extensions);
         let values = store.values();
         let has_transport = store.request().gxserver_rpc_available;
-        let show_built_in = should_show_section(&search.section("official"), true);
-        let show_store = has_transport && should_show_section(&search.section("store"), true);
-        let show_custom = should_show_section(&search.section("customViews"), true);
+        let show_built_in = should_show_section(&search.section("official"), None);
+        let show_store = has_transport && should_show_section(&search.section("store"), None);
+        let show_custom = should_show_section(&search.section("customViews"), None);
         let filter = &self.filter;
         let (built_in_shown, built_in_total) = if show_built_in {
             let matching = official_extensions()

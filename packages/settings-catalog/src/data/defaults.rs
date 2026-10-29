@@ -61,11 +61,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("videoFileOpenTarget", J::Str("files")),
     ("audioFileOpenTarget", J::Str("files")),
     ("docsOpenFilesAsTabs", J::Bool(false)),
-    // CDXC:Settings 2026-06-28-08:01:
-    // New installs should start with ordinary Settings density, but an explicit
-    // Show Advanced toggle is saved so restart hydration preserves the user's
-    // last browsing mode.
-    ("showAdvancedSettings", J::Bool(false)),
     // CDXC:Settings 2026-06-29-17:54:
     // New installs start at General Settings. Once the user closes Settings, the
     // modal saves only navigation chrome state here, not search text or private
@@ -472,8 +467,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // CDXC:AgentLauncher 2026-08-01:
     // Every built-in tab strip button stays visible until the user hides it, so
     // adding Global Actions never silently removes a control someone relies on.
-    ("hideTabStripNewTerminalButton", J::Bool(false)),
-    ("hideTabStripNewBrowserButton", J::Bool(false)),
     // CDXC:Notifications 2026-05-10-16:46
     // macOS attention notifications are enabled by default so a background
     // session that transitions into attention can surface itself without relying
@@ -486,7 +479,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // CDXC:Notifications 2026-10-05 DECISION:
     // User: a banked reset that expires within 3 days, and again within 24 hours, also gets a system notification, which "can be switched off for the system" while the red bell row stays.
     ("resetExpirySystemNotifications", J::Bool(true)),
-    ("hideMenuBarSessionStatusIndicators", J::Bool(false)),
     // CDXC:Workarea 2026-05-23-00:50:
     // The session-id pane overlay preference is configurable, and the
     // native label itself must still render only for terminal panes that carry
@@ -656,7 +648,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("terminalBackgroundOpacity", J::Num(100.0)),
     ("terminalBackgroundImage", J::Str("")),
     ("terminalBackgroundImageOpacity", J::Num(1.0)),
-    ("terminalBackgroundImageFit", J::Str("cover")),
     ("terminalLetterSpacing", J::Num(0.0)),
     ("terminalLineHeight", J::Num(1.2)),
     ("terminalViewWidthMode", J::Str("full")),
@@ -822,6 +813,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("windowGlass", J::Str("auto")),
     ("windowGlassSource", J::Str("desktopAndWindows")),
     ("windowGlassImagePlacement", J::Str("static")),
+    ("windowGlassSameForLightAndDark", J::Bool(true)),
     ("windowGlassImageDark", J::Str("")),
     ("windowGlassImageLight", J::Str("")),
     ("windowGlassVideoDark", J::Str("")),

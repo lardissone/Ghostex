@@ -217,18 +217,6 @@ impl GhostexGpuiApp {
             }
             return;
         }
-        if action == "setSimpleMode" {
-            if let Some(enabled) = message.get("enabled").and_then(serde_json::Value::as_bool) {
-                self.handle_gpui_app_modal_update_settings_patch_message(
-                    &serde_json::json!({
-                        "patch": { "sessionChatSimpleMode": enabled },
-                        "source": "chat:simpleMode",
-                    }),
-                    cx,
-                );
-            }
-            return;
-        }
         /*
         CDXC:Diagnostics 2026-08-24:
         Typing-focus-loss repro breadcrumbs from the chat page (composer

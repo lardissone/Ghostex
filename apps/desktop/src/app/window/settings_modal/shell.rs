@@ -417,17 +417,12 @@ impl Focusable for GpuiSettingsModalWindow {
 
 impl Render for GpuiSettingsModalWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (p, pages, active_tab, show_advanced) = {
+        let (p, pages, active_tab) = {
             let store = self.store.read(cx);
-            (
-                store.palette(),
-                rail_pages(store),
-                store.active_tab(),
-                store.show_advanced(),
-            )
+            (store.palette(), rail_pages(store), store.active_tab())
         };
         self.ensure_tab_view(active_tab, window, cx);
-        let rail = render_rail(self, &p, pages, active_tab, show_advanced, cx);
+        let rail = render_rail(self, &p, pages, active_tab, cx);
         let search = self.render_search(&p, window, cx);
         let page = self.tabs.get(&active_tab).cloned();
         div()

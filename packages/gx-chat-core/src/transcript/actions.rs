@@ -4,17 +4,17 @@
 //! Ported from the family b arms of `action` in
 //! `packages/shared/session-chat-controller/native-host.ts`, plus `native-message-actions.ts`.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::action::{ActionKind, UserAction};
 use crate::effect::{Effect, OpenTarget};
 use crate::state::{ChatContext, ChatState, OpenRow, RewindRequest};
 use crate::transcript::deferred_work::{
-    DeferredWalk, WalkStep, DEFERRED_WORK_PAGE_LIMIT, WORK_HISTORY_UNREADABLE,
+    DEFERRED_WORK_PAGE_LIMIT, DeferredWalk, WORK_HISTORY_UNREADABLE, WalkStep,
 };
 use crate::transcript::file_position::FilePosition;
 use crate::transcript::jsstr::js_trim;
-use crate::transcript::links::{classify_link_href, file_position_from_href, LinkTarget};
+use crate::transcript::links::{LinkTarget, classify_link_href, file_position_from_href};
 use crate::transcript::rows;
 use crate::wire::{ChatRpcMethod, RpcOutcome};
 
@@ -165,6 +165,44 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                 value: Some(crate::composer::storage::encode_verbose(enabled).to_string()),
                 durable: false,
             }]
+        }
+        // CDXC:SessionChat 2026-10-29 DECISION:
+        // User (Settings cleanup Q11): Simple and Verbose left Settings; a chat has one detail level,
+        // Simple, Detailed or Verbose, picked in More actions > View as a single choice instead of
+        // three independent switches. New chats start Simple (the `sessionChatSimpleMode` default).
+        // Picking a level pins both per-session records (`simple`, `verbose`) the way SetVerbose
+        // pins one, and while Summary mode is on it also turns Summary off: Summary shows the
+        // Simple look on its own and gives the chat its picked level back when it is turned off.
+        ActionKind::SetDetailLevel => {
+            let (simple, verbose) = match text(action, "level").as_str() {
+                "verbose" => (false, true),
+                "detailed" => (false, false),
+                _ => (true, false),
+            };
+            let session_key = state.identity.session_key.clone();
+            state.transcript_view.pending_simple_override = Some(Some(simple));
+            state.transcript_view.pending_verbose_override = Some(Some(verbose));
+            let mut effects = vec![
+                Effect::WriteStorage {
+                    key: crate::composer::storage::simple_key(&session_key),
+                    value: Some(crate::composer::storage::encode_verbose(simple).to_string()),
+                    durable: false,
+                },
+                Effect::WriteStorage {
+                    key: crate::composer::storage::verbose_key(&session_key),
+                    value: Some(crate::composer::storage::encode_verbose(verbose).to_string()),
+                    durable: false,
+                },
+            ];
+            if state.transcript_view.summary_mode {
+                state.transcript_view.pending_summary_mode = Some(false);
+                effects.push(Effect::WriteStorage {
+                    key: crate::composer::storage::summary_key(&session_key),
+                    value: Some(crate::composer::storage::encode_summary(false).to_string()),
+                    durable: false,
+                });
+            }
+            effects
         }
         ActionKind::LoadWork => load_work(state, action),
         ActionKind::RewindOpen => {

@@ -60,7 +60,7 @@ impl AgentsTab {
             (store.values(), agents_from_hud(store.hud()))
         };
         let mut rows: Vec<AnyElement> = Vec::new();
-        if should_show_setting(&section, "defaultPromptAgent", true) {
+        if should_show_setting(&section, "defaultPromptAgent", None) {
             let description = "Choose the agent used by Git helper prompts, project board Start Work, and the default worktree first-prompt selection.";
             let prompt_options: Vec<DropdownOption> = agents
                 .iter()
@@ -177,7 +177,7 @@ impl AgentsTab {
                     || agents.iter().any(|agent| agent.agent_id == option.value)
             })
             .collect();
-        if should_show_setting(&section, "titleGenerationAgent", true) {
+        if should_show_setting(&section, "titleGenerationAgent", None) {
             let custom = values.string(CUSTOM_TITLE_COMMAND);
             let command = resolve_title_generation_command(&title_agent, &agents, &custom);
             let preview = title_generation_preview(&title_agent, command.as_deref());
@@ -201,7 +201,7 @@ impl AgentsTab {
                 cx,
             ));
         }
-        if title_agent == "custom" && should_show_setting(&section, "customTitleCommand", true) {
+        if title_agent == "custom" && should_show_setting(&section, "customTitleCommand", None) {
             let value = values.string(CUSTOM_TITLE_COMMAND);
             rows.push(text_field(
                 self,
@@ -222,7 +222,7 @@ impl AgentsTab {
                 cx,
             ));
         }
-        if should_show_setting(&section, "acceptAll", true) {
+        if should_show_setting(&section, "acceptAll", None) {
             let enabled = values.bool(ACCEPT_ALL);
             let options = [
                 SettingOption {
@@ -261,7 +261,7 @@ impl AgentsTab {
                 cx,
             ));
         }
-        if should_show_setting(&section, TRUST_PROJECT_FOLDERS, true) {
+        if should_show_setting(&section, TRUST_PROJECT_FOLDERS, None) {
             rows.push(toggle_field(
                 self,
                 p,

@@ -41,7 +41,6 @@ pub(crate) struct RowSpec {
     pub(crate) label: SharedString,
     pub(crate) description: Option<SharedString>,
     pub(crate) subtitle: Option<SharedString>,
-    pub(crate) advanced: bool,
     pub(crate) experimental: bool,
     pub(crate) disabled_reason: Option<SharedString>,
     /// CDXC:Settings 2026-09-12 DECISION:
@@ -115,11 +114,6 @@ impl RowSpec {
         self
     }
 
-    pub(crate) fn advanced(mut self, advanced: bool) -> Self {
-        self.advanced = advanced;
-        self
-    }
-
     #[cfg(target_os = "macos")]
     pub(crate) fn experimental(mut self) -> Self {
         self.experimental = true;
@@ -136,16 +130,15 @@ impl RowSpec {
         self
     }
 
-    /// `getSettingModificationProps(key)`: the advanced marker, the modified asterisk and the
-    /// "Not recommended" label of a setting.
+    /// `getSettingModificationProps(key)`: the modified asterisk and the "Not recommended" label
+    /// of a setting. (The advanced arrow marker is gone: CDXC:Settings 2026-10-29 in search.rs.)
     pub(crate) fn keyed(mut self, values: &SettingsValues, key: &str) -> Self {
         let catalog = super::super::catalog::settings_catalog();
-        let advanced = catalog.is_advanced(key);
         if catalog.is_not_recommended(key) {
             self.badge = Some("Not recommended".into());
         }
         let modified = values.is_modified(key);
-        self.advanced(advanced).modified(modified)
+        self.modified(modified)
     }
 
     /// `[description, subtitle].filter(Boolean).join('\n\n')`.
@@ -305,44 +298,6 @@ fn modified_reset_button(
         .into_any_element()
 }
 
-/// `AdvancedSettingTooltip`: a 16px arrow 2px after the label, always visible so advanced rows
-/// scan at a glance, in the accent (dark: 88% over the foreground, 70% over white on hover;
-/// light: `--settings-accent`, the foreground on hover).
-fn advanced_marker(p: &SettingsPalette, row_id: &SharedString) -> AnyElement {
-    let (color, hover) = if p.light {
-        (p.settings_accent, p.foreground)
-    } else {
-        (
-            css_mix(p.settings_accent, 0.88, p.foreground),
-            css_mix(p.settings_accent, 0.70, gpui::rgb(0xffffff)),
-        )
-    };
-    let group: SharedString = format!("settings-advanced-{row_id}").into();
-    let marker = div()
-        .id(ElementId::Name(group.clone()))
-        .group(group.clone())
-        .flex_shrink_0()
-        .ml(px(2.0))
-        .size(px(16.0))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(
-            settings_icon(icon::ARROW_BIG_UP, 12.0, color)
-                .group_hover(group, move |this| this.text_color(hsla(hover))),
-        );
-    // `<TooltipContent sideOffset={6}>` (below).
-    placed_tooltip(
-        marker,
-        "Advanced Setting".into(),
-        ManagedTooltipPlacement::Below,
-        6.0,
-        None,
-        false,
-    )
-    .into_any_element()
-}
-
 /// `.settings-row-info-button`: 18px, revealed with the row.
 fn label_action_button(
     p: &SettingsPalette,
@@ -396,8 +351,7 @@ pub(crate) fn description_info_button(
 
 /// CDXC:Settings 2026-09-09 DECISION:
 /// User: rows show no subtitle text. The description (and any subtitle) lives only in the tooltip behind the hover-revealed info icon next to the label.
-/// `SettingRow`: the label line on the left (asterisk, `↳` prefix, label, badge, advanced arrow
-/// and info icon) and the control on the right, or under the label for a wide row.
+/// `SettingRow`: the label line on the left (asterisk, `↳` prefix, label, badge and info icon) and the control on the right, or under the label for a wide row.
 ///
 /// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `setting_row_bound`; generic over the page it was copied into the release binary once per page and id type (14 copies, about 0.15 MB).
 pub(crate) fn setting_row<V: SettingsPage>(
@@ -478,9 +432,6 @@ fn setting_row_bound(
                 .text_color(hsla(p.muted))
                 .child(badge),
         );
-    }
-    if spec.advanced {
-        label_line = label_line.child(advanced_marker(p, &id));
     }
     if spec.experimental {
         label_line = label_line.child(

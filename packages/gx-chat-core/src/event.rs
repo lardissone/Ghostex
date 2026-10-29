@@ -219,6 +219,9 @@ pub struct ComposerBootRead {
     /// The verbose override, or absent to follow the setting.
     #[serde(default)]
     pub verbose_override: Value,
+    /// The Simple override, or absent to follow the setting (`state/transcript_view.rs`).
+    #[serde(default)]
+    pub simple_override: Value,
 }
 
 /// The socket's state, which decides whether the core waits or re-reads.
