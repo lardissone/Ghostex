@@ -341,6 +341,7 @@ pub fn apply_authoritative(
         state.messages.history_epoch = None;
         state.messages.history_prefix_count = 0;
         state.messages.boundary_attempt = None;
+        state.messages.island_loaded = false;
     }
     // Every result row is a new object, and so is its `deferredWork` unless it was carried over.
     for message in &result.messages {
@@ -470,7 +471,8 @@ pub fn apply_authoritative(
     // a cancelled response from completing a newer request in the same epoch.
     let cursor = state.messages.before_offset;
     if let Some(request) = state.messages.load_earlier_request.clone() {
-        if request.epoch != Some(result.epoch) || request.before_offset != cursor {
+        // A jump read asks for its own offset, so the cursor never matches it.
+        if request.epoch != Some(result.epoch) || (!request.island && request.before_offset != cursor) {
             state.messages.load_earlier_request = None;
             state.messages.boundary_attempt = None;
             state.messages.loading_earlier = false;

@@ -83,7 +83,7 @@ impl OpenAsker {
 
 /// What the transcript has said about questions so far.
 #[derive(Default)]
-struct Ledger {
+pub(crate) struct Ledger {
     path: PathBuf,
     identity: String,
     incremental: SessionChatIncrementalState,
@@ -92,6 +92,8 @@ struct Ledger {
     asking: Vec<(ChatMessage, usize)>,
     /// The forms and pages whose answers are in the transcript.
     answered: Vec<String>,
+    /// Where each answers message starts in the file, by form or page id.
+    answers_at: HashMap<String, u64>,
     /// How many messages the user (or anyone) sent.
     turns: usize,
     /// The forms and pages a turn end already notified about.
@@ -331,16 +333,30 @@ fn text_of(message: &SessionChatMessage) -> String {
 }
 
 impl Ledger {
-    fn observe(&mut self, messages: Vec<SessionChatMessage>) {
+    pub(crate) fn observe(&mut self, messages: Vec<SessionChatMessage>) {
         for message in messages.into_iter().filter(|message| !message.queued) {
             match message.role {
                 SessionChatRole::User => {
+                    // A user message ends the turn every earlier reply still open sits in.
+                    if let Some(at) = message.byte_offset {
+                        for entry in self.entries.iter_mut().rev() {
+                            if entry.turn_end.is_some() {
+                                break;
+                            }
+                            if entry.offset.is_some_and(|offset| offset < at) {
+                                entry.turn_end = Some(at);
+                            }
+                        }
+                    }
                     let text = text_of(&message);
                     if text.trim().is_empty() {
                         continue;
                     }
                     self.turns += 1;
                     if let Some(id) = answers_page_id(&text) {
+                        if let Some(at) = message.byte_offset {
+                            self.answers_at.entry(id.clone()).or_insert(at);
+                        }
                         self.answered.push(id);
                     }
                 }
@@ -420,7 +436,7 @@ impl Ledger {
     /// The session's resource index as the transcript reads now: every form, page and chart, with
     /// the status the answers and withdrawals so far give each. `forked_at` leaves out what a fork
     /// inherited from its parent.
-    fn index(
+    pub(crate) fn index(
         &self,
         also_answered: &[String],
         forked_at: Option<i64>,
@@ -438,6 +454,9 @@ impl Ledger {
         for entry in &mut entries {
             if entry.kind == "page" && entry.status == "waiting" && page_answered(&entry.id) {
                 entry.status = "answered".to_string();
+            }
+            if entry.status == "answered" {
+                entry.answers_offset = self.answers_at.get(&entry.id).copied();
             }
         }
         entries

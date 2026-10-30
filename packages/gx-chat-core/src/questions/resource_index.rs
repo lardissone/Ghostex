@@ -53,6 +53,17 @@ pub struct ResourceEntry {
     /// Set on a page a thread posted, in its coordinator's index.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread: Option<ThreadRef>,
+    /// Where the reply that holds it starts in the transcript file (bytes), so gxserver can read
+    /// that one reply back without reading the file (`readSessionChatResource`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    /// Where the message that answered it starts, when it is answered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answers_offset: Option<u64>,
+    /// Where the next user message after the reply starts, which ends the reply's turn: a history
+    /// page that ends there holds the whole turn (`questions/resource_modal.rs`, "Go to chat").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_end: Option<u64>,
 }
 
 /// The resources one assistant reply holds, in order, with no status yet (`settle` decides it).
@@ -117,6 +128,7 @@ pub fn scan_message(message: &ChatMessage) -> Vec<ResourceEntry> {
         };
         found.push(ResourceEntry {
             at_ms: message.timestamp,
+            offset: message.byte_offset,
             ..entry
         });
     }

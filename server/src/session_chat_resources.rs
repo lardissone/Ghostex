@@ -76,6 +76,15 @@ pub(crate) fn has_row(db: &rusqlite::Connection, project_id: &str, session_id: &
     .is_some()
 }
 
+/// Whether the stored index holds a form or chart that does not say where its reply starts in the
+/// transcript (an index written before offsets were kept): it is read again, so each entry can be
+/// opened on its own (`read_resource`).
+fn lacks_offsets(db: &rusqlite::Connection, project_id: &str, session_id: &str) -> bool {
+    read_entries(db, project_id, session_id)
+        .iter()
+        .any(|entry| entry.kind != "page" && entry.offset.is_none())
+}
+
 fn write_entries(
     db: &rusqlite::Connection,
     project_id: &str,
@@ -266,7 +275,7 @@ pub(crate) fn ensure_indexed(
         }
         checked.insert(key.clone(), std::time::Instant::now());
     }
-    if !has_row(db, project_id, session_id) {
+    if !has_row(db, project_id, session_id) || lacks_offsets(db, project_id, session_id) {
         start_index(state, project_id, session_id);
     }
     if crate::coordinators::read_coordinator(db, project_id, session_id)
@@ -294,6 +303,94 @@ fn start_index(state: &AppState, project_id: &str, session_id: &str) {
             flying.remove(&key);
         }
     });
+}
+
+/// The largest reply read back for one resource; a bigger one is not a form someone wrote.
+const RECORD_MAX_BYTES: u64 = 16 * 1024 * 1024;
+
+/// The one transcript record that starts at `offset`, decoded like the chat's own reads, with its
+/// position set. Reads that record alone: the cost is its own size, however long the file is.
+fn read_record_at(
+    path: &std::path::Path,
+    decode: crate::session_chat::SessionChatLineDecoder,
+    offset: u64,
+) -> Option<crate::session_chat::SessionChatMessage> {
+    use std::io::{BufRead, Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path).ok()?;
+    file.seek(SeekFrom::Start(offset)).ok()?;
+    let mut line = Vec::new();
+    std::io::BufReader::new(file.take(RECORD_MAX_BYTES))
+        .read_until(b'\n', &mut line)
+        .ok()?;
+    let line = String::from_utf8(line).ok()?;
+    let fallback = crate::session_chat::transcript_fallback_id(path, offset);
+    let mut message = decode(line.trim_end_matches(['\n', '\r']), &fallback)?;
+    message.byte_offset = Some(offset);
+    Some(message)
+}
+
+/// `/api/readSessionChatResource` `{projectId, sessionId, id}`: the reply that holds a form, page
+/// or chart the session's index lists, and the message that answered it, read back from the
+/// transcript by the byte offsets the index kept. The chat asks for it when the reader opens a
+/// resource older than the rows it has loaded, so it needs no frame to carry a body and no
+/// transcript read: two seeks, whatever the file's size.
+///
+/// A resource that cannot be read says so (`notFound`): it is not in the index, the index has no
+/// position for it yet (it is read again in the background), the transcript is gone, or the
+/// record at that position is no longer the one that held it (the transcript was rewritten).
+pub(crate) fn read_resource(
+    repository: &DomainRepository<'_>,
+    db: &rusqlite::Connection,
+    project_id: &str,
+    session_id: &str,
+    id: &str,
+) -> Result<Value, crate::domain::DomainStateError> {
+    let missing = |message: &str| crate::domain::DomainStateError::not_found(message.to_string());
+    let entry = read_entries(db, project_id, session_id)
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .ok_or_else(|| missing("That item is not in this conversation's index."))?;
+    let offset = entry
+        .offset
+        .ok_or_else(|| missing("Ghostex has not recorded where that item sits yet."))?;
+    let session = repository
+        .get_session(project_id, session_id)?
+        .ok_or_else(|| missing("The session no longer exists."))?;
+    let agent = crate::session_chat::resolve_session_chat_transcript_agent(
+        crate::session_chat_follower::session_chat_agent_for_session(&session).as_deref(),
+    )
+    .ok_or_else(|| missing("This session has no transcript Ghostex reads."))?;
+    let path = crate::session_chat::resolve_session_chat_transcript_path(
+        agent,
+        crate::server::read_runtime_text(&session, "agentSessionId").as_deref(),
+        crate::server::read_runtime_text(&session, "agentSessionPath").as_deref(),
+    )
+    .ok_or_else(|| missing("The transcript is not there any more."))?;
+    let decode = crate::session_chat::session_chat_line_decoder(agent);
+    let holder = read_record_at(&path, decode, offset)
+        .ok_or_else(|| missing("The transcript no longer has that reply."))?;
+    // The record at that position must still hold the item.
+    let holds = serde_json::to_value(&holder)
+        .ok()
+        .and_then(|value| serde_json::from_value::<ghostex_gx_protocol::ChatMessage>(value).ok())
+        .is_some_and(|message| {
+            ghostex_gx_chat_core::questions::resource_index::scan_message(&message)
+                .iter()
+                .any(|held| held.id == id)
+        });
+    if !holds {
+        return Err(missing(
+            "The transcript has changed since that was recorded.",
+        ));
+    }
+    let mut messages = vec![serde_json::to_value(&holder).unwrap_or_default()];
+    if let Some(answers) = entry
+        .answers_offset
+        .and_then(|at| read_record_at(&path, decode, at))
+    {
+        messages.push(serde_json::to_value(&answers).unwrap_or_default());
+    }
+    Ok(serde_json::json!({ "id": id, "messages": messages }))
 }
 
 /// Threads being backfilled right now, so a sweep never starts the same read twice.
@@ -489,5 +586,103 @@ mod tests {
             vec![entry("a-page-2", "page", "other", 7)],
         );
         assert_eq!(frame_index(&db, "p", "coord").len(), 4);
+    }
+
+    fn claude_line(kind: &str, uuid: &str, text: &str) -> String {
+        let message = if kind == "assistant" {
+            serde_json::json!({"role": "assistant", "content": [{"type": "text", "text": text}]})
+        } else {
+            serde_json::json!({"role": "user", "content": text})
+        };
+        serde_json::json!({
+            "type": kind, "uuid": uuid, "parentUuid": null, "isSidechain": false,
+            "timestamp": "2026-10-30T10:00:00.000Z", "sessionId": "s", "cwd": "/x", "message": message,
+        })
+        .to_string()
+    }
+
+    /// The index keeps each reply's byte offset (and the answers message's), and `read_record_at`
+    /// reads exactly that record back by seeking, past any amount of unrelated transcript.
+    #[test]
+    fn a_resource_is_read_back_by_its_offset_past_a_long_transcript() {
+        use crate::session_chat::{
+            read_incremental_transcript_messages, session_chat_line_decoder,
+            SessionChatIncrementalState, SessionChatTranscriptAgent,
+        };
+        let form = "```questions\n{\"title\":\"Pick\",\"questions\":[{\"tag\":\"Q1\",\"title\":\"Which?\",\"choices\":[\"A\",\"B\"]}]}\n```";
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("t.jsonl");
+        let filler = "x".repeat(20_000);
+        let mut text = String::new();
+        // About 20 MB of other replies before the form, then the form, more filler, the answers.
+        for n in 0..1_000 {
+            text.push_str(&claude_line("assistant", &format!("f{n}"), &filler));
+            text.push('\n');
+        }
+        text.push_str(&claude_line(
+            "assistant",
+            "the-form",
+            &format!("Here.\n\n{form}"),
+        ));
+        text.push('\n');
+        for n in 0..50 {
+            text.push_str(&claude_line("assistant", &format!("g{n}"), &filler));
+            text.push('\n');
+        }
+        let form_id = ghostex_gx_chat_core::transcript::question_forms::form_id(
+            form.trim_start_matches("```questions\n")
+                .trim_end_matches("\n```"),
+        );
+        let answers = format!(
+            "<ghostex-page-answers page=\"{form_id}\" title=\"Pick\">{{\"Which?\":\"A\"}}</ghostex-page-answers>"
+        );
+        text.push_str(&claude_line("user", "the-answers", &answers));
+        text.push('\n');
+        std::fs::write(&path, &text).unwrap();
+
+        // The ledger reads the whole file the way a sweep does and records the offsets.
+        let mut ledger = crate::session_chat_open_questions::Ledger::default();
+        let mut state = SessionChatIncrementalState::default();
+        let decode = session_chat_line_decoder(SessionChatTranscriptAgent::Claude);
+        let read =
+            read_incremental_transcript_messages(&path, &mut state, decode, None, None, None, None)
+                .unwrap();
+        ledger.observe(read);
+        let index = ledger.index(&[], None, |_| false);
+        let entry = index
+            .iter()
+            .find(|e| e.kind == "form")
+            .expect("the form is indexed");
+        assert_eq!(entry.status, "answered");
+        let at = text
+            .find(&claude_line(
+                "assistant",
+                "the-form",
+                &format!("Here.\n\n{form}"),
+            ))
+            .unwrap() as u64;
+        let answers_at = text
+            .find(&claude_line("user", "the-answers", &answers))
+            .unwrap() as u64;
+        assert_eq!(entry.offset, Some(at));
+        assert_eq!(entry.answers_offset, Some(answers_at));
+        assert_eq!(
+            entry.turn_end,
+            Some(answers_at),
+            "the next user message ends the reply's turn"
+        );
+
+        // Reading it back touches the records at those two offsets only.
+        let holder = read_record_at(&path, decode, at).expect("the form's reply");
+        assert!(holder.byte_offset == Some(at));
+        let body = serde_json::to_value(&holder).unwrap().to_string();
+        assert!(body.contains("Which?"));
+        let answered = read_record_at(&path, decode, answers_at).expect("the answers");
+        assert!(serde_json::to_value(&answered)
+            .unwrap()
+            .to_string()
+            .contains("ghostex-page-answers"));
+        // A position in the middle of a record reads nothing that decodes.
+        assert!(read_record_at(&path, decode, at + 7).is_none());
     }
 }

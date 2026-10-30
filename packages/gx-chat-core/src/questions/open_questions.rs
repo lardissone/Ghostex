@@ -310,7 +310,7 @@ fn status_of(
 }
 
 /// The session's resource index (gxserver's, `resource_index.rs`) as records.
-fn indexed(state: &ChatState) -> Vec<ResourceEntry> {
+pub(crate) fn indexed(state: &ChatState) -> Vec<ResourceEntry> {
     state
         .session
         .resource_index
@@ -357,10 +357,15 @@ fn indexed_status(
 fn indexed_waiting(state: &ChatState) -> u32 {
     let later = crate::questions::later::later_ids(state);
     let removed = crate::questions::later::removed_ids(state);
+    let on_the_way: Vec<String> = answers_on_the_way(state)
+        .into_iter()
+        .map(|answers| answers.page_id)
+        .collect();
     index_only(state)
         .iter()
         .filter(|entry| entry.thread.is_none())
         .filter(|entry| indexed_status(entry, &later, &removed) == "waiting")
+        .filter(|entry| !on_the_way.contains(&entry.id))
         .count() as u32
 }
 
@@ -443,7 +448,11 @@ pub fn list(state: &ChatState, context: &ChatContext) -> Vec<QuestionListSection
     // the pages the coordinator's threads posted.
     let mut thread_pages: Vec<QuestionListRow> = Vec::new();
     for entry in index_only(state) {
-        let status = indexed_status(&entry, &later, &removed);
+        let mut status = indexed_status(&entry, &later, &removed);
+        // Answers sent from the modal wait in the queue: the form reads answered at once.
+        if status == "waiting" && on_the_way.contains(&entry.id) {
+            status = "answered".to_string();
+        }
         let row = indexed_row(&entry, status, context);
         if entry.thread.is_some() {
             thread_pages.push(row);
@@ -674,14 +683,19 @@ pub fn previous(state: &mut ChatState, context: &ChatContext) -> Vec<Effect> {
     if open.is_empty() {
         // The only questions waiting are older than the loaded rows (the pill counts them):
         // there is no row to scroll to, so say where they are.
-        return if indexed_waiting(state) > 0 {
-            vec![Effect::Toast {
-                level: "info".to_string(),
-                message: "The questions still waiting are older than the part of this chat that is loaded. Open Resources to see them."
-                    .to_string(),
-            }]
-        } else {
-            Vec::new()
+        // The only questions waiting are older than the loaded rows: "Go to chat" brings the
+        // newest of them in and scrolls to it, as the Resources modal's button does.
+        let newest = indexed(state)
+            .into_iter()
+            .filter(|entry| entry.thread.is_none() && entry.status == "waiting")
+            .filter(|entry| {
+                !crate::questions::later::later_ids(state).contains(&entry.id)
+                    && !crate::questions::later::removed_ids(state).contains(&entry.id)
+            })
+            .max_by_key(|entry| entry.at_ms.unwrap_or(i64::MIN));
+        return match newest {
+            Some(entry) => crate::questions::resource_modal::go_to(state, context, &entry.id),
+            None => Vec::new(),
         };
     }
     let last = state.questions.open_questions.last.as_deref();
@@ -720,15 +734,26 @@ pub fn jump_to_id(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec
         .find(|item| item.id == id)
         .cloned()
     else {
-        return open_indexed(state, id);
+        return open_indexed(state, context, id);
     };
     jump_to_row(state, context, &item.message_id, &item.id, None)
 }
 
-/// A click on a row only the resource index holds: a page opens where the reader's Open chat pages
-/// in setting says (a thread's page read-only, so nothing the reader types in it is sent), and a
-/// form or chart older than the loaded rows says so, since there is no row to scroll to.
-fn open_indexed(state: &ChatState, id: &str) -> Vec<Effect> {
+/// `openResource {id}`: a row of the list clicked. A form or chart opens in the floating modal and
+/// the chat stays where it is (`resource_modal.rs`); a page opens as it always did (an older one,
+/// or a thread's, by its address; a loaded one by scrolling to its card).
+pub fn open_resource(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effect> {
+    let effects = crate::questions::resource_modal::open(state, id);
+    if state.questions.resource_modal.as_ref().is_some_and(|modal| modal.id == id) {
+        return effects;
+    }
+    jump_to_id(state, context, id)
+}
+
+/// A jump to an item only the resource index holds: a page opens where the reader's Open chat
+/// pages in setting says (a thread's page read-only, so nothing the reader types in it is sent);
+/// a form or chart older than the loaded rows is brought in and scrolled to (`resource_modal::go_to`).
+fn open_indexed(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effect> {
     let Some(entry) = indexed(state).into_iter().find(|entry| entry.id == id) else {
         return Vec::new();
     };
@@ -744,11 +769,7 @@ fn open_indexed(state: &ChatState, id: &str) -> Vec<Effect> {
                 external: false,
             })]
         }
-        _ => vec![Effect::Toast {
-            level: "info".to_string(),
-            message: "That one is older than the part of this chat that is loaded. Scroll up to load earlier messages and it will be there."
-                .to_string(),
-        }],
+        _ => crate::questions::resource_modal::go_to(state, context, id),
     }
 }
 
@@ -790,7 +811,7 @@ fn jump_to(
 }
 
 /// Scrolls to the row holding `message_id` and flashes `target` there.
-fn jump_to_row(
+pub(crate) fn jump_to_row(
     state: &mut ChatState,
     context: &ChatContext,
     message_id: &str,

@@ -700,6 +700,7 @@ impl NativeChatView {
         let tooltip = row_tooltip(row);
         let thread = text(row, "thread");
         let jump = id.clone();
+        let opens_in_modal = matches!(kind.as_str(), "form" | "chart");
         div()
             .id(SharedString::from(format!("chat-questions-row:{id}")))
             .group(group.clone())
@@ -751,7 +752,14 @@ impl NativeChatView {
             .child(self.row_trailing(&id, &status, &age, buttons, group, p, cx))
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
-                this.invoke(json!({"type": "jumpToQuestion", "id": jump}), cx);
+                // A form or chart opens in the floating modal and the chat stays where it is; a
+                // page opens as it always did.
+                let action = if opens_in_modal {
+                    json!({"type": "openResource", "id": jump})
+                } else {
+                    json!({"type": "jumpToQuestion", "id": jump})
+                };
+                this.invoke(action, cx);
                 this.close_pill_menu(cx);
             }))
             .into_any_element()
