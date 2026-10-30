@@ -471,9 +471,18 @@ pub fn session_chat_local_command_output(
     starts a new column, which is where an agent turn the transcript already
     records would begin. With no echo in the diff there is nothing to attribute
     it to, so the whole diff is the result.
+    CDXC:SessionChat 2026-10-30 WHY: the command's own echo wins over any later
+    composer line. A prompt typed into the terminal while the capture is open
+    (no chat send ends it then) is a composer line too, and taking the newest one
+    archived the turn under that prompt, Claude's live tool group included, as
+    the command's output.
     */
     let result: Vec<String> = match newly_printed_lines(&before_history, &after_history) {
-        Some(printed) => match printed.iter().rposition(|line| is_composer_line(line)) {
+        Some(printed) => match printed
+            .iter()
+            .rposition(|line| is_echo_of(line, command))
+            .or_else(|| printed.iter().rposition(|line| is_composer_line(line)))
+        {
             Some(echo) => result_branch(&printed[echo + 1..]),
             None => printed,
         },
@@ -1045,6 +1054,23 @@ mod tests {
             session_chat_local_command_output(Some("claude"), "/context", &before, &paragraphs)
                 .as_deref(),
             Some("Context Usage\n\n     Suggestions")
+        );
+        // A prompt typed into the terminal under the result is not the command's echo.
+        let typed = claude_screen(&[
+            "⏺ Earlier answer.",
+            "",
+            "❯ /rename probe",
+            "  ⎿  Session renamed to: probe",
+            "",
+            "❯ Read README.md",
+            "",
+            "  Reading 1 file…",
+            "  ⎿  README.md",
+        ]);
+        assert_eq!(
+            session_chat_local_command_output(Some("claude"), "/rename probe", &before, &typed)
+                .as_deref(),
+            Some("Session renamed to: probe")
         );
     }
 
