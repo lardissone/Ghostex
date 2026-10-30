@@ -777,7 +777,8 @@ mod tests {
 
     #[test]
     fn a_thread_pages_tooltip_names_its_thread() {
-        let row = json!({"title": "Layout notes", "thread": "Fix the sidebar", "timeTitle": "1:57 AM"});
+        let row =
+            json!({"title": "Layout notes", "thread": "Fix the sidebar", "timeTitle": "1:57 AM"});
         assert_eq!(
             row_tooltip(&row),
             "Layout notes\nPosted in Fix the sidebar\n1:57 AM"
