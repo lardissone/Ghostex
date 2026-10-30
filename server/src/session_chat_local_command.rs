@@ -568,12 +568,36 @@ fn strip_hermes_chrome(screen: &str) -> String {
         .join("\n")
 }
 
+/*
+CDXC:SessionChat 2026-10-30 WHY:
+The echo's result is its `⎿` gutter and the rows indented under it. Claude
+paints the turn that follows at the same two-space indent as that gutter
+(`  Reading 1 file, running 1 shell command…` over its own `⎿` row), so
+"any indented line" took the live tool group as `/login`'s output, and the
+chat showed it under "Login successful" for the rest of the session. Once the
+gutter opens, a row no deeper than the gutter that is not a gutter row of its
+own starts something else.
+*/
 fn result_branch(lines: &[String]) -> Vec<String> {
-    lines
-        .iter()
-        .take_while(|line| is_result_branch(line))
-        .cloned()
-        .collect()
+    let mut gutter_indent: Option<usize> = None;
+    let mut branch = Vec::new();
+    for line in lines {
+        if !is_result_branch(line) {
+            break;
+        }
+        let trimmed = line.trim_start();
+        if !trimmed.is_empty() {
+            let indent = line.len() - trimmed.len();
+            let gutter = trimmed.starts_with(['⎿', '└', '├']);
+            match gutter_indent {
+                Some(owner) if !gutter && indent <= owner => break,
+                None if gutter => gutter_indent = Some(indent),
+                _ => {}
+            }
+        }
+        branch.push(line.clone());
+    }
+    branch
 }
 
 /// This command's own echo on a composer line, e.g. `❯ /context`.
@@ -966,6 +990,61 @@ mod tests {
             session_chat_local_command_output(Some("claude"), "/rename", &before, &after)
                 .as_deref(),
             Some("Session renamed to: pilot game work")
+        );
+    }
+
+    /// Verbatim from the Main Coordinator on 2026-10-30: Claude started its turn under the `/login`
+    /// result, and its live tool group was archived as part of that output.
+    #[test]
+    fn the_turn_after_the_result_is_not_part_of_it() {
+        let before = claude_screen(&["⏺ Earlier answer.", ""]);
+        let after = claude_screen(&[
+            "⏺ Earlier answer.",
+            "",
+            "❯ /login",
+            "  ⎿  Login successful",
+            "",
+            "  Reading 1 file, running 1 shell command…",
+            "  ⎿  ~/Library/Application Support/ClipBook Rust/attachments/17baed5f418cefcc09072e278eb26968e63af46f6622f16b243ee8773f517127/2026-10-30_Ghostex_14-29-47@2x.png",
+            "",
+        ]);
+        assert_eq!(
+            session_chat_local_command_output(Some("claude"), "/login", &before, &after).as_deref(),
+            Some("Login successful")
+        );
+        // The same turn a moment later, collapsed and moving on.
+        let later = claude_screen(&[
+            "⏺ Earlier answer.",
+            "",
+            "❯ /login",
+            "  ⎿  Login successful",
+            "",
+            "  Read 1 file, ran 1 shell command",
+            "",
+            "⏺ Looking into why that message sat for seven hours.",
+            "",
+            "  Reading server/src/session_chat_queue_runtime/wait_reason.rs",
+            "  ⎿  server/src/session_chat_queue_runtime/wait_reason.rs",
+        ]);
+        assert_eq!(
+            session_chat_local_command_output(Some("claude"), "/login", &before, &later).as_deref(),
+            Some("Login successful")
+        );
+        // A blank row inside the result keeps the rows indented under the gutter.
+        let paragraphs = claude_screen(&[
+            "⏺ Earlier answer.",
+            "",
+            "❯ /context",
+            "  ⎿  Context Usage",
+            "",
+            "     Suggestions",
+            "",
+            "  Reading 1 file…",
+        ]);
+        assert_eq!(
+            session_chat_local_command_output(Some("claude"), "/context", &before, &paragraphs)
+                .as_deref(),
+            Some("Context Usage\n\n     Suggestions")
         );
     }
 
