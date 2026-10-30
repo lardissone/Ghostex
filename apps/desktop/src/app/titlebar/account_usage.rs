@@ -282,6 +282,59 @@ pub(crate) struct GpuiAccountUsageMeterRoute {
 }
 
 impl GhostexGpuiApp {
+    /// Re-places the open usage popup for its panel's measured `height`: above its tile, as tall
+    /// as the content or the room there (CDXC:AgentProviders 2026-10-30 on
+    /// `account_usage_popup_frame`). Moved where the platform can move a window, else resized.
+    pub(crate) fn fit_account_usage_popup(
+        &mut self,
+        id: ExtensionId,
+        height: f32,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let kind = GpuiTitlebarPopupKind::AccountUsage(id);
+        let (Some(state), Some(popup), Some(main)) = (
+            self.titlebar_popup_menu
+                .as_ref()
+                .filter(|state| state.kind == kind),
+            self.titlebar_popup_window,
+            self.main_window_handle,
+        ) else {
+            return;
+        };
+        let trigger = state.trigger_bounds;
+        let Ok((frame, parent)) = cx.update_window(main, |_, window, _| {
+            let screen = titlebar_popup_window_bounds_for_trigger_bounds(
+                kind,
+                trigger,
+                height,
+                titlebar_popup_menu_width(kind),
+                window,
+            );
+            let origin = window.bounds().origin;
+            (
+                Bounds::new(screen.origin - origin, screen.size),
+                crate::app::native_chat::child_window::window_native_view(window),
+            )
+        }) else {
+            return;
+        };
+        let current = popup.update(cx, |_, window, _| window.bounds().size).ok();
+        if current == Some(frame.size) {
+            return;
+        }
+        let moved = parent.is_some_and(|parent| {
+            crate::app::native_chat::child_window::move_child_window(
+                popup.into(),
+                parent,
+                frame,
+                cx,
+            )
+        });
+        if !moved {
+            let _ = popup.update(cx, |_, window, _| window.resize(frame.size));
+        }
+    }
+
     pub(crate) fn sync_titlebar_account_privacy(&self, cx: &mut gpui::Context<Self>) {
         let Some(GpuiTitlebarPopupKind::AccountUsage(id)) =
             self.titlebar_popup_menu.as_ref().map(|state| state.kind)
