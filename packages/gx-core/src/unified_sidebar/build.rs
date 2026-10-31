@@ -41,13 +41,13 @@ pub struct UnifiedFilter {
     pub machines: BTreeSet<String>,
     /// [`space_filter_key`]s.
     pub spaces: BTreeSet<String>,
-    /// What is typed in the header's search field. It narrows with the rest but is no pick of the
-    /// filter menu, and it is not kept across restarts.
+    /// The session text search, the filter bar's text chip. It narrows with the rest but is no pick
+    /// of the filter menu, and it is not kept across restarts.
     pub query: String,
 }
 
 impl UnifiedFilter {
-    /// No pick of the filter menu is set; the search field is separate.
+    /// No pick of the filter menu is set; the text search is separate.
     pub fn is_empty(&self) -> bool {
         self.repos.is_empty() && self.machines.is_empty() && self.spaces.is_empty()
     }
@@ -88,10 +88,10 @@ impl UnifiedFilter {
     }
 }
 
-/// Whether every word typed in the search field is in a row's title, project, branch or machine.
+/// Whether every word of the text search is in a row's title, project, branch or machine.
 ///
 /// CDXC:Sidebar 2026-10-31 DECISION:
-/// User (Q854, "field in header"): a search field always in the Unified header types into the list itself: the title, the project and the branch, for a reporter with a hundred projects who could not find one in the filter menu. Each word has to match somewhere, in any order and any case, so "acme fix" finds the acme session whose title says fix. The machine's name counts too, so "studio" narrows to that computer. Searching runs after the filter menu's picks and over every shelf, so a snoozed session is findable.
+/// User (Q854; where you type it moved with Q880, see native_sidebar/unified/filter_bar.rs): searching looks in the list itself: the title, the project and the branch, for a reporter with a hundred projects who could not find one in the filter menu. Each word has to match somewhere, in any order and any case, so "acme fix" finds the acme session whose title says fix. The machine's name counts too, so "studio" narrows to that computer. Searching runs after the filter menu's picks and over every shelf, so a snoozed session is findable.
 fn query_matches(query: &str, row: &UnifiedRow) -> bool {
     let words = query.split_whitespace().map(str::to_lowercase);
     let session = &row.session.row;

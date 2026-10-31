@@ -67,7 +67,9 @@ pub(crate) struct SidebarMenuSearch {
 
 /// The rows `query` leaves: a row whose label and suffix hold every typed word, with the headings
 /// and separators of what is left. A row marked `searchHidden` (All sessions) leaves as soon as
-/// anything is typed, so it can't take Enter from a match.
+/// anything is typed, so it can't take Enter from a match. When the first row's `search` has a
+/// `submit`, a row that hands on the text itself comes first, so Enter takes it as typed; the
+/// matches are a Down away.
 pub(crate) fn searched_menu_rows(rows: &[Value], query: &str) -> Vec<Value> {
     let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
     let mut left: Vec<Value> = Vec::new();
@@ -97,14 +99,28 @@ pub(crate) fn searched_menu_rows(rows: &[Value], query: &str) -> Vec<Value> {
             left.push(row.clone());
         }
     }
+    let typed = query.trim();
+    if let Some(submit) = rows
+        .first()
+        .and_then(|row| row["search"].get("submit"))
+        .filter(|_| !typed.is_empty())
+    {
+        let mut command = submit["command"].clone();
+        command["text"] = Value::from(typed);
+        if !left.is_empty() {
+            left.insert(0, serde_json::json!({"separator": true}));
+        }
+        left.insert(
+            0,
+            serde_json::json!({
+                "label": format!("{} \"{typed}\"", submit["label"].as_str().unwrap_or_default()),
+                "icon": submit["icon"],
+                "command": command,
+            }),
+        );
+    }
     if left.is_empty() {
-        left.push(serde_json::json!({
-            "label": rows
-                .first()
-                .and_then(|row| row["search"]["empty"].as_str())
-                .unwrap_or("No matches"),
-            "disabled": true,
-        }));
+        left.push(serde_json::json!({"label": "No matches", "disabled": true}));
     }
     left
 }
@@ -582,7 +598,7 @@ mod tests {
             {
                 "label": "All sessions",
                 "searchHidden": true,
-                "search": {"placeholder": "Search", "empty": "Nothing here"},
+                "search": {"placeholder": "Search"},
                 "command": {"type": "unifiedFilter", "kind": "clear"},
             },
             {"separator": true},
@@ -663,8 +679,64 @@ mod tests {
     #[test]
     fn nothing_matching_says_so_and_cannot_be_picked() {
         let rows = searched_menu_rows(&filter_rows(), "zzz");
-        assert_eq!(labels(&rows), ["Nothing here"]);
+        assert_eq!(labels(&rows), ["No matches"]);
         assert_eq!(rows[0]["disabled"], true);
+    }
+
+    fn with_text_search() -> Vec<Value> {
+        let mut rows = filter_rows();
+        rows[0]["search"]["submit"] = serde_json::json!({
+            "label": "Search sessions for",
+            "icon": "search",
+            "command": {"type": "unifiedFilter", "kind": "text"},
+        });
+        rows
+    }
+
+    #[test]
+    fn a_typed_text_is_offered_first_with_the_matches_under_it() {
+        let rows = searched_menu_rows(&with_text_search(), " my ");
+        assert_eq!(
+            labels(&rows),
+            [
+                "Search sessions for \"my\"",
+                "--",
+                "Spaces",
+                "My Apps",
+                "--",
+                "Projects",
+                "my-apps"
+            ]
+        );
+        assert_eq!(rows[0]["command"]["text"], "my");
+    }
+
+    #[test]
+    fn a_text_nothing_matches_is_still_offered() {
+        let rows = searched_menu_rows(&with_text_search(), "zzz");
+        assert_eq!(labels(&rows), ["Search sessions for \"zzz\""]);
+        assert_ne!(rows[0]["disabled"], true);
+    }
+
+    #[test]
+    fn nothing_typed_offers_no_text() {
+        assert_eq!(
+            labels(&searched_menu_rows(&with_text_search(), "  ")),
+            labels(&filter_rows())
+        );
+    }
+
+    #[test]
+    fn enter_takes_the_text_and_down_reaches_the_matches() {
+        let mut panel =
+            SidebarMenuPanel::new(with_text_search(), Point::default()).with_requested_search();
+        panel.search_key(&typed("g"));
+        assert_eq!(
+            panel.items[panel.selected.unwrap()]["command"]["kind"],
+            "text"
+        );
+        panel.move_selection("down");
+        assert_eq!(panel.items[panel.selected.unwrap()]["label"], "Ghostex");
     }
 
     #[test]

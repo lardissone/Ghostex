@@ -11,7 +11,7 @@ use super::build::UnifiedFilter;
 pub const UNIFIED_SAVED_STATE_KEY: &str = "ghostex.sidebar.unified.v1";
 
 /// CDXC:Sidebar 2026-10-31 DECISION:
-/// User (Q855, "remember both"): the header's filter, which shelves are open and which project groups are folded all survive a restart, because a filter you set for your day should still be there after an update. It lives with the Project sidebar's folds, on this client, not as a setting: two computers looking at the same machines can each keep their own view. What is typed in the search field is deliberately not kept: an old search silently hiding sessions after a restart reads as lost work. Shelves are kept by name, and inside a project as `<repo key>|<shelf>`, so a list with grouping off and on each have their own.
+/// User (Q855, "remember both"): the header's filter, which shelves are open and which project groups are folded all survive a restart, because a filter you set for your day should still be there after an update. It lives with the Project sidebar's folds, on this client, not as a setting: two computers looking at the same machines can each keep their own view. The session text search is deliberately not kept: an old search silently hiding sessions after a restart reads as lost work. Shelves are kept by name, and inside a project as `<repo key>|<shelf>`, so a list with grouping off and on each have their own.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UnifiedSavedState {
@@ -40,7 +40,7 @@ impl UnifiedSavedState {
         serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// The filter picks as the builder reads them. The search field starts empty.
+    /// The filter picks as the builder reads them. The text search starts empty.
     pub fn filter(&self) -> UnifiedFilter {
         UnifiedFilter {
             repos: self.repos.clone(),

@@ -37,7 +37,7 @@ struct MachineLane {
 #[derive(Default)]
 pub(crate) struct UnifiedSidebarHost {
     lanes: BTreeMap<MachineId, MachineLane>,
-    /// What the header's filter and search field keep.
+    /// What the header's filter bar keeps.
     pub(crate) filter: UnifiedFilter,
     /// The filter's picks, the open shelves and the folded groups, kept across restarts.
     pub(crate) saved: UnifiedSavedState,
@@ -48,6 +48,8 @@ pub(crate) struct UnifiedSidebarHost {
     /// Every repository the list knows, including what the filter and search keep off screen, for
     /// a drag to keep their places.
     all_repos: Vec<UnifiedFilterOption>,
+    /// Each repository's icon as last seen, for a chip whose sessions the filter has all hidden.
+    repo_icons: HashMap<String, Arc<gpui::Image>>,
     /// Where the next New session starts, while its picker is open.
     pub(crate) picker_target: Option<String>,
     /// A draft moving to another project, taken by the launch it asked for.
@@ -246,6 +248,13 @@ impl UnifiedSidebarHost {
                 icons.insert(row.repo.key.clone(), icon);
             }
         }
+        self.repo_icons
+            .extend(icons.iter().map(|(key, icon)| (key.clone(), icon.clone())));
+        let repo_icons = filter
+            .repos
+            .iter()
+            .filter_map(|key| Some((key.clone(), self.repo_icons.get(key)?.clone())))
+            .collect();
         if self
             .order_override
             .as_ref()
@@ -336,6 +345,7 @@ impl UnifiedSidebarHost {
             filter,
             total: view.total,
             has_projects,
+            repo_icons,
         }
     }
 }
@@ -422,12 +432,11 @@ impl GhostexGpuiApp {
                 self.gx_store.unified_sidebar.pending_project = None;
                 let filter = &mut self.gx_store.unified_sidebar.filter;
                 match (command["kind"].as_str(), command["key"].as_str()) {
-                    // All sessions clears the picks; the search field keeps what it shows.
-                    (Some("clear"), _) => {
-                        *filter = UnifiedFilter {
-                            query: std::mem::take(&mut filter.query),
-                            ..UnifiedFilter::default()
-                        };
+                    // All sessions clears every chip, the text with them.
+                    (Some("clear"), _) => *filter = UnifiedFilter::default(),
+                    // The dropdown's Search sessions row, and the text chip's X with no text.
+                    (Some("text"), _) => {
+                        filter.query = command["text"].as_str().unwrap_or_default().to_string();
                     }
                     (Some(kind), Some(key)) => {
                         let set = match kind {

@@ -61,6 +61,8 @@ pub(crate) struct UnifiedSidebarSnapshot {
     pub(crate) total: usize,
     /// Some machine has a project, so an empty list is not the first run.
     pub(crate) has_projects: bool,
+    /// The icons of the picked repositories that have one, for their chips.
+    pub(crate) repo_icons: std::collections::HashMap<String, Arc<gpui::Image>>,
 }
 
 impl UnifiedSidebarSnapshot {

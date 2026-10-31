@@ -1,11 +1,10 @@
-//! The Unified sidebar's header: the search field, the filter, Add project and New session.
+//! The Unified sidebar's header: the filter bar, the filter, Add project and New session.
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
     div, px,
 };
-use gpui_component::input::Input;
 use gpui_component::tooltip::{ManagedTooltipExt as _, ManagedTooltipPlacement};
 use gpui_component::{ElementExt as _, h_flex};
 use serde_json::{Value, json};
@@ -13,6 +12,12 @@ use serde_json::{Value, json};
 use super::model::UnifiedSidebarSnapshot;
 use crate::GhostexGpuiApp;
 use crate::app::native_sidebar::appearance::SidebarAppearance;
+
+/// The header's side padding, its three buttons and the gap before each, before the zoom.
+const HEADER_PADDING: f32 = 8.0;
+const HEADER_BUTTON: f32 = 26.0;
+const HEADER_GAP: f32 = 2.0;
+const HEADER_BUTTONS: f32 = 3.0;
 
 /// The filter menu: projects (by repository), machines and Spaces, each a pick that narrows the
 /// list, ticked while it does. Typing narrows its rows (`SidebarMenuSearch`), and a project's row
@@ -27,12 +32,16 @@ pub(super) fn filter_menu_items(unified: &UnifiedSidebarSnapshot) -> Value {
     let filter = &unified.filter;
     let mut items = vec![json!({
         "label": "All sessions",
-        "checked": filter.is_empty(),
+        "checked": filter.keeps_everything(),
         "command": {"type": "unifiedFilter", "kind": "clear"},
         "searchHidden": true,
         "search": {
-            "placeholder": "Search Spaces and projects",
-            "empty": "No Spaces or projects match",
+            "placeholder": "Search or filter",
+            "submit": {
+                "label": "Search sessions for",
+                "icon": "search",
+                "command": {"type": "unifiedFilter", "kind": "text"},
+            },
         },
     })];
     let mut section = |title: &str,
@@ -120,7 +129,7 @@ fn filter_label(unified: &UnifiedSidebarSnapshot) -> String {
 impl GhostexGpuiApp {
     /// CDXC:Sidebar 2026-10-30 DECISION:
     /// User: "please make the sidebar filter in unified sidebar mode not take all the height like it does now". The filter menu is a dropdown: hung under the filter button with its left edge on the button's, no taller than the app's other dropdown menus (`TITLEBAR_POPUP_MENU_MAX_HEIGHT`) or the room left below it in the window, shrinking to fit a short list, and its rows scroll inside it with the bar showing only while they scroll. Pressing the button again closes it.
-    fn show_unified_filter_menu(
+    pub(super) fn show_unified_filter_menu(
         menu: &Value,
         owner: Option<gpui::Bounds<gpui::Pixels>>,
         event: &gpui::ClickEvent,
@@ -144,8 +153,8 @@ impl GhostexGpuiApp {
         );
     }
 
-    /// CDXC:Sidebar 2026-10-31 DECISION:
-    /// User (Q854, "field in header"): the header's first control is a search field that is always there and types into the list; the filter shrinks to an icon beside it, marked while a pick is on, and its menu still closes after each pick. Escape clears the field.
+    /// The filter bar (filter_bar.rs), then the filter's icon, marked while anything narrows the
+    /// list, Add project and New session.
     pub(in crate::app::native_sidebar) fn render_native_unified_header(
         &mut self,
         unified: &UnifiedSidebarSnapshot,
@@ -154,7 +163,6 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
-        let input = self.unified_search_input(window, cx);
         let icon_button = |id: &'static str, label: String, icon: &'static str| {
             div()
                 .id(id)
@@ -174,88 +182,34 @@ impl GhostexGpuiApp {
                         .text_color(appearance.chrome_icon),
                 )
         };
-        let filtered = !unified.filter.is_empty();
-        let menu = filter_menu_items(unified);
+        let filtered = !unified.filter.keeps_everything();
+        let menu = std::rc::Rc::new(filter_menu_items(unified));
         let owner = crate::app::native_sidebar::menus::MenuOwner::default();
-        let searching = !unified.filter.query.is_empty();
-        let clear_input = input.clone();
-        let escape_input = input.clone();
         let tooltip_label = filter_label(unified);
         let tooltip_delay = appearance.tooltip_delay;
+        let sidebar_width = match f32::from(self.native_sidebar.bounds.size.width) {
+            0.0 => self.sidebar_width,
+            width => width,
+        };
+        let room = (sidebar_width
+            - (HEADER_PADDING * 2.0 + (HEADER_BUTTON + HEADER_GAP) * HEADER_BUTTONS) * scale)
+            .max(0.0);
+        let bar = self.render_native_unified_filter_bar(
+            unified,
+            appearance,
+            menu.clone(),
+            owner.clone(),
+            room,
+            window,
+            cx,
+        );
         h_flex()
             .w_full()
             .flex_shrink_0()
             .h(px(36.0 * scale))
-            .px(px(8.0 * scale))
-            .gap(px(2.0 * scale))
-            .child(
-                h_flex()
-                    .id("native-unified-search")
-                    .min_w_0()
-                    .flex_1()
-                    .h(px(28.0 * scale))
-                    .pl(px(8.0 * scale))
-                    .pr(px(4.0 * scale))
-                    .gap(px(6.0 * scale))
-                    .rounded(px(6.0 * scale))
-                    .border_1()
-                    .border_color(appearance.foreground.opacity(0.1))
-                    .on_key_down(
-                        cx.listener(move |_, event: &gpui::KeyDownEvent, window, cx| {
-                            if event.keystroke.key == "escape" {
-                                escape_input
-                                    .update(cx, |input, cx| input.set_value("", window, cx));
-                                cx.stop_propagation();
-                            }
-                        }),
-                    )
-                    .child(
-                        gpui::svg()
-                            .path("titlebar/search.svg")
-                            .size(px(14.0 * scale))
-                            .flex_shrink_0()
-                            .text_color(appearance.chrome_icon),
-                    )
-                    .child(
-                        div().flex_1().min_w_0().child(
-                            Input::new(&input)
-                                .appearance(false)
-                                .bordered(false)
-                                .focus_bordered(false)
-                                .w_full()
-                                .p_0()
-                                .text_size(px(13.0 * scale))
-                                .text_color(appearance.foreground)
-                                .placeholder_color(appearance.muted),
-                        ),
-                    )
-                    .when(searching, |field| {
-                        field.child(
-                            div()
-                                .id("native-unified-search-clear")
-                                .role(gpui::Role::Button)
-                                .aria_label("Clear search")
-                                .size(px(18.0 * scale))
-                                .flex_shrink_0()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded(px(4.0 * scale))
-                                .hover(|button| button.bg(appearance.hover))
-                                .child(
-                                    gpui::svg()
-                                        .path("titlebar/x.svg")
-                                        .size(px(12.0 * scale))
-                                        .text_color(appearance.muted),
-                                )
-                                .on_click(cx.listener(move |_, _, window, cx| {
-                                    cx.stop_propagation();
-                                    clear_input
-                                        .update(cx, |input, cx| input.set_value("", window, cx));
-                                })),
-                        )
-                    }),
-            )
+            .px(px(HEADER_PADDING * scale))
+            .gap(px(HEADER_GAP * scale))
+            .child(bar)
             .child(
                 icon_button(
                     "native-unified-filter",
@@ -359,6 +313,15 @@ mod tests {
         let items = filter_menu_items(&snapshot(vec![option("ghostex", &["project:a"])]));
         assert!(items[0]["search"]["placeholder"].is_string());
         assert_eq!(items[0]["searchHidden"], true);
+        assert_eq!(items[0]["search"]["submit"]["command"]["kind"], "text");
+    }
+
+    #[test]
+    fn all_sessions_is_only_ticked_when_nothing_narrows_the_list() {
+        let mut unified = snapshot(Vec::new());
+        assert_eq!(filter_menu_items(&unified)[0]["checked"], true);
+        unified.filter.query = "auth".to_string();
+        assert_eq!(filter_menu_items(&unified)[0]["checked"], false);
     }
 
     #[test]
