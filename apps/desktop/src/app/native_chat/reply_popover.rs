@@ -25,7 +25,7 @@ const HEIGHT: f32 = 132.0;
 const RADIUS: f32 = 12.0;
 /// How long the press on the Reply row still counts as "a press just now" once the card is open:
 /// a little over the 0.3s of `GhostexGpuiPointerPressedRecently`.
-const OPENING_PRESS: Duration = Duration::from_millis(350);
+pub(super) const OPENING_PRESS: Duration = Duration::from_millis(350);
 
 /// The open popover's window, one per chat.
 #[derive(Default)]
@@ -204,7 +204,7 @@ fn popover_bounds(at: Point<Pixels>, within: Bounds<Pixels>, scale: f32) -> Boun
 
 /// Whether losing key status closes the card. A press only counts once the one on the Reply row
 /// has aged out, and a window that keeps taking key status back wins after `MAX_REKEYS`.
-fn key_loss_closes(settling: bool, user_dismissed: bool, rekeys: u32) -> bool {
+pub(super) fn key_loss_closes(settling: bool, user_dismissed: bool, rekeys: u32) -> bool {
     rekeys >= option_menu::MAX_REKEYS || (user_dismissed && !settling)
 }
 
@@ -454,7 +454,7 @@ fn shortcut_label(action: ReplyAction) -> &'static str {
 
 /// The chat menus' hover wash and hairline (`option_menu/render.rs`), so the card reads as one of
 /// them.
-fn menu_ink_washes(light: bool) -> (gpui::Hsla, gpui::Hsla) {
+pub(super) fn menu_ink_washes(light: bool) -> (gpui::Hsla, gpui::Hsla) {
     let foreground: gpui::Hsla = gpui::rgb(if light { 0x292929 } else { 0xfcfcfc }).into();
     let border: gpui::Hsla = gpui::rgba(if light { 0x0000001f } else { 0xffffff1f }).into();
     (foreground.opacity(if light { 0.06 } else { 0.08 }), border)

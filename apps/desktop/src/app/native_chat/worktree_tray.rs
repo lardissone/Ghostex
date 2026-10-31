@@ -350,7 +350,6 @@ impl NativeChatView {
                 .relative()
                 .px(px(COMPOSER_RADIUS * s))
                 .mb(px(-FOOTER_GAP * s))
-                .children(self.render_draft_project_picker(p, cx))
                 .child(
                     div()
                         .w_full()
