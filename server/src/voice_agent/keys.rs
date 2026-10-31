@@ -24,10 +24,7 @@ pub(super) const SPEEDS: [f64; 6] = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
 
 /// The shared settings file, read fresh (Settings writes it while gxserver runs).
 pub(super) fn read_settings(paths: &GxserverPaths) -> Value {
-    fs::read_to_string(paths.app_config_dir.join("native-sidebar-settings.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .unwrap_or(Value::Null)
+    crate::shared_settings_file::read_shared_settings(paths).unwrap_or(Value::Null)
 }
 
 pub(super) fn selected_provider(paths: &GxserverPaths) -> Provider {

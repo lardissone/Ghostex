@@ -18,7 +18,6 @@ use crate::{domain::DomainRepository, paths::GxserverPaths};
 
 use super::{
     extensions::{EnabledExtensions, ExtensionRef},
-    gate::SETTINGS_FILE_NAME,
     queue::capture,
     taxonomy::{self, PropertyValue},
 };
@@ -263,9 +262,7 @@ pub struct SettingsSnapshot {
 }
 
 pub fn collect_settings(paths: &GxserverPaths) -> SettingsSnapshot {
-    let settings = std::fs::read_to_string(paths.app_config_dir.join(SETTINGS_FILE_NAME))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+    let settings = crate::shared_settings_file::read_shared_settings(paths);
     let read_enum = |key: &str, table: &'static [&'static str], default: &'static str| {
         settings
             .as_ref()

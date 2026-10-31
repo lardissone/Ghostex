@@ -5,8 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod durable_file;
 pub mod portable;
 pub mod powershell;
+pub mod settings_file;
 
 #[cfg(not(target_os = "windows"))]
 const PRODUCT_DIR_UNIX: &str = "ghostex";

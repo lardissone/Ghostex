@@ -252,10 +252,7 @@ impl ShellStateWriter {
         if sequence <= *written {
             return;
         }
-        if let Some(parent) = self.path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let _ = fs::write(&self.path, data);
+        let _ = ghostex_paths::durable_file::write_durably(&self.path, data);
         *written = sequence;
     }
 
