@@ -11,7 +11,9 @@
 //! CDXC:SessionChat 2026-10-06 SEE-ALSO:
 //! The marks come from packages/gx-chat-core/src/transcript/native_markdown.rs (`NATIVE_VISUAL_OPEN`); the layout is packages/gx-visual; the phone draws the same scene as SVG in apps/mobile/app/src/chat/native/transcript/VisualBlock.tsx; pages are published by `ghostex show` (server/src/ghostex_cli/) and agents learn both from skills/ghostex-visuals/SKILL.md.
 
-use super::{appearance::ChatAppearance, fonts::CHAT_MONO, state::NativeChatView};
+use super::{
+    appearance::ChatAppearance, fonts::CHAT_MONO, rich_markdown::PROSE_SIZE, state::NativeChatView,
+};
 use ghostex_gx_chat_core::visual::{self as gxv, Anchor, Item, Region, Scene, Visual};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -36,7 +38,7 @@ const DEFAULT_WIDTH: u32 = 640;
 const WIDTH_STEP: f32 = 8.0;
 /// Laid-out blocks kept before the cache starts over.
 const MAX_CACHED: usize = 256;
-const TOOLTIP_WIDTH: f32 = 200.0;
+const TOOLTIP_WIDTH: f32 = 240.0;
 
 type Laid = Rc<Result<Visual, String>>;
 
@@ -143,6 +145,9 @@ fn theme(p: &ChatAppearance) -> gxv::Theme {
     theme.border = to_color(p.border);
     theme.grid = to_color(p.border.opacity(0.6));
     theme.background = to_color(p.input);
+    // CDXC:SessionChat 2026-10-31 DECISION: User: text inside the chat's graphs and visuals was smaller than the transcript's; "make it same as the font size of text in the chat transcript". Every label, cell, note, legend and axis tick is drawn at the transcript's prose size and the scene is painted at the chat's zoom, so it follows the chat's text size setting; only the stat values stay larger, in proportion.
+    // CDXC:SessionChat 2026-10-31 SEE-ALSO: apps/mobile/app/src/chat/native/transcript/VisualBlock.tsx (`visualTheme` sends `textSize`) and packages/gx-visual/src/theme.rs (`text_size`).
+    theme.text_size = PROSE_SIZE;
     theme
 }
 
@@ -413,7 +418,7 @@ impl NativeChatView {
                     .items_center()
                     .min_w_0()
                     .gap(px(5.0 * s))
-                    .text_size(px(11.0 * s))
+                    .text_size(px(PROSE_SIZE * s))
                     .text_color(p.muted)
                     .child(
                         svg()
@@ -517,7 +522,7 @@ impl NativeChatView {
                     div()
                         .px(px(PADDING * s))
                         .pt(px(PADDING * s))
-                        .text_size(px(12.0 * s))
+                        .text_size(px(PROSE_SIZE * s))
                         .text_color(p.muted)
                         .child(note),
                 )
@@ -682,7 +687,7 @@ impl NativeChatView {
 fn tooltip(region: &Region, hover: Hover, scene: &Scene, p: &ChatAppearance) -> AnyElement {
     let s = p.scale;
     const OFFSET: f32 = 12.0;
-    const TEXT: f32 = 11.5;
+    const TEXT: f32 = PROSE_SIZE;
     let width = region
         .lines
         .iter()
@@ -731,7 +736,7 @@ fn tooltip(region: &Region, hover: Hover, scene: &Scene, p: &ChatAppearance) -> 
         .border_1()
         .border_color(p.border)
         .shadow_md()
-        .text_size(px(11.5 * s))
+        .text_size(px(PROSE_SIZE * s))
         .children(region.lines.iter().map(|line| {
             div()
                 .flex()

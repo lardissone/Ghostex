@@ -36,6 +36,8 @@ mod layout;
 mod motion;
 pub mod questions;
 mod scene;
+#[cfg(test)]
+mod size_tests;
 mod spec;
 mod stats;
 mod table;
@@ -46,7 +48,7 @@ mod vega;
 pub use motion::Motion;
 pub use scene::{scene_to_svg, Anchor, Item, PageRef, Region, Scene, TooltipLine, Visual};
 pub use text::text_width;
-pub use theme::{Color, Theme};
+pub use theme::{Color, Theme, DEFAULT_TEXT_SIZE};
 
 use serde_json::json;
 
