@@ -91,6 +91,16 @@ impl NativeChatView {
         actions.is_null() || actions[id] != false
     }
 
+    /// Stash prompt: stashes the draft, or opens the saved prompts when the chat box is empty.
+    /// The More actions row, the Stash Prompt hotkey and the toolbar all end here.
+    pub(crate) fn stash_prompt_or_open_saved(&mut self, cx: &mut Context<Self>) {
+        if self.draft.trim().is_empty() {
+            self.host("stashedPrompts", json!({}), cx);
+        } else {
+            self.invoke(json!({"type":"stash","text":self.draft,"draftVersion":{"draftId":self.draft_id,"revision":self.draft_revision}}),cx);
+        }
+    }
+
     pub(super) fn perform_composer_action(
         &mut self,
         action: &str,
@@ -114,8 +124,7 @@ impl NativeChatView {
                 ], trigger, 200.0, window, cx)
             }
             "attachPath" => self.host("pickAttachments",json!({"requestId":"native-chat-attachments"}),cx),
-            "stashPrompt" if !self.draft.trim().is_empty() => self.invoke(json!({"type":"stash","text":self.draft,"draftVersion":{"draftId":self.draft_id,"revision":self.draft_revision}}),cx),
-            "stashPrompt" => self.host("stashedPrompts",json!({}),cx),
+            "stashPrompt" => self.stash_prompt_or_open_saved(cx),
             "sessionNote" => self.invoke(json!({"type":"toggleNote"}),cx),
             "filesLinks" => self.invoke(json!({"type":"filesLinks"}),cx),
             _ => self.host(action,json!({}),cx),
