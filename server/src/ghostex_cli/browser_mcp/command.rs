@@ -54,10 +54,18 @@ pub fn browser_devtools_mcp_command(args: &[String]) -> CliResult<()> {
         flag_json(&flags, "timeout").or_else(|| env_value("GHOSTEX_BROWSER_MCP_TIMEOUT_MS")),
     )
     .unwrap_or(10_000);
+    let text_flag = |key: &str| {
+        string_flag(flag_json(&flags, key).as_ref()).filter(|value| !value.trim().is_empty())
+    };
+    let scope = AgentScope::from_env(
+        text_flag("projectId"),
+        text_flag("projectPath").or_else(|| text_flag("path")),
+    );
     run_browser_devtools_mcp_server(McpServerOptions {
         port,
         target,
         timeout_ms,
+        scope,
     })
 }
 
@@ -75,7 +83,13 @@ fn flag_json(flags: &Flags, key: &str) -> Option<Value> {
 fn browser_open_bridge_action(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let mut flags = parsed.flags;
-    let payload = parse_browser_open(&parsed.rest, &flags);
+    let mut payload = parse_browser_open(&parsed.rest, &flags);
+    // The app remembers which agent opened the page, and the browser tools drive it next instead
+    // of a page an earlier bridge remembered (agent_pages.rs).
+    let agent_session = browser_agent_session_from_env();
+    if let (Some(session), Some(object)) = (&agent_session, payload.as_object_mut()) {
+        object.insert("agentSessionId".to_string(), Value::String(session.clone()));
+    }
     // bridgeAction: payload.wait === true with no explicit --timeout disables
     // the bridge timeout. parseBrowserOpen never sets wait; kept for parity.
     if payload.get("wait") == Some(&Value::Bool(true)) && !flags.contains("timeout") {
@@ -83,6 +97,9 @@ fn browser_open_bridge_action(args: &[String]) -> CliResult<()> {
     }
     let result =
         crate::ghostex_cli::actions::send_gxserver_cli_action("openBrowserPane", &payload, &flags)?;
+    if let Some(session) = &agent_session {
+        remember_agent_page(session, None);
+    }
     print_json(&result);
     Ok(())
 }
@@ -215,7 +232,7 @@ fn browser_usage() -> String {
 
 Usage:
   gx browser --help
-  gx browser mcp [--port n] [--target id|--page id] [--timeout ms]
+  gx browser mcp [--port n] [--target id|--page id] [--project-path path|--project-id id] [--timeout ms]
   gx browser install-skill [--json]
   gx browser open [url] [--project-path path|--project-id id] [--reuse similar|exact|none]
   gx browser open-pane [url] [--project-path path|--project-id id] [--reuse similar|exact|none]
@@ -240,6 +257,11 @@ Tab reuse:
   Use --reuse none or --new only when a separate browser pane is required.
   When a pane is reused for a different URL on the same origin, Ghostex focuses that pane and navigates it instead of creating another tab.
   After creating or selecting a page, keep the returned session id and the MCP page id from ghostex_list_pages; pass --target <pageId> to gx browser mcp or call ghostex_select_page before follow-up actions.
+
+Which page the tools drive:
+  Without a pageId the tools drive this agent's own page: the one it selected or used last (remembered across gx browser mcp runs), else the one it last opened with gx browser open, else the page in front of its project's Browser.
+  They only ever pick from the agent's project (the folder it runs in, like browser open, else its session's project; --project-path or --project-id choose another). ghostex_list_pages lists that project's pages.
+  Switching tabs in Ghostex by hand does not move the agent to another page. Pass a pageId to drive any other page; with no page of its own the tools say so instead of using someone else's tab.
 
 MCP tools exposed to the agent:
 {mcp_tools}

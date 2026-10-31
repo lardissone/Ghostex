@@ -121,6 +121,7 @@ mod tests {
             port: None,
             target: None,
             timeout_ms: 10_000,
+            scope: AgentScope::default(),
         })
     }
 

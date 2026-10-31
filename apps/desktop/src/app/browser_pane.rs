@@ -731,6 +731,8 @@ impl GhostexGpuiApp {
             }
         };
         self.browser_surfaces.insert(tab_id, surface.clone());
+        // Lets `listBrowserPages` say which DevTools page is this tab (browser_agent_pages.rs).
+        CefSurface::learn_devtools_target_id(&surface, cx);
         if let Some(tab) = self.browser_tabs.tab(tab_id) {
             let target = tab.notification_target;
             self.relay_browser_page_notifications(&surface, page_profile, target, cx);

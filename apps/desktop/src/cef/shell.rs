@@ -140,6 +140,7 @@ mod native_view;
 mod page_bridge;
 mod page_keep_awake;
 mod page_screenshot;
+mod page_target_id;
 mod remote_browser;
 mod request_handling;
 mod sign_in_popup;

@@ -270,6 +270,7 @@ pub fn send_gxserver_cli_action(action: &str, payload: &Value, flags: &Flags) ->
         "clickButton"
         | "focusGroup"
         | "fullReloadSession"
+        | "listBrowserPages"
         | "moveProject"
         | "openBrowser"
         | "openBrowserPane"

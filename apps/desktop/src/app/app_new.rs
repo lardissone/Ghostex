@@ -206,6 +206,7 @@ impl GhostexGpuiApp {
                 parked_browser_tabs_by_project: shell_layout_state.parked_browser_tabs_by_project,
                 parked_browser_runtimes_by_project: HashMap::new(),
                 pending_parked_browser_opens: HashMap::new(),
+                browser_agent_pages: HashMap::new(),
                 waiting_parked_browser_pages: HashSet::new(),
                 browser_tabs_project_epoch: 0,
                 browser_tabs_runtime_key: 0,

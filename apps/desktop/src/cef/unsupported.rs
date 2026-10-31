@@ -180,6 +180,11 @@ pub struct PageScreenshot {
     pub picture: futures::channel::oneshot::Receiver<Option<String>>,
 }
 
+/// A page's DevTools target id on its way (`shell/page_target_id.rs`); never made here.
+pub struct PageTargetId {
+    pub target_id: futures::channel::oneshot::Receiver<Option<String>>,
+}
+
 /// A page bridge's waiting question (`shell/page_bridge.rs`); never made here.
 pub type PageBridgeAnswer = futures::channel::oneshot::Receiver<Option<String>>;
 
@@ -195,6 +200,10 @@ impl CefBrowser {
     }
 
     pub fn wait_for_page_messages(&self) -> Option<PageBridgeAnswer> {
+        None
+    }
+
+    pub fn request_devtools_target_id(&self) -> Option<PageTargetId> {
         None
     }
 
