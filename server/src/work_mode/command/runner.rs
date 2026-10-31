@@ -5,7 +5,7 @@
 //! CDXC:WorkMode 2026-10-29 DECISION:
 //! The repository owner: "Pass ticket ids on stdin, never as an argument: they can come from branch names and `ghostex link add`, so `-x` must never read as a flag. Refuse `.bat`/`.cmd`." So argv is only the verb and `--json`, and `detail` reads its id from stdin like `list` and `create` read theirs.
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -36,7 +36,7 @@ const ICON_REFUSED: &str =
 
 /// Variables passed through from gxserver's environment when set. Everything else is left out,
 /// so tokens of other tools, the Linear keys and session variables never reach the command.
-const INHERITED_VARS: [&str; 16] = [
+pub(crate) const INHERITED_VARS: [&str; 16] = [
     "HOME",
     "USER",
     "LOGNAME",
@@ -54,13 +54,17 @@ const INHERITED_VARS: [&str; 16] = [
     "https_proxy",
     "no_proxy",
 ];
-#[cfg(windows)]
-const INHERITED_WINDOWS_VARS: [&str; 11] = [
+/// Also passed through on Windows. Compiled everywhere so its tests run on every platform.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const INHERITED_WINDOWS_VARS: [&str; 14] = [
     "SystemRoot",
     "windir",
     "ComSpec",
     "PATHEXT",
     "USERPROFILE",
+    "USERNAME",
+    "HOMEDRIVE",
+    "HOMEPATH",
     "APPDATA",
     "LOCALAPPDATA",
     "TEMP",
@@ -186,11 +190,12 @@ impl CommandEnv {
         vars
     }
 
-    /// The credential values that are set.
+    /// The credential values that are set, trimmed: a value stored with spaces around it is still
+    /// found where the command echoes it without them.
     fn secrets(&self) -> impl Iterator<Item = &str> {
         self.credentials
             .iter()
-            .map(|(_, value)| value.as_str())
+            .map(|(_, value)| value.trim())
             .filter(|value| !value.is_empty())
     }
 
@@ -287,6 +292,8 @@ pub(crate) enum CommandFailure {
         /// stderr can spell a credential in ways no mask finds (JSON escapes, URL encoding), so
         /// only its size is kept.
         stderr_line: Option<String>,
+        /// Whether a line was held back because a credential is set (else it wrote only blanks).
+        stderr_hidden: bool,
         /// How much of stderr was kept (at most `STDERR_TAIL`).
         stderr_bytes: usize,
         /// Whether it wrote more than `STDERR_TAIL`, so only the end was kept.
@@ -340,6 +347,15 @@ impl CommandFailure {
                 stderr_bytes: 0,
                 ..
             } => format!("{name}: exited with {status}"),
+            Self::Exited {
+                verb,
+                status,
+                stderr_hidden: false,
+                ..
+            } => format!(
+                "{name}: {} exited with {status}; its error output was blank.",
+                verb.word()
+            ),
             Self::Exited {
                 verb,
                 status,
@@ -408,13 +424,7 @@ fn run_answer(call: &CommandCall) -> Result<Answer, CommandFailure> {
     if !ghostex_paths::powershell::launchable(call.program) {
         return Err(CommandFailure::NotFound(call.program.to_path_buf()));
     }
-    let mut command = program_command(call.program)?;
-    command
-        .arg(call.verb.word())
-        .arg("--json")
-        .current_dir(call.work_dir)
-        .env_clear()
-        .envs(call.env.vars(|name| std::env::var_os(name)));
+    let command = command_for(call)?;
     let limits = RunLimits {
         timeout: call.timeout,
         stdin: call.input.map(|input| input.to_string().into_bytes()),
@@ -505,13 +515,30 @@ fn unreadable(env: &CommandEnv, what: &str, stdout: &[u8]) -> CommandFailure {
     }
 }
 
+/// The process for a call: the program (directly, or a `.ps1` script through PowerShell), then
+/// only the verb and `--json`, in the call's folder, with the cleared environment.
+pub(crate) fn command_for(call: &CommandCall) -> Result<Command, CommandFailure> {
+    let mut command = program_command(call.program)?;
+    command
+        .arg(call.verb.word())
+        .arg("--json")
+        .current_dir(call.work_dir)
+        .env_clear()
+        .envs(call.env.vars(|name| std::env::var_os(name)));
+    Ok(command)
+}
+
+/// The extension Windows goes by: it drops trailing dots and spaces from a file name, so
+/// `run.cmd.` and `run.bat ` open as `run.cmd` and `run.bat`.
+fn launch_extension(program: &Path) -> Option<String> {
+    let name = program.file_name()?.to_str()?;
+    let (_, extension) = name.trim_end_matches(['.', ' ']).rsplit_once('.')?;
+    Some(extension.to_ascii_lowercase())
+}
+
 /// How the program is started: directly, or a `.ps1` script through PowerShell.
 fn program_command(program: &Path) -> Result<Command, CommandFailure> {
-    let extension = program
-        .extension()
-        .and_then(OsStr::to_str)
-        .map(str::to_ascii_lowercase);
-    match extension.as_deref() {
+    match launch_extension(program).as_deref() {
         Some("bat" | "cmd") => Err(CommandFailure::BatchFile(program.to_path_buf())),
         Some("ps1") => {
             let mut command = Command::new(powershell());
@@ -581,11 +608,10 @@ fn exit_failure(
         0
     };
     let stderr = String::from_utf8_lossy(&tail[start..]);
-    let stderr_line = stderr
-        .lines()
-        .map(str::trim)
-        .rfind(|line| !line.is_empty())
-        .filter(|_| !env.holds_secrets())
+    let last_line = stderr.lines().map(str::trim).rfind(|line| !line.is_empty());
+    let stderr_hidden = last_line.is_some() && env.holds_secrets();
+    let stderr_line = last_line
+        .filter(|_| !stderr_hidden)
         .map(|line| cut(line, MAX_MESSAGE_CHARS));
     CommandFailure::Exited {
         verb,
@@ -594,6 +620,7 @@ fn exit_failure(
             None => output.status.to_string(),
         },
         stderr_line,
+        stderr_hidden,
         stderr_bytes: tail.len(),
         stderr_truncated,
     }

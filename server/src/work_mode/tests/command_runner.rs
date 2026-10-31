@@ -652,7 +652,38 @@ fn a_credential_sent_with_spaces_around_it_never_shows() {
     let failure = command_info(&fixture.call(CommandVerb::Info, None, &env)).expect_err("bad id");
     let shown = format!("{} {failure:?}", failure.message("Fixture"));
     assert!(!shown.contains("Padded-Secret"), "{shown}");
-    assert!(shown.contains(r#"id "••••" isn't"#), "{shown}");
+    // The spaces around it are not part of the credential, so only the value is masked.
+    assert!(shown.contains(r#"id " •••• " isn't"#), "{shown}");
+}
+
+#[test]
+fn a_credential_stored_with_spaces_is_masked_where_it_is_echoed_without_them() {
+    let fixture = Fixture::new();
+    let env = env_with(&[("mode", "error-token"), ("token", "  stored-padded  ")]);
+    let failure =
+        run_command(&fixture.call(CommandVerb::Info, None, &env)).expect_err("it exited 1");
+    let shown = format!("{} {failure:?}", failure.message("Fixture"));
+    assert!(!shown.contains("stored-padded"), "{shown}");
+    assert!(shown.contains("••••"), "{shown}");
+}
+
+#[test]
+fn blank_error_output_without_a_credential_says_it_was_blank() {
+    let fixture = Fixture::new();
+    let env = fixture.without_credentials("blank-stderr");
+    let failure =
+        run_command(&fixture.call(CommandVerb::Info, None, &env)).expect_err("it exited 3");
+    assert_eq!(
+        failure.message("Fixture"),
+        "Fixture: info exited with status 3; its error output was blank."
+    );
+    let env = env_with(&[("mode", "blank-stderr"), ("token", TOKEN)]);
+    let failure =
+        run_command(&fixture.call(CommandVerb::Info, None, &env)).expect_err("it exited 3");
+    assert_eq!(
+        failure.message("Fixture"),
+        "Fixture: info exited with status 3; its error output was blank."
+    );
 }
 
 #[test]

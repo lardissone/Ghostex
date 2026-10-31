@@ -100,6 +100,17 @@ error-padded)
 	printf '{ "error": { "code": "auth", "message": "%s" } }\n' "$GHOSTEX_CREDENTIAL_TOKEN"
 	exit 1
 	;;
+error-token)
+	# The credential without the spaces it was stored with.
+	token=$(printf '%s' "$GHOSTEX_CREDENTIAL_TOKEN" | sed 's/^ *//; s/ *$//')
+	printf 'rejected %s\n' "$token" >&2
+	printf '{ "error": { "code": "auth", "message": "rejected %s" } }\n' "$token"
+	exit 1
+	;;
+blank-stderr)
+	printf '   \n\n' >&2
+	exit 3
+	;;
 info-padded)
 	printf '{ "id": "%s", "name": "X", "ids": { "format": "number" }, "credentials": [] }\n' "$GHOSTEX_CREDENTIAL_TOKEN"
 	;;

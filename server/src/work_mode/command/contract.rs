@@ -36,9 +36,9 @@ const MAX_PULL_REQUESTS: usize = 20;
 const MAX_ID_CHARS: usize = 64;
 /// A state's name and its raw state word.
 const MAX_STATE_CHARS: usize = 40;
-/// A branch name: git's longest file name. A longer one is dropped rather than cut, since a cut
-/// name would name another branch.
-const MAX_BRANCH_BYTES: usize = 255;
+/// An RFC 3339 time: `2026-10-28T09:12:00.123456789+05:30` is 35 bytes. A longer text is dropped
+/// before it is parsed, since the format allows a fraction of a second of any length.
+const MAX_TIME_BYTES: usize = 40;
 /// What an error message from the command is cut to.
 pub(crate) const MAX_MESSAGE_CHARS: usize = 300;
 /// Create ticket's title, as for GitHub issues.
@@ -236,6 +236,7 @@ pub(crate) fn parse_info(answer: &Value) -> Result<CommandInfo, String> {
     if name.chars().count() > 40 {
         return Err("name is longer than 40 characters".to_string());
     }
+    one_line(name, "name")?;
     let ids = info
         .get("ids")
         .and_then(Value::as_object)
@@ -314,15 +315,21 @@ fn credential_field(field: &Value) -> Result<CredentialField, String> {
             as_sent(field, "name")
         ));
     }
+    let label = required(field, "label")?;
+    one_line(label, "a credential label")?;
+    let placeholder = text(field, "placeholder");
+    if let Some(placeholder) = placeholder {
+        one_line(placeholder, "a credential placeholder")?;
+    }
     Ok(CredentialField {
         name: name.to_string(),
-        label: cut(required(field, "label")?, 40),
+        label: cut(label, 40),
         secret: field.get("secret").and_then(Value::as_bool).unwrap_or(true),
         required: field
             .get("required")
             .and_then(Value::as_bool)
             .unwrap_or(false),
-        placeholder: text(field, "placeholder").map(|placeholder| cut(placeholder, 80)),
+        placeholder: placeholder.map(|placeholder| cut(placeholder, 80)),
     })
 }
 
@@ -574,14 +581,27 @@ fn strings<'a>(object: &'a Map<String, Value>, key: &str) -> impl Iterator<Item 
 /// An RFC 3339 time, as sent.
 fn time(object: &Map<String, Value>, key: &str) -> Option<String> {
     text(object, key)
+        .filter(|time| time.len() <= MAX_TIME_BYTES)
         .filter(|time| chrono::DateTime::parse_from_rfc3339(time).is_ok())
         .map(str::to_string)
 }
 
+/// A branch Start work can create a worktree on; any other name is dropped (never cut, which
+/// would name another branch), so the source falls back to the name Ghostex makes.
 fn branch_name(object: &Map<String, Value>) -> Option<String> {
     text(object, "branchName")
-        .filter(|branch| branch.len() <= MAX_BRANCH_BYTES)
+        .filter(|branch| crate::server::is_allowed_worktree_branch(branch))
         .map(str::to_string)
+}
+
+/// Text Settings shows on one line: a newline or another control character in it is refused.
+fn one_line(text: &str, what: &str) -> Result<(), String> {
+    if text.chars().any(char::is_control) {
+        return Err(format!(
+            "{what} has a line break or another control character"
+        ));
+    }
+    Ok(())
 }
 
 /// An `http` or `https` link: clients open these.
