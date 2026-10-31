@@ -5,7 +5,7 @@ use super::super::super::catalog::settings_catalog;
 use super::super::super::fields::{
     RowSpec, SELECT_WIDTH, SliderBinding, SliderSaver, ignored_ports_field, reset_key,
     segmented_field, setting_row, settings_section, settings_select_with_unavailable,
-    slider_number_field_with, text_field,
+    slider_number_field_with,
 };
 use super::super::super::page::PageBlock;
 use super::super::super::store::SettingsStore;
@@ -42,27 +42,6 @@ fn chat_section(
     }
     // CDXC:Sessions 2026-10-09 DECISION: the New-session cleanup is an Advanced setting, off by default, that only runs for Chat; gxserver enforces the Chat condition.
     rows.extend(page.toggle(g, s, "closeEmptySessionsOnNew", "Close empty sessions when starting a new one", "When you start a new session, close this project's other sessions that have nothing typed, drafted or queued. Only applies when Chat is the default view for that agent; with Terminal it never runs.", false, cx));
-    if g.visible(s, "sessionChatFontFamily") {
-        let spec = g.spec(
-            "sessionChatFontFamily",
-            "Chat font family",
-            "Type an installed font family name. Leave blank to use the app font.",
-        );
-        let value = g.values.string("sessionChatFontFamily");
-        rows.push(text_field(
-            page,
-            &g.p,
-            "sessionChatFontFamily",
-            spec,
-            Some(reset_key::<GeneralTab>("sessionChatFontFamily")),
-            &value,
-            Some("App default"),
-            None,
-            None,
-            window,
-            cx,
-        ));
-    }
     rows.extend(page.slider(
         g,
         s,
@@ -78,6 +57,7 @@ fn chat_section(
         window,
         cx,
     ));
+    rows.extend(page.text_strength_rows(g, s, window, cx));
     // CDXC:Settings 2026-10-29 DECISION (cleanup Q20): Custom transcript width and Transcript
     // width are one slider. It reads Auto (the transcript matches the prompt composer) until it is
     // dragged, which turns the custom width on; its reset goes back to Auto.
@@ -192,7 +172,7 @@ fn chat_section(
             cx,
         ));
     }
-    rows.extend(page.toggle(g, s, "orchestratorAllEfforts", "Every effort level in coordinator pickers", "Lists every effort level in the coordinator effort pickers. Anything below Medium isn't recommended for coordinators.", false, cx));
+    rows.extend(page.toggle(g, s, "orchestratorAllEfforts", "Every effort level in coordinator pickers", "Also lists the levels above XHigh (Max, Ultra and the like) in the coordinator effort pickers, where the agent has them. Coordinators work best on High or XHigh.", false, cx));
     rows.extend(orchestrator_playbook_row(page, g, s, cx));
     rows.extend(read_aloud_rows(page, g, s, window, cx));
     rows.extend(page.toggle(g, s, "sessionDetailsClaudeTaskTools", "Claude task list", "Turn on Claude's task list tools, so Claude can keep a checklist that the Session details panel shows. Recent Claude models only get them when Ghostex asks. Applies to Claude sessions started or woken after you change it.", false, cx));

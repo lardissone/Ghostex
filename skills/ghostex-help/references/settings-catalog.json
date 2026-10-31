@@ -38,18 +38,6 @@
       "agentWritable": true
     },
     {
-      "key": "sessionChatFontFamily",
-      "title": "Chat font family",
-      "subtitle": "Use any installed font in chat messages and the prompt composer.",
-      "tab": "chat",
-      "tabTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "string",
-      "default": "",
-      "agentWritable": true
-    },
-    {
       "key": "sessionChatZoomPercent",
       "title": "Default chat zoom (%)",
       "subtitle": "Scale every desktop chat, including messages and the prompt composer, from 70% to 200% in 5% steps. Cmd+= and Cmd+- in a chat change it too, and Cmd+0 sets 100%. Default: 100%.",
@@ -62,6 +50,21 @@
       "min": 70,
       "max": 200,
       "step": 5,
+      "agentWritable": true
+    },
+    {
+      "key": "sessionChatTextStrengthPercent",
+      "title": "Text strength",
+      "subtitle": "How strong agents' replies and your messages read in chat, on the computer and the phone. 0% is the standard colour; 100% is full white in dark mode and full black in light mode. Muted text, links, code blocks and status colours stay as they are.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "step": 10,
       "agentWritable": true
     },
     {
@@ -210,7 +213,7 @@
     {
       "key": "orchestratorAllEfforts",
       "title": "Every effort level in coordinator pickers",
-      "subtitle": "Lists every effort level in the coordinator effort pickers. Anything below Medium isn't recommended for coordinators.",
+      "subtitle": "Also lists the levels above XHigh (Max, Ultra and the like) in the coordinator effort pickers, where the agent has them. Coordinators work best on High or XHigh.",
       "tab": "chat",
       "tabTitle": "Chat",
       "section": "chat",
@@ -3563,6 +3566,20 @@
       "sectionTitle": "Theme",
       "type": "string",
       "default": "#808080",
+      "agentWritable": true
+    },
+    {
+      "key": "sessionChatFontFamily",
+      "title": "App font",
+      "subtitle": "Pick one of the fonts installed on this computer for the whole app: sidebar, chat, menus, dialogs and Settings. Terminals and code keep their monospace font. App default keeps Ghostex's own fonts.",
+      "tab": "theme",
+      "tabTitle": "Theme",
+      "group": "appearance",
+      "groupTitle": "Theme",
+      "section": "theming",
+      "sectionTitle": "Theme",
+      "type": "string",
+      "default": "",
       "agentWritable": true
     },
     {

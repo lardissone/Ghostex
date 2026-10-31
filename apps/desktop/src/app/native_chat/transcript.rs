@@ -426,7 +426,8 @@ impl NativeChatView {
         if message["role"] == "user" && message["suppressed"].is_null() {
             // The prompt renders as markdown like the React bubble, which also makes it a selectable TextView; a plain string child cannot be selected.
             let mut bubble_appearance = p.clone();
-            bubble_appearance.prose = p.primary;
+            bubble_appearance.prose = p.strengthened(p.primary);
+            bubble_appearance.code_text = p.primary;
             // The delivery indicator sits left of the bubble, level with its last line, so it never drifts away from a short prompt. It hangs off the bubble's own left edge (6px gap, the 1px border counted) because a flex row around the bubble measured a prompt with an inline picture at min-content, one word per line.
             let indicator = self
                 .delivery_indicator(message, p, cx)

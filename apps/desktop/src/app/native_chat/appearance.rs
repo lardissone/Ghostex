@@ -23,6 +23,9 @@ pub(crate) struct ChatAppearance {
     /// darker than the panel in dark mode, the input tone in light mode.
     pub(crate) card_row: Hsla,
     pub(crate) prose: Hsla,
+    /// A fenced code block's text: this lane's prose tone before Text strength, which leaves code
+    /// where it is.
+    pub(crate) code_text: Hsla,
     pub(crate) card_muted: Hsla,
     pub(crate) muted: Hsla,
     pub(crate) border: Hsla,
@@ -52,6 +55,8 @@ pub(crate) struct ChatAppearance {
     /// Handover heading color strength, 0 to 1, from the document's `markedHeadingStrength`
     /// (absent: 60%, the default).
     pub(crate) marked_heading_strength: f32,
+    /// Text strength, 0 to 100, from the document's `chatTextStrength` (absent: 0%, the default).
+    pub(crate) text_strength: u8,
     /// Whether this chat is drawn on window glass (`on_window_glass`).
     pub(crate) window_glass: bool,
 }
@@ -130,6 +135,7 @@ impl ChatAppearance {
         };
         let mut lane = self.clone();
         lane.prose = tone;
+        lane.code_text = tone;
         if self.muted_thinking {
             // A thought's headings and a reasoning headline go grey with its prose.
             lane.primary = tone;
@@ -138,15 +144,36 @@ impl ChatAppearance {
     }
 
     /// The look of an agent's reply prose: the full foreground while Grey thinking is on
-    /// (`thinking_lane`), otherwise unchanged.
+    /// (`thinking_lane`), raised by Text strength. Unchanged when neither applies.
     pub(crate) fn reply_lane(&self) -> Option<Self> {
-        self.muted_thinking.then(|| {
+        (self.muted_thinking || self.text_strength > 0).then(|| {
             let mut lane = self.clone();
-            lane.prose = self.foreground;
-            // A reply's headings stay at least as bright as its prose.
-            lane.primary = self.foreground;
+            let (prose, primary) = if self.muted_thinking {
+                // A reply's headings stay at least as bright as its prose.
+                (self.foreground, self.foreground)
+            } else {
+                (self.prose, self.primary)
+            };
+            lane.code_text = prose;
+            lane.prose = self.strengthened(prose);
+            lane.primary = self.strengthened(primary);
             lane
         })
+    }
+
+    /// A body text colour at this chat's Text strength (CDXC:SessionChat 2026-10-31 in
+    /// packages/gx-chat-core/src/transcript/text_strength.rs).
+    pub(crate) fn strengthened(&self, color: Hsla) -> Hsla {
+        if self.text_strength == 0 {
+            return color;
+        }
+        let base = gpui::Rgba::from(color);
+        let [r, g, b] = ghostex_gx_chat_core::transcript::text_strength::strengthened_channels(
+            [base.r, base.g, base.b],
+            self.text_strength,
+            self.light,
+        );
+        gpui::Rgba { r, g, b, a: base.a }.into()
     }
 
     pub(crate) fn current(state: &serde_json::Value) -> Self {
@@ -258,6 +285,7 @@ impl ChatAppearance {
             card_row: lifted(0.015, 0.032),
             ring: color(0x737373, 0x9f9fa9),
             prose: color(0xb4b8c0, 0x4d4d50),
+            code_text: color(0xb4b8c0, 0x4d4d50),
             // CDXC:SessionChat 2026-09-13 DECISION: User: fix unreadable chat cards in light mode through the shared theme. Dark mode keeps #fcfcfc titles and actions (`foreground`) and #b4b8bf content (`card_muted`); light mode uses the light palette; sizes and weights stay the same; card actions are filled (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
             card_muted: color(0xb4b8bf, 0x71717b),
             muted: color(0x9e9e9e, 0x71717b),
@@ -270,12 +298,9 @@ impl ChatAppearance {
                 lifted(0.03, 0.0)
             },
             scale: super::zoom::chat_zoom_percent(settings) / 100.0,
-            font: settings
-                .get("sessionChatFontFamily")
-                .and_then(serde_json::Value::as_str)
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or("DM Sans")
-                .to_string(),
+            // A picked app font replaces this through `crate::ui_fonts`, and a saved font that
+            // is not installed leaves the chat on it.
+            font: "DM Sans".to_string(),
             light,
             verbose,
             simple,
@@ -286,6 +311,10 @@ impl ChatAppearance {
             marked_heading_strength: state["markedHeadingStrength"]
                 .as_f64()
                 .map_or(0.6, |percent| (percent / 100.0).clamp(0.0, 1.0) as f32),
+            text_strength: state["chatTextStrength"]
+                .as_f64()
+                .and_then(ghostex_gx_chat_core::transcript::text_strength::text_strength)
+                .unwrap_or(0),
             window_glass: false,
             transcript_width: enabled("sessionChatCustomTranscriptWidthEnabled").then(|| {
                 settings

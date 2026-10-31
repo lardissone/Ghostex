@@ -280,6 +280,9 @@ pub fn apply_draft_agent_carriage(state: &mut ChatState, result: &ReadSessionCha
         state.core.marked_heading_strength =
             crate::transcript::marked_sections::heading_strength(strength);
     }
+    if let Some(strength) = result.chat_text_strength {
+        state.core.chat_text_strength = crate::transcript::text_strength::text_strength(strength);
+    }
 }
 
 /// Applies one authoritative result: a seed read, a resync read, a snapshot, or the cached
@@ -472,7 +475,9 @@ pub fn apply_authoritative(
     let cursor = state.messages.before_offset;
     if let Some(request) = state.messages.load_earlier_request.clone() {
         // A jump read asks for its own offset, so the cursor never matches it.
-        if request.epoch != Some(result.epoch) || (!request.island && request.before_offset != cursor) {
+        if request.epoch != Some(result.epoch)
+            || (!request.island && request.before_offset != cursor)
+        {
             state.messages.load_earlier_request = None;
             state.messages.boundary_attempt = None;
             state.messages.loading_earlier = false;

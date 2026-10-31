@@ -112,5 +112,6 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         .map(|(id, status)| (id.clone(), Value::String(status.clone())))
         .collect();
     into.marked_heading_strength = state.core.marked_heading_strength;
+    into.chat_text_strength = state.core.chat_text_strength;
     let _ = rows::rows;
 }

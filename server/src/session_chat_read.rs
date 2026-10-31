@@ -620,6 +620,16 @@ pub(crate) async fn handle_read_session_chat_http(
         )
         .unwrap_or(60.0)),
     );
+    // Text strength rides every read too, so the phone draws the computer's strength
+    // (CDXC:SessionChat 2026-10-31 in packages/gx-chat-core/src/transcript/text_strength.rs).
+    result.insert(
+        "chatTextStrength".to_string(),
+        json!(crate::session_chat_catch_up::chat_setting_number(
+            &state.paths,
+            "sessionChatTextStrengthPercent"
+        )
+        .unwrap_or(0.0)),
+    );
     if let Some(session_agent_id) = session_agent_id.as_deref() {
         result.insert("sessionAgentId".to_string(), json!(session_agent_id));
     }

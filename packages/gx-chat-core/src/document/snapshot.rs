@@ -250,6 +250,10 @@ pub struct Document {
     /// (`transcript/marked_sections.rs`); absent at 60%, the default. Family b.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marked_heading_strength: Option<u8>,
+    /// How far the chat's body text is drawn from its standard colour toward full white or black,
+    /// 0 to 100 percent (`transcript/text_strength.rs`); absent at 0%, the default. Family b.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_text_strength: Option<u8>,
 
     // ---- modes and loading -----------------------------------------------
     pub summary_mode: bool,

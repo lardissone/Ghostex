@@ -312,6 +312,11 @@ fn main() {
         crate::app::window::frosted_host::register_frosted_tooltip_root_plugin(cx);
         crate::app::window::modal_popover_host::install_frosted_modal_popover_host();
         apply_gpui_component_theme(cx);
+        ui_fonts::apply_app_font(
+            shared_settings::shared_sidebar_settings_snapshot().object(),
+            cx,
+        );
+        ui_fonts::read_installed_families(cx).detach();
         #[cfg(target_os = "macos")]
         {
             let source_id = app_icon::source_id_from_settings(

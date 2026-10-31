@@ -531,6 +531,10 @@ fn settings_moved(
         || settings.marked_heading_strength.is_some_and(|strength| {
             ghostex_gx_chat_core::transcript::marked_sections::heading_strength(strength)
                 != state.core.marked_heading_strength
+        })
+        || settings.chat_text_strength.is_some_and(|strength| {
+            ghostex_gx_chat_core::transcript::text_strength::text_strength(strength)
+                != state.core.chat_text_strength
         }))
     .then(|| Event::SettingsChanged(Box::new(settings.clone())))
 }

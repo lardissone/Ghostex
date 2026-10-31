@@ -7,6 +7,7 @@
 mod art;
 mod colours;
 mod controls;
+mod font;
 mod gallery;
 mod swatches;
 pub(super) mod transparency;
@@ -125,6 +126,7 @@ pub(crate) struct ThemeTab {
     pub(super) posters: HashMap<String, Arc<gpui::Image>>,
     palette_dark_dropdown: DropdownState,
     palette_light_dropdown: DropdownState,
+    font_dropdown: DropdownState,
 }
 
 fn palette_dark_dropdown(page: &mut ThemeTab) -> &mut DropdownState {
@@ -188,6 +190,7 @@ impl ThemeTab {
             // : the palette lists stop at 320px.
             palette_dark_dropdown: DropdownState::with_max_height(320.0),
             palette_light_dropdown: DropdownState::with_max_height(320.0),
+            font_dropdown: DropdownState::default(),
         };
         page.apply_preview_state(window, cx);
         page
@@ -936,8 +939,8 @@ impl ThemeTab {
     ) -> Option<AnyElement> {
         let rows = [
             (
-                "Chat font and size",
-                "Chat font",
+                "Chat size",
+                "Default chat zoom",
                 ICON_FONT,
                 SettingsTabId::Chat,
             ),
@@ -1039,10 +1042,14 @@ impl Render for ThemeTab {
         let p = t.p;
         let mut blocks: Vec<PageBlock> = Vec::new();
         let colours = self.colours_section(&t, window, cx);
+        let font = self.font_section(&t, window, cx);
         let transparency = self.transparency_section(&t, window, cx);
         let chat_terminal = self.chat_terminal_section(&t, window, cx);
-        let anything =
-            colours.is_some() || transparency.is_some() || chat_terminal.is_some() || !t.searching;
+        let anything = colours.is_some()
+            || font.is_some()
+            || transparency.is_some()
+            || chat_terminal.is_some()
+            || !t.searching;
         if !anything {
             let store = self.store.clone();
             blocks.push(PageBlock::plain(render_no_matches(
@@ -1053,6 +1060,7 @@ impl Render for ThemeTab {
             )));
         }
         blocks.extend(colours.map(|section| PageBlock::section("theming", section)));
+        blocks.extend(font.map(|section| PageBlock::section("font", section)));
         blocks.extend(transparency.map(|section| PageBlock::section("transparency", section)));
         blocks.extend(chat_terminal.map(|section| PageBlock::section("chatTerminal", section)));
         if !t.searching {

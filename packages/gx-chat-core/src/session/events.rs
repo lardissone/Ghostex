@@ -149,6 +149,10 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
                 state.core.marked_heading_strength =
                     crate::transcript::marked_sections::heading_strength(strength);
             }
+            if let Some(strength) = settings.chat_text_strength {
+                state.core.chat_text_strength =
+                    crate::transcript::text_strength::text_strength(strength);
+            }
             if let Some(enabled) = settings.tool_cards {
                 crate::transcript::tool_card::set_enabled(&mut state.transcript_view, enabled);
             }
@@ -248,6 +252,10 @@ pub fn boot_read(
         if let Some(strength) = settings.marked_heading_strength {
             state.core.marked_heading_strength =
                 crate::transcript::marked_sections::heading_strength(strength);
+        }
+        if let Some(strength) = settings.chat_text_strength {
+            state.core.chat_text_strength =
+                crate::transcript::text_strength::text_strength(strength);
         }
         if let Some(enabled) = settings.tool_cards {
             crate::transcript::tool_card::set_enabled(&mut state.transcript_view, enabled);

@@ -19,7 +19,8 @@ use super::super::super::fields::{
 use super::{GeneralCx, GeneralTab, save};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontWeight, IntoElement, ParentElement as _, Styled as _, Window, div, px,
+    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
+    Styled as _, Window, div, px,
 };
 use gpui_component::{h_flex, v_flex};
 use marked_look::{MarkedLook, MarkerStyle, preview_reply};
@@ -28,6 +29,7 @@ use serde_json::json;
 const KEY: &str = "markedHandoversStyle";
 const EMOJI_KEY: &str = "markedHandoversEmoji";
 const STRENGTH_KEY: &str = "markedHandoversHeadingStrength";
+const TEXT_STRENGTH_KEY: &str = "sessionChatTextStrengthPercent";
 
 impl GeneralTab {
     /// The style row and the emoji switch under it, while Marked handovers is on.
@@ -76,6 +78,77 @@ impl GeneralTab {
             cx,
         ));
         rows
+    }
+
+    /// The Text strength slider and a sample of the chat's text at the value it is on, in the
+    /// chat's own colours (CDXC:SessionChat 2026-10-31 in
+    /// packages/gx-chat-core/src/transcript/text_strength.rs).
+    pub(super) fn text_strength_rows(
+        &mut self,
+        g: &GeneralCx,
+        section: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let Some(slider) = self.slider(
+            g,
+            section,
+            TEXT_STRENGTH_KEY,
+            "Text strength",
+            "How strong agents' replies and your messages read in chat. 0% is the standard colour; 100% is full white in dark mode and full black in light mode. Muted text, links, code blocks and status colours stay as they are.",
+            (
+                g.number("MIN_SESSION_CHAT_TEXT_STRENGTH_PERCENT"),
+                g.number("MAX_SESSION_CHAT_TEXT_STRENGTH_PERCENT"),
+                g.number("SESSION_CHAT_TEXT_STRENGTH_PERCENT_STEP"),
+            ),
+            false,
+            window,
+            cx,
+        ) else {
+            return Vec::new();
+        };
+        let light = g.p.light;
+        let look = MarkedLook::chat_default(light, false, 0.0);
+        let strength = ghostex_gx_chat_core::transcript::text_strength::text_strength(
+            g.values.f64(TEXT_STRENGTH_KEY),
+        )
+        .unwrap_or(0);
+        let base = gpui::Rgba::from(look.prose);
+        let [r, g_channel, b] =
+            ghostex_gx_chat_core::transcript::text_strength::strengthened_channels(
+                [base.r, base.g, base.b],
+                strength,
+                light,
+            );
+        let sample = div()
+            .id("text-strength-preview")
+            .mt(px(8.0))
+            .px(px(14.0))
+            .py(px(10.0))
+            .rounded(px(8.0))
+            .border_1()
+            .border_color(look.border)
+            .bg(gpui::rgb(if light { 0xffffff } else { 0x0d0d0d }))
+            .text_size(px(14.0))
+            .line_height(px(22.75))
+            .child(
+                div()
+                    .text_color(gpui::Rgba {
+                        r,
+                        g: g_channel,
+                        b,
+                        a: 1.0,
+                    })
+                    .child("An agent's reply reads like this."),
+            )
+            .child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(gpui::rgb(if light { 0x71717b } else { 0x9e9e9e }))
+                    .child("Muted text keeps its colour."),
+            )
+            .into_any_element();
+        vec![slider, sample]
     }
 
     fn marked_style_select_row(

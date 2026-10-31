@@ -276,6 +276,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 MAX_MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT.to_json(),
             ),
             (
+                "MAX_SESSION_CHAT_TEXT_STRENGTH_PERCENT",
+                MAX_SESSION_CHAT_TEXT_STRENGTH_PERCENT.to_json(),
+            ),
+            (
                 "MAX_SESSION_CHAT_ZOOM_PERCENT",
                 MAX_SESSION_CHAT_ZOOM_PERCENT.to_json(),
             ),
@@ -352,6 +356,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 MIN_MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT.to_json(),
             ),
             (
+                "MIN_SESSION_CHAT_TEXT_STRENGTH_PERCENT",
+                MIN_SESSION_CHAT_TEXT_STRENGTH_PERCENT.to_json(),
+            ),
+            (
                 "MIN_SESSION_CHAT_ZOOM_PERCENT",
                 MIN_SESSION_CHAT_ZOOM_PERCENT.to_json(),
             ),
@@ -426,6 +434,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
             (
                 "MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT_STEP",
                 MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT_STEP.to_json(),
+            ),
+            (
+                "SESSION_CHAT_TEXT_STRENGTH_PERCENT_STEP",
+                SESSION_CHAT_TEXT_STRENGTH_PERCENT_STEP.to_json(),
             ),
             (
                 "SESSION_CHAT_ZOOM_PERCENT_STEP",

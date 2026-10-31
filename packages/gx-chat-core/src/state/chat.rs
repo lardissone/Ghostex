@@ -66,6 +66,9 @@ pub struct CoreState {
     /// The Handover heading color strength setting (`markedHandoversHeadingStrength`), from the
     /// chat settings or the latest read; `None` is the default, 60%.
     pub marked_heading_strength: Option<u8>,
+    /// The Text strength setting (`sessionChatTextStrengthPercent`), from the chat settings or the
+    /// latest read; `None` is the default, 0%: today's colour.
+    pub chat_text_strength: Option<u8>,
     /// The session's display title, or `None` when it has none.
     pub title: Option<String>,
     /// Every deadline the core is waiting on. Any family may arm one by key; the host only ever

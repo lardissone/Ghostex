@@ -101,6 +101,7 @@ pub(crate) fn text_style(p: &ChatAppearance) -> TextViewStyle {
     // The card a fenced block sits in, and its header's rule, exactly as the
     // React transcript drew them.
     style.code_block = StyleRefinement::default()
+        .text_color(p.code_text)
         .bg(p.input)
         .border_1()
         .border_color(p.border)
