@@ -942,13 +942,13 @@ fn plan_session(
             && notice.blocks_input()
             && session["runtimeSettings"]["accountId"] == old["runtimeSettings"]["accountId"])
     {
-        if session
-            .pointer("/runtimeSettings/agentSessionId")
-            .and_then(Value::as_str)
-            .is_none()
-        {
-            recovery["status"] = json!("needsAttention");
-            recovery["reason"] = json!("No saved conversation is available to resume.");
+        // CDXC:AgentProviders 2026-10-31: a session id is not a conversation (GitHub #366); see recovery_conversation.rs.
+        if super::recovery_conversation::withhold_continue(
+            &mut recovery,
+            &project,
+            &session,
+            &crate::agents::read_agent_settings(db)?,
+        ) {
             save(state, repo, &session, recovery)?;
             return Ok(None);
         }

@@ -201,6 +201,27 @@ fn codex_rollout_written(input: &AgentResumeInput, id: &str) -> bool {
         || crate::agent_transcripts::find_codex_transcript(id).is_some()
 }
 
+/// CDXC:AgentProviders 2026-10-31 WHY:
+/// Whether a wake of this Claude or Codex session resumes a conversation the agent wrote (`Some(true)`) or starts the agent fresh because nobody ever prompted it (`Some(false)`): the same transcript checks `account_switch_resume_command` and `build_agent_resume_plan` use. `None` for any other agent, which has no such rule here. Account recovery asks it before typing its "Continue the unfinished task" prompt (accounts/recovery.rs): the agent publishes its session id at launch, so the id alone says nothing about a conversation.
+pub(crate) fn agent_conversation_written(
+    project: &Value,
+    session: &Value,
+    settings: &Map<String, Value>,
+) -> Option<bool> {
+    let input = to_agent_resume_input(project, session, settings);
+    match input.agent_id.as_deref()? {
+        "claude" => {
+            let id = get_claude_session_id(get_claude_session_reference(&input).as_deref())?;
+            Some(claude_transcript_written(&input, &id))
+        }
+        "codex" => {
+            let id = get_codex_session_reference(&input)?;
+            Some(codex_rollout_written(&input, &id))
+        }
+        _ => None,
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct AgentResumeInput {
     agent_command: Option<String>,
