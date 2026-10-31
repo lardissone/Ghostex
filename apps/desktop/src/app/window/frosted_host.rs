@@ -50,6 +50,15 @@ pub(crate) const SIDEBAR_MENU_HOST_LEVELS: u8 = 4;
 /// The corner radius of a sidebar menu panel's window (the panel's own 8px at 100% zoom).
 pub(crate) const SIDEBAR_MENU_HOST_RADIUS: f32 = 8.0;
 
+/// Whether a sidebar menu panel drawn alone in its host window takes that window's whole height
+/// rather than its own, so nothing of the window shows below it.
+///
+/// CDXC:ContextMenus 2026-10-31 WHY:
+/// User, on Windows with transparency on: "when i show the context menu in the sidebar on windows and transparency is enabled i see a weird thick border from the bottom". The host window came out taller than the panel it shows (about 7px in the user's screenshot), and the panel drew at its own height, top-aligned, so the window's bare blur showed as a band below its bottom border. Every step that sizes the window (the measured height, `move_host`, GPUI's `WM_SIZE`) is exact on paper, so the panel fills its window instead and no window height can leave a band. The sidebar menu is the one host whose frame is worked out from its rows rather than taken from something already laid out (the terminal bar's ⋯ menu, Quick Access's pickers, the usage strip), and tooltips clip their blur to the bubble. macOS sizes the window to the panel and keeps drawing it at its own height.
+pub(crate) fn hosted_menu_fills_window() -> bool {
+    cfg!(target_os = "windows")
+}
+
 /// The corner radius of the sidebar's peeking usage strip, which its window's blur takes too.
 pub(crate) const SIDEBAR_USAGE_HOST_RADIUS: f32 = 8.0;
 

@@ -682,7 +682,15 @@ impl GhostexGpuiApp {
             .map(|bounds| bounds.bottom())
             .max()
             .unwrap_or(top);
-        let mut layers = div().relative().w(right - left).h(bottom - top);
+        // A panel alone in its frosted host fills the host window where the window can come out
+        // taller than the panel (`hosted_menu_fills_window`).
+        let fill_window =
+            only.is_some() && crate::app::window::frosted_host::hosted_menu_fills_window();
+        let mut layers = div()
+            .relative()
+            .w(right - left)
+            .h(bottom - top)
+            .when(fill_window, |layers| layers.size_full());
         let view = cx.entity();
         for (panel_index, panel) in panels.iter().enumerate() {
             if only.is_some_and(|only| only != panel_index) {
@@ -714,7 +722,13 @@ impl GhostexGpuiApp {
                 ))
                 .id(format!("native-sidebar-menu-panel-{panel_index}"))
                 .w(bounds.size.width)
-                .max_h(bounds.size.height)
+                .map(|content| {
+                    if fill_window {
+                        content.h_full()
+                    } else {
+                        content.max_h(bounds.size.height)
+                    }
+                })
                 .overflow_y_scroll()
                 .track_scroll(&panel.scroll)
                 .occlude()
@@ -955,6 +969,7 @@ impl GhostexGpuiApp {
                     .absolute()
                     .left(relative.x)
                     .top(relative.y)
+                    .when(fill_window, |panel| panel.size_full())
                     .child(content)
                     .child(
                         Scrollbar::vertical(&panel.scroll)
