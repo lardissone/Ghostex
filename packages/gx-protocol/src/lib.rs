@@ -15,6 +15,7 @@
 #[macro_use]
 mod open_enum;
 
+pub mod agent_message_delivery;
 pub mod agentbox;
 pub mod chat;
 pub mod client_message;

@@ -391,7 +391,7 @@ pub(super) async fn route_chat_http(
             )
         }
         crate::agent_message_deliveries::WATCH_AGENT_MESSAGE_DELIVERY_ENDPOINT => {
-            handle_domain_http(
+            let response = handle_domain_http(
                 &state,
                 endpoint.path,
                 request_id,
@@ -399,7 +399,22 @@ pub(super) async fn route_chat_http(
                 |_, db, params, _| {
                     crate::agent_message_deliveries::handle_watch_agent_message_delivery(db, params)
                 },
-            )
+            );
+            // The sender's chat learns of the send before the agent's tool result reaches it.
+            let sender = read_domain_rpc_params(&body_json).ok().and_then(|params| {
+                Some((
+                    params.get("senderProjectId")?.as_str()?.to_string(),
+                    params.get("senderSessionId")?.as_str()?.to_string(),
+                ))
+            });
+            if let Some((project_id, session_id)) = sender {
+                super::super::coordinator_runtime::republish_session_chat(
+                    &state,
+                    &project_id,
+                    &session_id,
+                );
+            }
+            response
         }
         crate::visual_pages::PUBLISH_VISUAL_PAGE_ENDPOINT => {
             crate::visual_pages::handle_publish_visual_page_http(

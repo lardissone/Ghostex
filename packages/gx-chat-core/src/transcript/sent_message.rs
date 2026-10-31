@@ -8,14 +8,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use ghostex_gx_protocol::agent_message_delivery::message_fingerprint;
 use ghostex_gx_protocol::{ChatBlock, ChatMessage};
 use serde_json::{json, Value};
 
 use crate::document::{ProjectedMessage, TranscriptItem};
 use crate::event::KnownSession;
 use crate::transcript::agent_message_card::{
-    agent_display_name, apply_live_delivery, dress_received, dress_sent, live_delivery_key,
-    subagent_label,
+    agent_display_name, apply_live_delivery, delivery_lookup, dress_received, dress_sent,
+    live_delivery_key, subagent_label,
 };
 use crate::transcript::jsstr::{ascii_lower, js_trim, last_path_segment};
 use crate::transcript::line_breaks::{agent_line_breaks, AgentLineBreaks};
@@ -457,18 +458,25 @@ pub fn project_sent_messages(
     message: &ChatMessage,
     pairs: &[ToolPair<'_>],
     line_breaks: AgentLineBreaks,
+    spans: &HashMap<String, (i64, i64)>,
 ) -> Vec<Value> {
     let written = written_files(message);
     pairs
         .iter()
         .enumerate()
         .flat_map(|(tool, pair)| {
+            let run = match pair.call {
+                Some(ChatBlock::ToolCall {
+                    call_id: Some(id), ..
+                }) => spans.get(id).copied(),
+                _ => None,
+            };
             group_by_body(sent_agent_messages(pair, &written))
                 .into_iter()
-                .map(move |group| (tool, group))
+                .map(move |group| (tool, run, group))
         })
         .enumerate()
-        .map(|(index, (tool, group))| {
+        .map(|(index, (tool, run, group))| {
             let first = &group[0];
             let body = agent_line_breaks(&first.body, line_breaks);
             let markdown = native_markdown(&body, false);
@@ -486,7 +494,20 @@ pub fn project_sent_messages(
                 "failed": group.iter().all(|sent| sent.failed),
                 "status": first.status,
                 "failure": first.failure,
-                "recipients": group.iter().map(recipient).collect::<Vec<_>>(),
+                "recipients": group
+                    .iter()
+                    .map(|sent| {
+                        let mut recipient = recipient(sent);
+                        // What finds the send in gxserver's list when its result named no id
+                        // (`live_delivery_key`).
+                        recipient["fingerprint"] = message_fingerprint(&sent.body).into();
+                        if let Some((called, answered)) = run {
+                            recipient["calledAt"] = called.into();
+                            recipient["answeredAt"] = answered.into();
+                        }
+                        recipient
+                    })
+                    .collect::<Vec<_>>(),
             });
             // Named again once the whole transcript is read (`resolve_recipients`).
             complete(
@@ -595,17 +616,13 @@ impl Names<'_> {
     }
 
     fn note_delivery(&self, recipient: &Value, deliveries: Option<&Value>) {
-        let (Some(log), Some(id)) = (&self.log, live_delivery_key(recipient)) else {
+        let (Some(log), Some(key)) = (&self.log, live_delivery_key(recipient)) else {
             return;
         };
         log.borrow_mut()
             .deliveries
-            .entry(id.to_string())
-            .or_insert_with(|| {
-                deliveries
-                    .and_then(|deliveries| deliveries.get(id))
-                    .cloned()
-            });
+            .entry(key.clone())
+            .or_insert_with(|| delivery_lookup(deliveries, &key));
     }
 }
 
@@ -1087,9 +1104,10 @@ impl<'a> NameCheck<'a> {
             .names
             .iter()
             .all(|(key, found)| self.names.get(key) == found.as_ref())
-            && lookups.deliveries.iter().all(|(id, found)| {
-                self.deliveries.and_then(|deliveries| deliveries.get(id)) == found.as_ref()
-            })
+            && lookups
+                .deliveries
+                .iter()
+                .all(|(key, found)| delivery_lookup(self.deliveries, key) == *found)
     }
 }
 

@@ -235,6 +235,24 @@ fn is_not_queued(queued: &bool) -> bool {
     !queued
 }
 
+/// CDXC:SessionChat 2026-10-31 WHY:
+/// Claude records a message that reaches it mid-turn (a thread report, a send typed while it works) as a `queued_command` row placed where the model took it, after the tool result it rode in with, but stamped with the time it was QUEUED, which is earlier than the rows written before it. Clients order rows by time, so the message moved up into the middle of the turn: gxserver's turn fold (file order) and the client's turns then both claimed the rows in between, and a message the agent sent there was drawn twice (2026-10-31, a sent card above and below "Worked for 38s"). Like `byte_offset`, this is stamped by the readers, since the decoders see one line: a user row takes the time of the row before it in the file when its own is earlier. Rows already in order keep their own time.
+pub(crate) fn stamp_user_row_after_predecessor(
+    message: &mut SessionChatMessage,
+    previous: &mut Option<i64>,
+) {
+    if message.role == SessionChatRole::User {
+        if let (Some(own), Some(before)) = (message.timestamp, *previous) {
+            if own < before {
+                message.timestamp = Some(before);
+            }
+        }
+    }
+    if message.timestamp.is_some() {
+        *previous = message.timestamp;
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SessionChatTurnLifecycleState {
@@ -772,6 +790,9 @@ pub struct SessionChatIncrementalState {
     */
     leaf_row_id: Option<String>,
     active_branch_changed: bool,
+    /// The time of the newest row read so far, which a user row appended after it may not
+    /// precede (`stamp_user_row_after_predecessor`). Seeded from the tail read like the leaf.
+    last_message_timestamp: Option<i64>,
 }
 
 impl SessionChatIncrementalState {
@@ -789,6 +810,7 @@ impl SessionChatIncrementalState {
             queued_prompts: VecDeque::new(),
             leaf_row_id: None,
             active_branch_changed: false,
+            last_message_timestamp: None,
         }
     }
 
@@ -805,6 +827,7 @@ impl SessionChatIncrementalState {
         self.queued_prompts.clear();
         self.leaf_row_id = None;
         self.active_branch_changed = false;
+        self.last_message_timestamp = None;
     }
 
     /// Hands the tail read's still-waiting queue entries to the append stream
@@ -824,6 +847,11 @@ impl SessionChatIncrementalState {
     /// `rebase`, like `seed_queued_prompts`.
     pub fn seed_leaf_row_id(&mut self, leaf_row_id: Option<String>) {
         self.leaf_row_id = leaf_row_id;
+    }
+
+    /// Hands the tail read's newest row time to the append stream. Call AFTER `rebase`.
+    pub fn seed_last_message_timestamp(&mut self, timestamp: Option<i64>) {
+        self.last_message_timestamp = timestamp;
     }
 
     /// `true` once this stream has seen a row that moved the conversation onto
@@ -1017,6 +1045,10 @@ pub fn read_incremental_transcript_messages(
                     }
                     if let Some(mut message) = decoded {
                         message.byte_offset = Some(state.pending_start);
+                        stamp_user_row_after_predecessor(
+                            &mut message,
+                            &mut state.last_message_timestamp,
+                        );
                         messages.push(message);
                         if let Some(on_batch) = on_batch.as_mut() {
                             if messages.len() >= APPEND_BATCH_MESSAGE_LIMIT {
