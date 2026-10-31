@@ -156,6 +156,7 @@ pub fn run() -> Result<(), JsValue> {
         })
     {
         shared_settings::install(settings);
+        app::helpers::apply_settings_theme_colours();
     }
     app.with_assets(assets::GhostexAssets).run(|cx: &mut App| {
         // A Mac browser gets the Mac text editing keys in every text input (the chat composer's Cmd+Backspace and friends).
