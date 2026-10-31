@@ -109,12 +109,14 @@ impl NativeChatView {
         cx: &mut Context<Self>,
     ) {
         match action {
-            "moreActions" => self.show_actions(position,window,cx),
-            "maximizeComposer" => self.toggle_maximized(window,cx),
-            "dictate" => self.toggle_dictation(window,cx),
-            "transcribePreviousDictation" => self.transcribe_previous_dictation(window,cx),
+            "moreActions" => self.show_actions(position, window, cx),
+            "maximizeComposer" => self.toggle_maximized(window, cx),
+            "dictate" => self.toggle_dictation(window, cx),
+            "transcribePreviousDictation" => self.transcribe_previous_dictation(window, cx),
             "dictationHistory" => self.open_dictation_history(cx),
-            "attachPath" if cfg!(target_os = "linux") && self.chat_menu_toggled_shut(ATTACH_PATH_TRIGGER, cx) => {}
+            "attachPath"
+                if cfg!(target_os = "linux")
+                    && self.chat_menu_toggled_shut(ATTACH_PATH_TRIGGER, cx) => {}
             "attachPath" if cfg!(target_os = "linux") => {
                 self.menu_side = Some(super::option_menu::MenuSide::Right);
                 let trigger = button_trigger(self.composer_button_bounds.attach.get(), position);
@@ -123,11 +125,15 @@ impl NativeChatView {
                     json!({"label":"Folders…","command":{"type":"host","action":"pickAttachments","requestId":"native-chat-attachments","selection":"folders"}}),
                 ], trigger, 200.0, window, cx)
             }
-            "attachPath" => self.host("pickAttachments",json!({"requestId":"native-chat-attachments"}),cx),
+            "attachPath" => self.host(
+                "pickAttachments",
+                json!({"requestId":"native-chat-attachments"}),
+                cx,
+            ),
             "stashPrompt" => self.stash_prompt_or_open_saved(cx),
-            "sessionNote" => self.invoke(json!({"type":"toggleNote"}),cx),
-            "filesLinks" => self.invoke(json!({"type":"filesLinks"}),cx),
-            _ => self.host(action,json!({}),cx),
+            "sessionNote" => self.invoke(json!({"type":"toggleNote"}), cx),
+            "filesLinks" => self.invoke(json!({"type":"filesLinks"}), cx),
+            _ => self.host(action, json!({}), cx),
         }
     }
 
