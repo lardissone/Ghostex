@@ -92,14 +92,13 @@ fn args_of(command: &std::process::Command) -> Vec<String> {
 }
 
 fn call_for<'a>(program: &'a Path, env: &'a CommandEnv) -> CommandCall<'a> {
-    CommandCall {
+    CommandCall::new(
         program,
-        verb: CommandVerb::Detail,
-        input: None,
-        work_dir: Path::new("/work-sources/fixture"),
+        CommandVerb::Detail,
+        None,
+        Path::new("/work-sources/fixture"),
         env,
-        timeout: CommandVerb::Detail.timeout(),
-    }
+    )
 }
 
 #[test]

@@ -5,6 +5,31 @@ use serde_json::{json, Value};
 
 use super::*;
 
+// The parser with no secret set; the guarded paths are tested in `command_masking.rs`.
+fn parse_info(answer: &Value) -> Result<CommandInfo, String> {
+    super::parse_info(answer, &AnswerGuard::NONE)
+}
+
+fn parse_list(
+    answer: &Value,
+    format: IdFormat,
+    projects: &[CommandProject],
+) -> Result<CommandList, String> {
+    super::parse_list(answer, format, projects, &AnswerGuard::NONE)
+}
+
+fn parse_detail(
+    answer: &Value,
+    format: IdFormat,
+    projects: &[CommandProject],
+) -> Result<CommandDetail, String> {
+    super::parse_detail(answer, format, projects, &AnswerGuard::NONE)
+}
+
+fn parse_created(answer: &Value, format: IdFormat) -> Result<CommandCreated, String> {
+    super::parse_created(answer, format, &AnswerGuard::NONE)
+}
+
 fn info(changes: Value) -> Value {
     let mut info = json!({
         "id": "lific",

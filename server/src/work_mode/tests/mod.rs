@@ -6,6 +6,7 @@ mod background;
 mod command_contract;
 mod command_icon;
 mod command_limits;
+mod command_masking;
 #[cfg(unix)]
 mod command_runner;
 mod fixtures;
