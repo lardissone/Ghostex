@@ -289,6 +289,31 @@ pub(crate) fn remember_agent_page(agent_session: &str, page_id: Option<&str>) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn an_open_from_a_folder_that_is_no_project_goes_to_the_sessions_project() {
+        let default_folder = json!({ "projectPath": "/Users/me/dev/app-session-worktree", "reuse": "similar", "url": "https://example.com" });
+        let retry =
+            super::super::browser_open_in_session_project(&default_folder, false, Some("P1"))
+                .expect("retried in the session's project");
+        assert_eq!(retry["projectId"], json!("P1"));
+        assert!(retry.get("projectPath").is_none());
+        assert_eq!(retry["url"], json!("https://example.com"));
+        // A folder the caller named, another selector, or no session keeps the error.
+        assert!(
+            super::super::browser_open_in_session_project(&default_folder, true, Some("P1"))
+                .is_none()
+        );
+        assert!(super::super::browser_open_in_session_project(
+            &json!({ "projectId": "P9" }),
+            false,
+            Some("P1")
+        )
+        .is_none());
+        assert!(
+            super::super::browser_open_in_session_project(&default_folder, false, None).is_none()
+        );
+    }
+
     fn own(target: &str, front: bool, agent_page: bool) -> OwnPage {
         OwnPage {
             target_id: Some(target.to_string()),

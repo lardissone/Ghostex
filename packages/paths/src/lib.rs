@@ -7,6 +7,7 @@ use std::{
 
 pub mod portable;
 pub mod powershell;
+pub mod same_folder;
 pub mod tool_path;
 
 #[cfg(not(target_os = "windows"))]

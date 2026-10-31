@@ -559,17 +559,27 @@ pub(crate) fn resolve_sidebar_collection_project_id(
         .filter(|path| !path.is_empty())
     {
         let requested = normalize_project_path_for_comparison(path);
-        projects
-            .iter()
-            .filter(|project| {
-                project
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .is_some_and(|candidate| {
-                        normalize_project_path_for_comparison(candidate) == requested
-                    })
-            })
-            .collect()
+        let at_path = |same: &dyn Fn(&str) -> bool| -> Vec<&Value> {
+            projects
+                .iter()
+                .filter(|project| {
+                    project
+                        .get("path")
+                        .and_then(Value::as_str)
+                        .is_some_and(|candidate| {
+                            same(&normalize_project_path_for_comparison(candidate))
+                        })
+                })
+                .collect()
+        };
+        // The exact path first; else the same folder in other capitals on a case-insensitive
+        // volume (CDXC:Projects in packages/paths/src/same_folder.rs).
+        let exact = at_path(&|candidate| candidate == requested);
+        if exact.is_empty() {
+            at_path(&|candidate| ghostex_paths::same_folder::same_folder(candidate, &requested))
+        } else {
+            exact
+        }
     } else if let Some(name) = params
         .get("name")
         .and_then(Value::as_str)

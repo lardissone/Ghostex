@@ -95,13 +95,61 @@ fn browser_open_bridge_action(args: &[String]) -> CliResult<()> {
     if payload.get("wait") == Some(&Value::Bool(true)) && !flags.contains("timeout") {
         flags.insert_text("timeout", "0");
     }
-    let result =
-        crate::ghostex_cli::actions::send_gxserver_cli_action("openBrowserPane", &payload, &flags)?;
+    let named_folder = flags.contains("projectPath") || flags.contains("path");
+    let result = match crate::ghostex_cli::actions::send_gxserver_cli_action(
+        "openBrowserPane",
+        &payload,
+        &flags,
+    ) {
+        Err(error) if error.to_string().contains("No matching project") => {
+            let session_project =
+                AgentScope::from_env(None, Some(String::new())).session_project_id;
+            match browser_open_in_session_project(
+                &payload,
+                named_folder,
+                session_project.as_deref(),
+            ) {
+                Some(retry) => crate::ghostex_cli::actions::send_gxserver_cli_action(
+                    "openBrowserPane",
+                    &retry,
+                    &flags,
+                )?,
+                None => return Err(error),
+            }
+        }
+        other => other?,
+    };
     if let Some(session) = &agent_session {
         remember_agent_page(session, None);
     }
     print_json(&result);
     Ok(())
+}
+
+/// CDXC:Projects 2026-10-31 WHY:
+/// `ghostex browser open` names the agent's folder by default, and that folder is not always a project (a session's own worktree, a subfolder): the open then failed with "No matching project" while the agent's session plainly belongs to one. Such an open goes to the session's own project, as the browser tools already choose (agent_pages.rs). A folder the caller named with `--project-path`, and every other selector, keeps its error.
+/// The retried payload: the session's project in place of the default folder, or `None` when the
+/// open named its project some other way or the agent is in no session.
+pub(super) fn browser_open_in_session_project(
+    payload: &Value,
+    named_folder: bool,
+    session_project: Option<&str>,
+) -> Option<Value> {
+    let session_project = session_project?;
+    let object = payload.as_object()?;
+    let named_otherwise = ["projectId", "groupId", "projectName"]
+        .iter()
+        .any(|key| object.contains_key(*key));
+    if named_folder || named_otherwise || !object.contains_key("projectPath") {
+        return None;
+    }
+    let mut retry = object.clone();
+    retry.remove("projectPath");
+    retry.insert(
+        "projectId".to_string(),
+        Value::String(session_project.to_string()),
+    );
+    Some(Value::Object(retry))
 }
 
 pub(super) fn parse_browser_open(rest: &[String], flags: &Flags) -> Value {

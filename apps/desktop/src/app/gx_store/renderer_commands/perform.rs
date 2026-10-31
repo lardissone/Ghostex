@@ -45,7 +45,11 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) -> Result<Value, RendererCommandError> {
-        let verb = plan_renderer_command(&self.gx_store.core, &command.action, &command.payload)?;
+        let payload = super::project_path::with_registered_project_folder(
+            &self.gx_store.core,
+            &command.payload,
+        );
+        let verb = plan_renderer_command(&self.gx_store.core, &command.action, &payload)?;
         let action = command.action.as_str();
         match verb {
             RendererVerb::FocusSession(session) => {
