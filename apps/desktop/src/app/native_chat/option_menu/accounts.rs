@@ -63,14 +63,13 @@ enum Block {
         identity: Value,
         name: String,
         email: Option<String>,
+        /// The "Active" tag beside the name.
+        active: Option<String>,
+        /// The button at the end of the row for a problem Settings can fix.
+        action: Option<String>,
     },
     /// An account's limits as compact columns, three to a line.
     Usage(Vec<UsageColumn>),
-    /// The conversation context on one line.
-    Context {
-        percent: f32,
-        text: String,
-    },
     Heading(String),
     Account {
         row: Value,
@@ -145,11 +144,12 @@ fn usage_height(columns: usize) -> f32 {
     lines * USAGE_LINE + (lines - 1.0).max(0.0) * USAGE_LINE_GAP
 }
 
-/// An other account's row: the name line, then its usage row or usage error.
-fn account_row_height(row: &Value) -> f32 {
+/// An other account's row: the name line, then its usage error (`error_height` tall, it wraps) or
+/// its usage row.
+fn account_row_height(row: &Value, error_height: f32) -> f32 {
     let usage = row["usage"].as_array().map_or(0, Vec::len);
     let below = if row["usageError"].is_string() {
-        PARAGRAPH.1
+        4.0 + error_height
     } else if usage > 0 {
         4.0 + usage_height(usage)
     } else {
@@ -159,6 +159,7 @@ fn account_row_height(row: &Value) -> f32 {
 }
 
 const ACCOUNT_ROW_PADDING: f32 = 6.0;
+const ACCOUNT_ROW_PADDING_X: f32 = 8.0;
 
 fn text(value: &Value, key: &str) -> String {
     value[key].as_str().unwrap_or_default().to_owned()
@@ -228,43 +229,40 @@ fn blocks(panel: &Value, customize: bool) -> Vec<Block> {
     }
     // CDXC:AgentProviders 2026-10-28 DECISION: User: "this menu is too huge please make it
     // smaller". Each account is a name line over one row of compact 5h / 7d / Fable columns (resets
-    // in their tooltips), and the context is a single line, instead of a full-width bar per limit.
+    // in their tooltips) instead of a full-width bar per limit.
+    // CDXC:AgentProviders 2026-10-31 DECISION: User marked up the panel: the current account says
+    // it is active and shows its error on that row (`current_account_problem` in the core), and the
+    // Context row and the "Switching resumes the same conversation" sentence go.
+    let problem = &session["problem"];
     out.push(Current {
         identity: session["current"].clone(),
         name: text(session, "name"),
         email: session["email"].as_str().map(str::to_owned),
+        active: session["activeLabel"].as_str().map(str::to_owned),
+        action: problem["action"].as_str().map(str::to_owned),
     });
     out.push(Gap(6.0));
-    if let Some(error) = session["usageError"].as_str() {
+    if let Some(message) = problem["message"].as_str() {
         out.push(Text {
-            text: error.to_owned(),
+            text: message.to_owned(),
             strong: false,
             dim: false,
         });
         out.push(Gap(6.0));
     }
     let usage = usage_columns(&session["usage"]);
-    if usage.is_empty() {
+    if !usage.is_empty() {
+        out.push(Usage(usage));
+        out.push(Gap(12.0));
+    } else if problem.is_null() {
         out.push(Text {
             text: "Usage is unavailable for this login.".into(),
             strong: false,
             dim: false,
         });
-    } else {
-        out.push(Usage(usage));
-    }
-    out.push(Gap(10.0));
-    if session["context"].is_object() {
-        let context = &session["context"];
-        out.push(Context {
-            percent: context["percent"].as_f64().unwrap_or(0.0) as f32,
-            text: format!(
-                "{} \u{b7} {}",
-                text(context, "value"),
-                text(context, "tokens")
-            ),
-        });
         out.push(Gap(12.0));
+    } else {
+        out.push(Gap(6.0));
     }
     out.push(Heading(text(session, "switchHeading")));
     out.push(Gap(2.0));
@@ -274,14 +272,7 @@ fn blocks(panel: &Value, customize: bool) -> Vec<Block> {
             busy,
         });
     }
-    out.push(Gap(4.0));
-    out.push(Text {
-        text: "Switching resumes the same conversation. Stop an active turn before switching."
-            .into(),
-        strong: false,
-        dim: false,
-    });
-    out.push(Gap(10.0));
+    out.push(Gap(8.0));
     out.push(Divider);
     out.push(Gap(8.0));
     let policy_state = &session["policy"];
@@ -409,9 +400,16 @@ impl Block {
             }
             Current { .. } => 20.0,
             Usage(columns) => usage_height(columns.len()),
-            Context { .. } => 16.0,
             Heading(_) => 16.0,
-            Account { row, .. } => account_row_height(row),
+            Account { row, .. } => {
+                let error = match row["usageError"].as_str() {
+                    Some(error) => {
+                        measure.lines(error, PARAGRAPH, width - ACCOUNT_ROW_PADDING_X * 2.0)?
+                    }
+                    None => 0.0,
+                };
+                account_row_height(row, error)
+            }
             Divider => 1.0,
             Toggle { .. } => 20.0,
             Legend { .. } => 16.0,
@@ -519,6 +517,7 @@ fn logo(value: &Value, appearance: &ChatAppearance) -> AnyElement {
 fn name_line(
     account: Option<&Value>,
     name: String,
+    active: Option<String>,
     email: Option<String>,
     appearance: &ChatAppearance,
     colors: &Colors,
@@ -543,6 +542,23 @@ fn name_line(
                 .truncate()
                 .child(name),
         )
+        .when_some(active, |this, active| {
+            this.child(
+                div()
+                    .flex_shrink_0()
+                    .h(px(16.0 * s))
+                    .px(px(5.0 * s))
+                    .flex()
+                    .items_center()
+                    .rounded(px(4.0 * s))
+                    .border_1()
+                    .border_color(colors.border)
+                    .text_size(px(10.0 * s))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(colors.muted)
+                    .child(active),
+            )
+        })
         .when_some(email, |this, email| {
             this.child(
                 div()
@@ -970,33 +986,41 @@ impl ChatOptionMenuPanel {
                 identity: account,
                 name,
                 email,
+                active,
+                action,
             } => name_line(
                 account.is_object().then_some(&account),
                 name,
+                active,
                 email,
                 appearance,
                 colors,
             )
             .h(px(20.0 * s))
+            .when_some(action, |this, action| {
+                let open_settings = Action::Close(json!({"type":"openAccountsSettings"}));
+                this.child(div().flex_1()).child(
+                    div()
+                        .id("account-current-action")
+                        .role(gpui::Role::Button)
+                        .aria_label(action.clone())
+                        .flex_shrink_0()
+                        .h_full()
+                        .px(px(8.0 * s))
+                        .flex()
+                        .items_center()
+                        .rounded(px(6.0 * s))
+                        .whitespace_nowrap()
+                        .chat_cursor_pointer()
+                        .hover(|style| style.bg(colors.hover))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.account_action(&open_settings, window, cx)
+                        }))
+                        .child(action),
+                )
+            })
             .into_any_element(),
             Block::Usage(columns) => usage_row(("account-usage-row", index), columns, colors, s),
-            Block::Context { percent, text } => div()
-                .h(px(16.0 * s))
-                .flex()
-                .items_center()
-                .gap(px(10.0 * s))
-                .text_size(px(11.0 * s))
-                .line_height(px(16.0 * s))
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(colors.muted)
-                        .child("Context"),
-                )
-                .child(div().flex_1().min_w_0().child(bar(percent, colors, s)))
-                .child(div().flex_shrink_0().child(text))
-                .into_any_element(),
             Block::Heading(heading) => div()
                 .h(px(16.0 * s))
                 .text_size(px(11.0 * s))
@@ -1029,7 +1053,7 @@ impl ChatOptionMenuPanel {
                     .flex()
                     .flex_col()
                     .gap(px(4.0 * s))
-                    .px(px(8.0 * s))
+                    .px(px(ACCOUNT_ROW_PADDING_X * s))
                     .py(px(ACCOUNT_ROW_PADDING * s))
                     .rounded(px(6.0 * s))
                     .when(busy, |this| this.opacity(0.45))
@@ -1052,6 +1076,7 @@ impl ChatOptionMenuPanel {
                         name_line(
                             Some(&row),
                             text(&row, "name"),
+                            None,
                             row["email"].as_str().map(str::to_owned),
                             appearance,
                             colors,
@@ -1065,7 +1090,6 @@ impl ChatOptionMenuPanel {
                                 .text_size(px(PARAGRAPH.0 * s))
                                 .line_height(px(PARAGRAPH.1 * s))
                                 .text_color(colors.muted)
-                                .truncate()
                                 .child(error),
                         ),
                         None if !usage.is_empty() => {
@@ -1295,8 +1319,9 @@ mod tests {
                 "current": {"provider": "claude", "figures": ["40%", "16%"]},
                 "name": "ST",
                 "email": "s•••m@•••••.•••",
+                "activeLabel": "Active",
+                "problem": null,
                 "usage": usage,
-                "context": {"percent": 38, "value": "38%", "tokens": "380k / 1m"},
                 "switchHeading": "Switch account",
                 "others": [
                     {"provider": "claude", "name": "SP", "email": "y•••a@•••••.•••", "usage": usage, "ready": true, "action": "Use account →"},
@@ -1336,10 +1361,49 @@ mod tests {
                 ("Fable", "0%", "Fable: 0% · Resets 5d 4h"),
             ]
         );
-        assert!(blocks.iter().any(|block| matches!(
-            block,
-            Block::Context { text, .. } if text == "38% · 380k / 1m"
-        )));
+        assert!(matches!(
+            &blocks[2],
+            Block::Current { active: Some(active), action: None, .. } if active == "Active"
+        ));
+        // The panel's note is gone, so nothing but the policy summary is text in a healthy panel.
+        let texts: Vec<&str> = blocks
+            .iter()
+            .filter_map(|block| match block {
+                Block::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(texts, ["Session defaults · Switch when eligible"]);
+    }
+
+    #[test]
+    fn an_expired_login_shows_its_words_and_action_on_the_current_row() {
+        let mut panel = panel();
+        panel["session"]["usage"] = json!([]);
+        panel["session"]["problem"] = json!({
+            "message": "The saved login expired. Reconnect this account.",
+            "action": "Reconnect",
+        });
+        let blocks = blocks(&panel, false);
+        assert!(matches!(
+            &blocks[2],
+            Block::Current { action: Some(action), .. } if action == "Reconnect"
+        ));
+        let texts: Vec<&str> = blocks
+            .iter()
+            .filter_map(|block| match block {
+                Block::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        // Its own words replace "Usage is unavailable for this login."
+        assert_eq!(
+            texts,
+            [
+                "The saved login expired. Reconnect this account.",
+                "Session defaults · Switch when eligible",
+            ]
+        );
     }
 
     #[test]
@@ -1354,10 +1418,11 @@ mod tests {
         let others = panel["session"]["others"].as_array().unwrap();
         // The old row: 12px padding around the 26px identity or the name and detail lines.
         let old = 24.0 + 34.0;
-        assert!(account_row_height(&others[0]) <= old);
+        assert!(account_row_height(&others[0], 0.0) <= old);
+        // An error wraps, so the row is as tall as its measured lines.
         assert_eq!(
-            account_row_height(&others[1]),
-            ACCOUNT_ROW_PADDING * 2.0 + 18.0 + PARAGRAPH.1
+            account_row_height(&others[1], PARAGRAPH.1 * 2.0),
+            ACCOUNT_ROW_PADDING * 2.0 + 18.0 + 4.0 + PARAGRAPH.1 * 2.0
         );
     }
 }

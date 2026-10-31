@@ -60,11 +60,6 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
             accounts.as_ref(),
             state.menus.account_error.as_deref(),
             state.menus.accounts_busy,
-            state
-                .session
-                .selected_options
-                .as_ref()
-                .and_then(|selected| selected.get("contextUsage")),
             state.core.hide_account_emails,
             &panel_context,
         )),

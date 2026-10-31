@@ -20,7 +20,6 @@ use crate::menus::accounts_presentation::{
     PolicyPriorityOption, SwitchCardAccount, SwitchCardPresentation, SwitchProgress,
     ACCOUNT_POLICY_PRIORITY_OPTIONS, ACCOUNT_POLICY_RETRY_DESCRIPTION,
 };
-use crate::menus::context_usage::{context_meter_usage, format_context_tokens};
 
 /// `nativeContextText`: masks account text when Hide emails is on.
 pub fn account_text(hide_account_emails: bool, text: &str) -> String {
@@ -121,13 +120,82 @@ pub fn panel_usage_bars(account: &Account, now_ms: i64) -> Vec<PanelUsageBar> {
         .collect()
 }
 
-/// The context meter shown under the account's own limits.
+/// What is wrong with the account the session is on, on its row in the panel.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PanelContext {
-    pub percent: Value,
-    pub value: String,
-    pub tokens: String,
+pub struct PanelProblem {
+    pub message: String,
+    /// The button at the end of the row, which opens Settings > Accounts. Absent when Settings
+    /// cannot fix it (a reading Ghostex keeps retrying, a limit that resets by itself).
+    pub action: Option<String>,
+}
+
+/// CDXC:AgentProviders 2026-10-31 DECISION:
+/// User, on the panel's current account: "please make the currently active account somehow say that this is active now. and show if there's an error with it here". gxserver's usage error covers most states in its own words, the words the Switch account rows show, and a login state without one takes the same words here. Limits are only named when a main window (not a model's, not Extra usage) is used up, the rule `limited_windows` in server/src/accounts/cli.rs uses; a used-up account has no action because the rows under it are the way out. `Reconnect` follows the Switch account rows' rule: any status but ready, except loading (still being read) and turned off in Settings, where signing in again is not the fix.
+fn current_account_problem(account: &Account, now_ms: i64) -> Option<PanelProblem> {
+    let status = account.status.as_deref().unwrap_or_default();
+    let problem = |message: String, action: Option<&str>| {
+        Some(PanelProblem {
+            message,
+            action: action.map(str::to_string),
+        })
+    };
+    match status {
+        "disabled" => problem(
+            "This account is turned off in Settings.".to_string(),
+            Some("Open Settings"),
+        ),
+        "ready" | "loading" | "" => {
+            if let Some(reason) = &account.disabled_reason {
+                problem(reason.clone(), None)
+            } else if let Some(error) = &account.usage_error {
+                problem(error.clone(), None)
+            } else {
+                let limited = limited_windows(account, now_ms);
+                if limited.is_empty() {
+                    None
+                } else {
+                    problem(format!("{} limit reached.", limited.join(" and ")), None)
+                }
+            }
+        }
+        other => {
+            let fallback = match other {
+                "identityChanged" => {
+                    "The saved login belongs to a different account. Reconnect this account."
+                }
+                "unavailable" => {
+                    "The helper could not find this saved login. Refresh or reconnect it."
+                }
+                _ => "This account needs to sign in again. Reconnect it.",
+            };
+            problem(
+                account
+                    .usage_error
+                    .clone()
+                    .unwrap_or_else(|| fallback.to_string()),
+                Some("Reconnect"),
+            )
+        }
+    }
+}
+
+/// The compact names of the account's used-up main windows that have not reset yet.
+fn limited_windows(account: &Account, now_ms: i64) -> Vec<String> {
+    account
+        .usage
+        .iter()
+        .filter(|window| window.scoped_model().is_none() && window.id.as_deref() != Some("spend"))
+        .filter(|window| {
+            window.used_percent.is_some_and(|used| used >= 100.0)
+                && window
+                    .resets_at
+                    .as_deref()
+                    .and_then(crate::menus::time::parse_iso_millis)
+                    .is_none_or(|at| at > now_ms)
+        })
+        .map(compact_usage_label)
+        .collect()
 }
 
 /// The automatic-continuation recovery line.
@@ -179,9 +247,10 @@ pub struct PanelSession {
     pub current: Option<AccountIdentity>,
     pub name: String,
     pub email: Option<String>,
-    pub usage_error: Option<String>,
+    /// "Active" beside the name when the session is on a known account.
+    pub active_label: Option<String>,
+    pub problem: Option<PanelProblem>,
     pub usage: Vec<PanelUsageBar>,
-    pub context: Option<PanelContext>,
     pub switch_heading: String,
     pub others: Vec<PanelOtherAccount>,
     pub policy: PanelPolicy,
@@ -213,7 +282,6 @@ pub fn native_account_panel(
     data: Option<&AccountsState>,
     error: Option<&str>,
     busy: bool,
-    context_usage: Option<&Value>,
     hide_account_emails: bool,
     chat_context: &crate::ChatContext,
 ) -> AccountPanel {
@@ -260,7 +328,6 @@ pub fn native_account_panel(
         );
     };
     let current = data.account(session.account_id.as_deref());
-    let context = context_meter_usage(context_usage, false);
     let policy = session.effective_policy().clone();
     let priority = policy
         .get("priority")
@@ -327,24 +394,16 @@ pub fn native_account_panel(
                     .filter(|email| !email.is_empty() && *email != account.name)
                     .map(text)
             }),
-            usage_error: current
-                .and_then(|account| account.usage_error.as_deref())
-                .map(text),
+            active_label: current.map(|_| "Active".to_string()),
+            problem: current
+                .and_then(|account| current_account_problem(account, now_ms))
+                .map(|problem| PanelProblem {
+                    message: text(&problem.message),
+                    action: problem.action,
+                }),
             usage: current
                 .map(|account| panel_usage_bars(account, now_ms))
                 .unwrap_or_default(),
-            context: context.map(|context| PanelContext {
-                percent: js_number_value(context.used_percentage.unwrap_or(0.0)),
-                value: match context.used_percentage {
-                    None => "Usage unavailable".to_string(),
-                    Some(percent) => format!("{}%", js_number_text(js_round(percent))),
-                },
-                tokens: format!(
-                    "{} / {}",
-                    format_context_tokens(context.used_tokens),
-                    format_context_tokens(context.window_size)
-                ),
-            }),
             switch_heading: if current.is_some() {
                 "Switch account"
             } else {
@@ -473,6 +532,7 @@ fn locale_date_time(value: &str, context: &crate::ChatContext) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     const NOW: i64 = 1_800_000_000_000;
 
@@ -553,5 +613,159 @@ mod tests {
     fn a_model_window_other_than_7d_keeps_its_duration() {
         let spark = window("codexSpark", Some("Spark"), 18_000.0, 12.0, None);
         assert_eq!(compact_usage_label(&spark), "Spark 5h");
+    }
+
+    fn current(status: &str) -> Account {
+        Account {
+            id: Some("claude-1".into()),
+            provider: Some("claude".into()),
+            name: "MS".into(),
+            email: Some("someone@example.com".into()),
+            registered: true,
+            status: Some(status.into()),
+            ..Account::default()
+        }
+    }
+
+    fn panel(account: Account) -> Value {
+        let accounts = AccountsState {
+            accounts: vec![account],
+            session: Some(crate::menus::accounts_data::AccountSession {
+                provider: Some("claude".into()),
+                account_id: Some("claude-1".into()),
+                ..Default::default()
+            }),
+        };
+        let panel = native_account_panel(
+            Some(&accounts),
+            None,
+            false,
+            true,
+            &crate::ChatContext::default(),
+        );
+        serde_json::to_value(panel).unwrap()["session"].clone()
+    }
+
+    #[test]
+    fn the_current_account_says_it_is_active_and_a_healthy_one_shows_no_problem() {
+        let session = panel(current("ready"));
+        assert_eq!(session["activeLabel"], "Active");
+        assert_eq!(session["problem"], Value::Null);
+        // The context row and its data left the panel.
+        assert!(session.get("context").is_none());
+    }
+
+    #[test]
+    fn a_session_without_a_known_account_is_not_called_active() {
+        let mut account = current("ready");
+        account.id = Some("another".into());
+        let session = panel(account);
+        assert_eq!(session["name"], "Choose an account");
+        assert_eq!(session["activeLabel"], Value::Null);
+        assert_eq!(session["problem"], Value::Null);
+    }
+
+    #[test]
+    fn every_login_state_shows_its_words_and_reconnect() {
+        let cases = [
+            (
+                "loginRequired",
+                Some("The saved login expired. Reconnect this account."),
+                "The saved login expired. Reconnect this account.",
+            ),
+            (
+                "loginRequired",
+                Some("No saved login was found for this account. Reconnect it."),
+                "No saved login was found for this account. Reconnect it.",
+            ),
+            // Codex and an email-less Claude login have no usage error to borrow.
+            (
+                "loginRequired",
+                None,
+                "This account needs to sign in again. Reconnect it.",
+            ),
+            (
+                "identityChanged",
+                None,
+                "The saved login belongs to a different account. Reconnect this account.",
+            ),
+            (
+                "unavailable",
+                Some("The helper could not find this saved login. Refresh or reconnect it."),
+                "The helper could not find this saved login. Refresh or reconnect it.",
+            ),
+        ];
+        for (status, error, message) in cases {
+            let mut account = current(status);
+            account.usage_error = error.map(str::to_string);
+            let session = panel(account);
+            assert_eq!(
+                session["problem"],
+                json!({"message": message, "action": "Reconnect"}),
+                "{status}"
+            );
+            assert_eq!(session["activeLabel"], "Active");
+        }
+    }
+
+    #[test]
+    fn a_ready_account_shows_a_usage_error_without_an_action() {
+        let mut account = current("ready");
+        account.usage_error =
+            Some("Usage could not be read yet. Ghostex keeps trying.".to_string());
+        assert_eq!(
+            panel(account)["problem"],
+            json!({
+                "message": "Usage could not be read yet. Ghostex keeps trying.",
+                "action": null,
+            })
+        );
+    }
+
+    #[test]
+    fn a_turned_off_account_points_at_settings_and_a_refused_one_says_why() {
+        assert_eq!(
+            panel(current("disabled"))["problem"],
+            json!({
+                "message": "This account is turned off in Settings.",
+                "action": "Open Settings",
+            })
+        );
+        let mut refused = current("ready");
+        refused.disabled_reason =
+            Some("Its organization disabled Claude subscription access.".to_string());
+        assert_eq!(
+            panel(refused)["problem"]["message"],
+            "Its organization disabled Claude subscription access."
+        );
+    }
+
+    #[test]
+    fn a_used_up_main_window_says_the_limit_is_reached() {
+        let at = |model, id, percent| window(id, model, 604_800.0, percent, None);
+        let mut account = current("ready");
+        account.usage = vec![
+            window("fiveHour", None, 18_000.0, 100.0, None),
+            at(None, "sevenDay", 100.0),
+        ];
+        assert_eq!(
+            panel(account)["problem"],
+            json!({"message": "5h and 7d limit reached.", "action": null})
+        );
+        // A model's own window and Extra usage don't stop the account.
+        let mut account = current("ready");
+        account.usage = vec![at(Some("Fable"), "fable", 100.0), at(None, "spend", 100.0)];
+        assert_eq!(panel(account)["problem"], Value::Null);
+    }
+
+    #[test]
+    fn hide_emails_masks_a_problem_that_names_one() {
+        let mut account = current("loginRequired");
+        account.usage_error = Some("someone@example.com must sign in.".to_string());
+        let message = panel(account)["problem"]["message"].clone();
+        assert!(
+            !message.as_str().unwrap().contains("someone@example.com"),
+            "{message}"
+        );
     }
 }
