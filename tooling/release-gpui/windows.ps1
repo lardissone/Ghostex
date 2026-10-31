@@ -129,7 +129,7 @@ if (-not $RunPackage) {
 
 $AppDir = Join-Path $RepoRoot "apps/desktop/build/windows/Ghostex"
 if ($RunStage) {
-    foreach ($required in @("Ghostex.exe", "ghostex-gpui-runtime.exe", "ghostex-gpui-cef-helper.exe", "resources/GhostexEditor/GhostexEditor.exe", "resources/GhostexEditor/web/index.html", "resources/sounds/arcade.mp3", "resources/sounds/copy.mp3")) {
+    foreach ($required in @("Ghostex.exe", "ghostex-gpui-runtime.exe", "ghostex-gpui-cef-helper.exe", "resources/native/gxserver.exe", "resources/native/wmx.exe", "resources/GhostexEditor/GhostexEditor.exe", "resources/GhostexEditor/web/index.html", "resources/sounds/arcade.mp3", "resources/sounds/copy.mp3")) {
         if (-not (Test-Path (Join-Path $AppDir $required))) {
             throw "Windows staged app is missing $required"
         }
@@ -306,7 +306,7 @@ if ($RunCollect) {
     Remove-Item -Recurse -Force $CollectPackOutput
     $Collected = @(Get-ChildItem $CollectDir -Recurse -File)
     if ($Collected.Count -eq 0) { throw "The Velopack sign hook collected no files to sign" }
-    foreach ($required in @("Ghostex.exe", "ghostex-gpui-runtime.exe", "ghostex-gpui-cef-helper.exe", "GhostexEditor.exe", "Squirrel.exe")) {
+    foreach ($required in @("Ghostex.exe", "ghostex-gpui-runtime.exe", "ghostex-gpui-cef-helper.exe", "GhostexEditor.exe", "gxserver.exe", "wmx.exe", "Squirrel.exe")) {
         if (-not ($Collected | Where-Object { $_.Name -eq $required })) {
             throw "The Velopack sign hook did not collect $required"
         }
