@@ -604,3 +604,49 @@ fn cursor_pins_replace_its_model_and_take_no_effort_flag() {
     .expect("cursor pin");
     assert_eq!(pinned, "cursor-agent --workspace /tmp --model grok-4.7");
 }
+
+#[test]
+fn a_coordinator_offered_low_gets_it_in_every_agents_launch_command() {
+    use crate::coordinators::{coordinator_create_params, CoordinatorLaunch};
+    use ghostex_gx_chat_core::menus::orchestrator_effort::orchestrator_efforts;
+
+    let claude = ["low", "medium", "high", "xhigh", "max", "ultracode"];
+    let codex = ["low", "medium", "high", "xhigh", "ultra"];
+    let antigravity = ["low", "medium", "high", "max"];
+    for levels in [&claude[..], &codex[..], &antigravity[..]] {
+        assert_eq!(orchestrator_efforts(levels, false, None)[0], "low");
+    }
+
+    let rows =
+        vec![json!({"agentId": "claude", "name": "Claude", "icon": "claude", "command": "claude"})];
+    let params = coordinator_create_params(CoordinatorLaunch {
+        agent_rows: &rows,
+        project_id: "P1",
+        agent_id: "claude",
+        title: None,
+        goal: String::new(),
+        task: String::new(),
+        model: None,
+        effort: Some("low".to_string()),
+    });
+    assert_eq!(params["agentEffort"], "low");
+    assert_eq!(
+        requested_agent_model_option(params.as_object().unwrap(), "agentEffort")
+            .unwrap()
+            .as_deref(),
+        Some("low")
+    );
+
+    assert_eq!(
+        with_agent_model_options("claude", "claude", Some("opus[1m]"), Some("low")).unwrap(),
+        "claude --model 'opus[1m]' --effort low"
+    );
+    assert_eq!(
+        with_agent_model_options("codex", "codex", None, Some("low")).unwrap(),
+        "codex -c model_reasoning_effort=low"
+    );
+    assert_eq!(
+        with_agent_model_options("agy", "antigravity", None, Some("low")).unwrap(),
+        "agy --effort low"
+    );
+}

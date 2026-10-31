@@ -60,8 +60,8 @@ CREATE
   other agents keep their own unless you pass one. --goal is one line the
   coordinator works toward. --task follows the skill line in its first message.
   options lists the agents a coordinator can run on, with each one's models,
-  the model it starts on, the efforts it offers (Medium, High and XHigh, or the agent's
-  levels from Medium up to its highest below Max), and the skill line its first message starts with.
+  the model it starts on, the efforts it offers (Low, Medium, High and XHigh, or the agent's
+  levels from Low up to its highest below Max), and the skill line its first message starts with.
 
 PROMOTE
   promote makes a session that already exists (of an agent create accepts) an

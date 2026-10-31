@@ -381,7 +381,7 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
     let agents: Vec<Value> = agents.into_iter().map(|(_, agent)| agent).collect();
     let result = json!({
         "agents": agents,
-        // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's Medium/High/XHigh decision, 2026-10-29); each model's own `defaultEffort` is High (or its highest level at or below High), and this is the level where the model has it.
+        // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's Low/Medium/High/XHigh decision, 2026-10-31); each model's own `defaultEffort` is High (or its highest level at or below High), and this is the level where the model has it.
         "defaultEffort": "high",
     });
     if parsed.flags.truthy("json") {

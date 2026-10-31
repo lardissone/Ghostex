@@ -174,7 +174,7 @@ pub fn coordinator_create_params(launch: CoordinatorLaunch<'_>) -> Value {
         "runtimeSettings": { "titleSource": title_source },
         "coordinator": { "goal": launch.goal, "firstRequest": launch.task },
     });
-    // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's Medium/High/XHigh decision, 2026-10-29); without an effort an orchestrator starts on High where its launch takes an effort. ZCode takes no effort choice; its model rides agentModel and gxserver queues it as a `/model` line ahead of the first message.
+    // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's Low/Medium/High/XHigh decision, 2026-10-31); without an effort an orchestrator starts on High where its launch takes an effort. ZCode takes no effort choice; its model rides agentModel and gxserver queues it as a `/model` line ahead of the first message.
     let effort = launch.effort.or_else(|| {
         family
             .and_then(super::default_orchestrator_effort)

@@ -39,7 +39,7 @@ const FIELD_FIRST_MESSAGE: &str = "First message";
 const FIRST_MESSAGE_HINT: &str = "Every coordinator starts with this line, which loads its playbook. Write your first request in its chat.";
 const LOCK_ICON: &str = "titlebar/lock.svg";
 /// CDXC:Coordinators 2026-10-01 DECISION:
-/// User: a coordinator on a Claude launcher starts on Opus 5.5 ("my preferences should be the preferences for this feature for customers using the same setup, since that's what I tested"). `opus[1m]` is Opus 5.5's row in the Claude lineup; a Codex lineup has no such row and keeps its own default model. Its effort is High since 2026-10-29 (`orchestrator_efforts` in gx-chat-core; XHigh from 2026-10-17 until then).
+/// User: a coordinator on a Claude launcher starts on Opus 5.5 ("my preferences should be the preferences for this feature for customers using the same setup, since that's what I tested"). `opus[1m]` is Opus 5.5's row in the Claude lineup; a Codex lineup has no such row and keeps its own default model. Its effort is High since 2026-10-29 (Low is offered too since 2026-10-31) (`orchestrator_efforts` in gx-chat-core; XHigh from 2026-10-17 until then).
 /// SEE-ALSO: DEFAULT_CLAUDE_COORDINATOR_MODEL in server/src/ghostex_cli/coordinator/command.rs (`ghostex coordinator create` keeps the same default).
 const DEFAULT_CLAUDE_COORDINATOR_MODEL: &str = "opus[1m]";
 const FIELD_GOAL: &str = "Goal (optional)";
@@ -192,7 +192,7 @@ impl GpuiNewCoordinatorModalWindow {
         self.agent()?.models.get(self.model_index)
     }
 
-    /// The model's efforts an orchestrator is offered: Medium, High and XHigh, or Medium up to the
+    /// The model's efforts an orchestrator is offered: Low, Medium, High and XHigh, or Low up to the
     /// highest below Max, or all of them while Show all effort levels is on.
     fn efforts(&self) -> Vec<(String, String)> {
         let Some(model) = self.model() else {
