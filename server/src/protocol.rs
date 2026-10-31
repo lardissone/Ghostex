@@ -396,6 +396,10 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         // CDXC:AgentBox 2026-10-01 WHY: same reasoning as switchDraftAgent above; where a draft
         // runs is decided by the daemon that owns the row and runs its CLI.
         | "/api/draftRunLocation"
+        // CDXC:Worktrees 2026-10-31 WHY: a new chat's worktree tray asks the daemon that owns the
+        // draft, like draftRunLocation above; it takes ids, a branch name, an opaque worktree key
+        // from that daemon's own list and the message, never a path.
+        | "/api/draftWorktree"
         // CDXC:AgentProviders 2026-09-03: same reasoning as switchDraftAgent
         // above; the resume command is built by the daemon that owns the row.
         | "/api/switchSessionAgent"

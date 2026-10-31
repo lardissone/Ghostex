@@ -196,6 +196,7 @@ action_kinds! {
     Accounts => "accounts",
     SwitchDraftAgent => "switchDraftAgent",
     SwitchDraftRunLocation => "switchDraftRunLocation",
+    SetDraftWorktree => "setDraftWorktree",
     SwitchToTerminal => "switchToTerminal",
     SelectForkBranch => "selectForkBranch",
 

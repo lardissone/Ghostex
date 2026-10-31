@@ -221,17 +221,8 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
             context,
             action.param("confirm").and_then(Value::as_bool) == Some(true),
         ),
-        ActionKind::Send | ActionKind::Queue | ActionKind::Compact => crate::composer::send::begin(
-            state,
-            context,
-            match action.kind {
-                ActionKind::Queue => SubmissionMode::Queue,
-                ActionKind::Compact => SubmissionMode::Compact,
-                _ => SubmissionMode::Send,
-            },
-            text_param(action),
-            draft_version(action),
-            action
+        ActionKind::Send | ActionKind::Queue | ActionKind::Compact => {
+            let image_paths: Vec<String> = action
                 .param("imagePaths")
                 .and_then(Value::as_array)
                 .map(|paths| {
@@ -241,9 +232,31 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                         .map(str::to_string)
                         .collect()
                 })
-                .unwrap_or_default(),
-            action.param("interrupt").and_then(Value::as_bool) == Some(true),
-        ),
+                .unwrap_or_default();
+            // A new chat whose worktree tray says a worktree: its first message moves it there.
+            if action.kind == ActionKind::Send {
+                if let Some(effects) = crate::menus::draft_worktree::intercept_send(
+                    state,
+                    text_param(action),
+                    &image_paths,
+                ) {
+                    return effects;
+                }
+            }
+            crate::composer::send::begin(
+                state,
+                context,
+                match action.kind {
+                    ActionKind::Queue => SubmissionMode::Queue,
+                    ActionKind::Compact => SubmissionMode::Compact,
+                    _ => SubmissionMode::Send,
+                },
+                text_param(action),
+                draft_version(action),
+                image_paths,
+                action.param("interrupt").and_then(Value::as_bool) == Some(true),
+            )
+        }
         ActionKind::Handoff => crate::composer::send::handoff(
             state,
             context,

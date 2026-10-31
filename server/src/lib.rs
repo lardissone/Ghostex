@@ -255,6 +255,7 @@ pub(crate) mod voice_agent;
 pub(crate) mod work_mode;
 pub mod workspace_groups;
 pub mod workspaces;
+pub(crate) mod worktree_branch_name;
 pub mod worktree_sessions;
 pub(crate) mod zcode_turn_activity;
 pub mod zmx;

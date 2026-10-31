@@ -71,6 +71,9 @@ pub struct Document {
     /// A draft's Run on row (`menus/run_location.rs`), absent when the row is hidden. Family e.
     #[serde(default, skip_serializing_if = "Tri::is_absent")]
     pub run_location: Tri<Value>,
+    /// A draft's worktree tray (`menus/draft_worktree.rs`), absent when it is hidden. Family e.
+    #[serde(default, skip_serializing_if = "Tri::is_absent")]
+    pub worktree_tray: Tri<Value>,
     /// The session's own launch agent id, never the transcript family.
     pub session_agent_id: Tri<String>,
     pub error: Tri<String>,

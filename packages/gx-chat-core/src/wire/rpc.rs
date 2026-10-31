@@ -45,6 +45,8 @@ pub enum ChatRpcMethod {
     SwitchDraftAgent,
     /// Where a draft will run (`/api/draftRunLocation`), read and changed by the Run on row.
     DraftRunLocation,
+    /// A draft's worktree tray and its move (`/api/draftWorktree`).
+    DraftWorktree,
     AgentAccounts,
     ReadSessionAgentNote,
     SaveSessionAgentNote,
@@ -100,6 +102,7 @@ impl ChatRpcMethod {
             Self::SessionForkBranches => "sessionForkBranches",
             Self::SwitchDraftAgent => "switchDraftAgent",
             Self::DraftRunLocation => "draftRunLocation",
+            Self::DraftWorktree => "draftWorktree",
             Self::AgentAccounts => "agentAccounts",
             Self::ReadSessionAgentNote => "readSessionAgentNote",
             Self::SaveSessionAgentNote => "saveSessionAgentNote",
@@ -145,6 +148,7 @@ impl ChatRpcMethod {
             "sessionForkBranches" => Self::SessionForkBranches,
             "switchDraftAgent" => Self::SwitchDraftAgent,
             "draftRunLocation" => Self::DraftRunLocation,
+            "draftWorktree" => Self::DraftWorktree,
             "agentAccounts" => Self::AgentAccounts,
             "readSessionAgentNote" => Self::ReadSessionAgentNote,
             "saveSessionAgentNote" => Self::SaveSessionAgentNote,

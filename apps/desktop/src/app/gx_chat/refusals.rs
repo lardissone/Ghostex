@@ -112,6 +112,7 @@ fn rpc_method_name(wire: &str) -> &'static str {
         ChatRpcMethod::SessionForkBranches => "sessionForkBranches",
         ChatRpcMethod::SwitchDraftAgent => "switchDraftAgent",
         ChatRpcMethod::DraftRunLocation => "draftRunLocation",
+        ChatRpcMethod::DraftWorktree => "draftWorktree",
         ChatRpcMethod::AgentAccounts => "agentAccounts",
         ChatRpcMethod::ReadSessionAgentNote => "readSessionAgentNote",
         ChatRpcMethod::SaveSessionAgentNote => "saveSessionAgentNote",

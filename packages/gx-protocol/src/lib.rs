@@ -31,6 +31,7 @@ pub mod session_ref;
 pub mod side_state;
 pub mod starting;
 pub mod tri;
+pub mod worktree_name;
 
 pub use chat::*;
 pub use client_message::*;

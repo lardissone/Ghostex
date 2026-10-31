@@ -20,6 +20,7 @@ pub mod context_usage;
 pub mod controls;
 pub mod dispatch_run;
 pub mod document;
+pub mod draft_worktree;
 pub mod lifecycle;
 pub mod native_accounts;
 pub mod option_catalog;
