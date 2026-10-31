@@ -25,6 +25,9 @@ mod core;
 mod doc_sync;
 mod focus;
 pub mod git_menu;
+#[cfg(test)]
+mod handoff_fixture_tests;
+pub mod handoff_prefs;
 pub mod handoff_target;
 pub mod session_handoff;
 pub mod hud;

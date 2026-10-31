@@ -69,32 +69,28 @@ impl GhostexGpuiApp {
         self.receive_native_app_modal_message(&message, cx);
     }
 
-    /// Handoff / Export writes a file on this computer's disk and shows its result dialog; the page has neither.
-    pub(crate) fn receive_gpui_export_transcript_result(
-        &mut self,
-        _result: &Value,
-        _cx: &mut Context<Self>,
-    ) -> bool {
-        false
+    /// Handoff / Export's Open Location: the file is on the computer, which a page can't open.
+    pub(crate) fn reveal_gpui_exported_transcript(&mut self, cx: &mut Context<Self>) {
+        self.dispatch_gpui_workspace_action_toast(
+            "info",
+            "Open Location is not available in the browser",
+            "Copy the path, or open it from the Ghostex app.",
+            cx,
+        );
     }
 
     /// The page's agents arrive with the HUD (gx_store/host.rs), so there is nothing to refresh.
     pub(crate) fn refresh_gpui_new_thread_picker_agents(&mut self, _cx: &mut Context<Self>) {}
 
-    /// Advanced Handoff's computers: a page reaches only the computer that serves it.
+    /// A handoff's computers: a page reaches only the computer that serves it.
     pub(crate) fn gpui_add_project_dialog_machine_options(&self) -> Value {
-        Value::Array(Vec::new())
+        serde_json::json!([{ "label": "This computer", "machineId": "local" }])
     }
 
-    /// Advanced Handoff never opens in a page, so neither does its
-    /// Add Project round trip.
-    pub(crate) fn open_gpui_add_project_modal(&mut self, _message: &Value, _cx: &mut Context<Self>) {}
-
-    /// The page draws no Handoff / Export dialog to show a branch notice in.
-    pub(crate) fn push_gpui_export_transcript_branch_notice(
+    /// The page reaches one computer, so a handoff there has nothing to clone.
+    pub(crate) fn open_gpui_add_project_modal(
         &mut self,
-        _target: crate::app::window::ExportTranscriptRemoteTarget,
-        _line: Option<String>,
+        _message: &Value,
         _cx: &mut Context<Self>,
     ) {
     }

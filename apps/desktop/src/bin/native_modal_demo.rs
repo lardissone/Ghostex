@@ -9,6 +9,7 @@ Environment:
     GHOSTEX_NATIVE_MODAL_DEMO_STATE=<per-modal state name>    (default: the opening state)
     GHOSTEX_NATIVE_MODAL_DEMO_BACKGROUND=1                    (open without taking focus, for screenshots)
     GHOSTEX_EXPORT_MODAL_DEMO_MODE=handoff|export             (Handoff / Export only)
+    GHOSTEX_EXPORT_MODAL_DEMO_PREFS=<file>                    (Handoff / Export's saved choices)
 Hosts simulate the daemon: a primary action answers after one second with a
 fake success, or with a failure message when the state is `failed`. Closing
 actions quit the demo.
@@ -275,17 +276,22 @@ fn demo_handoff_computers() -> Vec<ExportTranscriptComputer> {
         title: title.to_string(),
         path: Some(path.to_string()),
         same_repo,
+        is_own: false,
     };
     vec![
         ExportTranscriptComputer {
             machine_id: "local".to_string(),
-            label: "This computer".to_string(),
+            label: "This machine".to_string(),
             is_source: true,
             projects: vec![
+                ExportTranscriptProject {
+                    is_own: true,
+                    ..project("p-scratch", "Scratch", "~/dev/scratch", false)
+                },
                 project("p-acme", "acme-web", "~/dev/acme-web", false),
                 project("p-docs", "gamma-docs", "~/dev/gamma-docs", false),
             ],
-            preferred_project_id: None,
+            preferred_project_id: Some("p-scratch".to_string()),
             missing_repository: None,
         },
         ExportTranscriptComputer {
@@ -355,7 +361,6 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
     let initial_mode = match env("GHOSTEX_EXPORT_MODAL_DEMO_MODE").as_str() {
         "export" => Some(ExportTranscriptMode::Export),
         "handoff" => Some(ExportTranscriptMode::Handoff),
-        "remote" => Some(ExportTranscriptMode::HandoffAdvanced),
         _ => None,
     };
     let agents = if demo.state == "noagents" {
@@ -435,7 +440,10 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
         default_agent_id: Some("codex".to_string()),
         handoff_target: None,
         palette: demo.palette,
-        prefs_path: None,
+        // A saved prefs file, to draw what a user comes back to.
+        prefs_path: Some(env("GHOSTEX_EXPORT_MODAL_DEMO_PREFS"))
+            .filter(|path| !path.is_empty())
+            .map(std::path::PathBuf::from),
         initial_mode,
         computers: demo_handoff_computers(),
         restore: None,

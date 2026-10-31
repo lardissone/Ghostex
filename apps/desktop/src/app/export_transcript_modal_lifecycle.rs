@@ -145,7 +145,11 @@ impl GhostexGpuiApp {
                 self.pending_export_transcript_reveal_path = None;
                 self.release_native_app_modal_window(kind, cx);
             }
+            // A page has no copy sound; the dialog's own button says Path Copied.
+            #[cfg(not(target_arch = "wasm32"))]
             ExportTranscriptModalCommand::PathCopied => gpui_copy_feedback(cx),
+            #[cfg(target_arch = "wasm32")]
+            ExportTranscriptModalCommand::PathCopied => {}
             ExportTranscriptModalCommand::TargetChanged(target) => {
                 self.git_export_read_branches(target, cx);
             }
@@ -187,7 +191,7 @@ impl GhostexGpuiApp {
         .is_some()
     }
 
-    /// Advanced Handoff's branch notice for `target` (gx_store/git/export_handoff_remote.rs).
+    /// A handoff's branch notice for `target` (gx_store/git/export_handoff_remote.rs).
     pub(crate) fn push_gpui_export_transcript_branch_notice(
         &mut self,
         target: ExportTranscriptRemoteTarget,

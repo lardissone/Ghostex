@@ -646,6 +646,26 @@ mod tests {
     }
 
     #[test]
+    fn export_transcript_passes_only_the_include_flags_it_was_given() {
+        let (rest, flags) = parsed(&[
+            "S1",
+            "--include-commands",
+            "false",
+            "--include-reasoning",
+            "true",
+        ]);
+        assert_eq!(
+            parse_export_transcript(&rest, &flags),
+            json!({ "sessionId": "S1", "includeCommands": false, "includeReasoning": true })
+        );
+        let (rest, flags) = parsed(&["S1"]);
+        assert_eq!(
+            parse_export_transcript(&rest, &flags),
+            json!({ "sessionId": "S1" })
+        );
+    }
+
+    #[test]
     fn session_selector_number_coercion() {
         let (rest, flags) = parsed(&["--index", "2", "--session-number", "abc"]);
         assert_eq!(

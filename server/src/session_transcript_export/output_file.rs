@@ -138,7 +138,7 @@ pub(crate) async fn handle_export_session_transcript_http(
         .unwrap_or(false);
     /*
     CDXC:TranscriptExport 2026-10-25 WHY:
-    Advanced Handoff can start the follow-up session on ANOTHER computer, where this machine's
+    A handoff can start the follow-up session on ANOTHER computer, where this machine's
     path means nothing. `includeMarkdown` answers the file's text as well, so the client can
     carry it to the target machine (`saveSessionChatAttachment` there) without a
     machine-to-machine path. Absent, the answer is unchanged.

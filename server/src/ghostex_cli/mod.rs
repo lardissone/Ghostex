@@ -893,7 +893,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         */
         "export-transcript" => run_bridge_action(
             "exportSessionTranscript",
-            Parser::SessionSelector,
+            Parser::ExportTranscript,
             fail_on_not_ok,
             args,
         ),

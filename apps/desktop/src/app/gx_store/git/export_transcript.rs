@@ -60,7 +60,7 @@ pub(super) struct ExportedTranscript {
     pub(super) path: String,
     pub(super) session_title: String,
     pub(super) handoff_target: Option<HandoffTarget>,
-    /// The file's text, when the dialog asked for it (Advanced Handoff).
+    /// The file's text, when the dialog asked for it (a handoff to another computer).
     pub(super) markdown: Option<String>,
 }
 
@@ -71,7 +71,7 @@ pub(crate) struct ExportTranscriptHost {
     sequence: u64,
     /// The dialog's picks while it is closed for Add Project, given back when it reopens.
     pub(super) restore: Option<crate::app::window::ExportTranscriptPicks>,
-    /// Add Project opened from Advanced Handoff (export_handoff_remote.rs).
+    /// Add Project opened from a handoff's destination (export_handoff_remote.rs).
     pub(super) add_project: Option<super::export_handoff_remote::HandoffAddProject>,
 }
 
