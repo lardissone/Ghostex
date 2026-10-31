@@ -252,10 +252,11 @@ pub(crate) fn gpui_connect_remote_gxserver_platform_inner(
             }
         }
     }
-    let installed_managed_package_needs_update = !this_computer
-        && token_result.exit_code == 0
-        && gpui_remote_managed_gxserver_package_needs_update(&config, &execution_target);
-    if (token_result.exit_code == 127 && install_approved) || installed_managed_package_needs_update
+    let installed_managed_package_update = (!this_computer && token_result.exit_code == 0)
+        .then(|| gpui_remote_managed_gxserver_package_update(&config, &execution_target))
+        .flatten();
+    if (token_result.exit_code == 127 && install_approved)
+        || installed_managed_package_update.is_some()
     {
         /*
         CDXC:RemoteMachines 2026-06-24-20:08:
@@ -266,6 +267,12 @@ pub(crate) fn gpui_connect_remote_gxserver_platform_inner(
         package. Leaving a protocol-compatible but stale CLI active can make
         interactive attach use storage contracts that no longer match the
         daemon that produced the token.
+
+        CDXC:RemoteMachines 2026-10-31 WHY:
+        A package whose zmx or ghostex no longer runs is reinstalled the same way, also at the
+        same build: nothing else would ever replace it, since its build identity still matches
+        (GitHub #360: gxserver answered and the machine read connected, and every new session
+        failed because `bin/zmx` was a dangling link).
         */
         match gpui_install_bundled_remote_gxserver_and_read_token(
             &config,
@@ -284,6 +291,21 @@ pub(crate) fn gpui_connect_remote_gxserver_platform_inner(
                     );
                 }
                 token_result = install_result;
+            }
+            // A broken package this app has nothing to replace with says so, not only that the
+            // platform has no package: the machine worked as far as anyone could see until now.
+            Err(result)
+                if installed_managed_package_update
+                    == Some(GpuiRemoteManagedPackageUpdate::BrokenRuntime) =>
+            {
+                return GpuiRemoteGxserverConnectResult::without_connection(
+                    GpuiRemoteGxserverConnectState::InstallFailed,
+                    format!(
+                        "{GPUI_REMOTE_RUNTIME_BROKEN_MESSAGE} This Ghostex could not replace it: {}",
+                        result.message
+                    )
+                    .as_str(),
+                );
             }
             Err(result) => return result,
         }
@@ -328,6 +350,18 @@ pub(crate) fn gpui_connect_remote_gxserver_platform_inner(
     }
 
     match gpui_open_remote_gxserver_tunnel(&config, &execution_target, token.as_str()) {
+        // CDXC:RemoteMachines 2026-10-31 WHY: gxserver answers health without zmx, so a machine read
+        // connected and only creating a session failed (GitHub #360). The health answer's tool
+        // status is the same resolution session creation uses (`require_bundled_zmx`), so a machine
+        // that reports zmx missing could not have started a session on any platform.
+        Ok(mut connection) if connection.capabilities.zmx_missing => {
+            connection.terminate();
+            let _ = connection.child.wait();
+            GpuiRemoteGxserverConnectResult::without_connection(
+                GpuiRemoteGxserverConnectState::InstallFailed,
+                GPUI_REMOTE_RUNTIME_BROKEN_MESSAGE,
+            )
+        }
         Ok(mut connection) => {
             connection.this_computer = this_computer;
             GpuiRemoteGxserverConnectResult::connected(connection)
@@ -369,11 +403,20 @@ pub(crate) fn gpui_remote_token_read_failure_message(
     }
 }
 
+/// Printed to stderr by the remote install and by the archive check; never shown as it is.
+pub(crate) const GPUI_REMOTE_PACKAGE_INCOMPLETE_MARKER: &str =
+    "__ghostex_remote_package_incomplete__";
+pub(crate) const GPUI_REMOTE_PACKAGE_INCOMPLETE_MESSAGE: &str = "The gxserver package for that machine is incomplete: zmx, ghostex or gxserver is missing or does not run, so the machine was left as it was. Update or reinstall Ghostex on this computer, then reconnect.";
+pub(crate) const GPUI_REMOTE_RUNTIME_BROKEN_MESSAGE: &str = "gxserver runs on that machine, but its zmx program is missing or broken, so new sessions cannot start.";
+
 pub(crate) fn gpui_remote_sanitized_process_failure(
     default_message: &str,
     result: &GpuiRemoteProcessResult,
 ) -> String {
     let stderr = result.stderr.trim().to_ascii_lowercase();
+    if stderr.contains(GPUI_REMOTE_PACKAGE_INCOMPLETE_MARKER) {
+        return GPUI_REMOTE_PACKAGE_INCOMPLETE_MESSAGE.to_string();
+    }
     if stderr.contains("netcat-openbsd") {
         return "SSH password authentication on Linux requires netcat-openbsd. Install it on this computer, then reconnect.".to_string();
     }
@@ -880,8 +923,37 @@ pub(crate) fn gpui_remote_managed_gxserver_build_identity_command() -> &'static 
         "if [ ! -r \"$GHOSTEX_REMOTE_IDENTITY_FILE\" ]; then exit 3; fi; ",
         "printf '__GHOSTEX_REMOTE_BUILD_IDENTITY_START__\\n'; ",
         "cat \"$GHOSTEX_REMOTE_IDENTITY_FILE\"; ",
-        "printf '\\n__GHOSTEX_REMOTE_BUILD_IDENTITY_END__\\n'"
+        "printf '\\n__GHOSTEX_REMOTE_BUILD_IDENTITY_END__\\n'; ",
+        // `-x` follows links, so a dangling link reads as broken. Printed outside the markers.
+        "GHOSTEX_REMOTE_PACKAGE_DIR=\"$(dirname \"$GHOSTEX_REMOTE_IDENTITY_FILE\")\"; ",
+        "for ghostex_tool in zmx ghostex; do ",
+        "if [ ! -x \"$GHOSTEX_REMOTE_PACKAGE_DIR/bin/$ghostex_tool\" ]; then printf '__GHOSTEX_REMOTE_RUNTIME_BROKEN__\\n'; fi; ",
+        "done"
     )
+}
+
+/// Why an installed Ghostex-managed package has to be installed again on connect.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum GpuiRemoteManagedPackageUpdate {
+    /// Another build than the one this app carries.
+    BuildIdentity,
+    /// Its zmx or ghostex is missing, dangling or not executable, whatever its build.
+    BrokenRuntime,
+}
+
+/// The decision over [`gpui_remote_managed_gxserver_build_identity_command`]'s output and the
+/// identity of the package this app carries, if it carries one.
+pub(crate) fn gpui_remote_managed_package_update_from_probe(
+    stdout: &str,
+    expected_identity: Option<&str>,
+) -> Option<GpuiRemoteManagedPackageUpdate> {
+    if stdout.contains("__GHOSTEX_REMOTE_RUNTIME_BROKEN__") {
+        return Some(GpuiRemoteManagedPackageUpdate::BrokenRuntime);
+    }
+    let expected = expected_identity?;
+    gpui_extract_remote_managed_gxserver_build_identity(stdout)
+        .is_some_and(|identity| identity != expected)
+        .then_some(GpuiRemoteManagedPackageUpdate::BuildIdentity)
 }
 
 pub(crate) fn gpui_extract_remote_managed_gxserver_build_identity(stdout: &str) -> Option<String> {

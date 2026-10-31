@@ -1379,6 +1379,12 @@ stage_tree_if_changed "$GXSERVER_SOURCE_DIR" "$WEB_DIR/gxserver"
 # SEE-ALSO: gpui_upload_install_bundled_remote_gxserver_and_read_token_inner in apps/desktop/src/app/helpers/remote/install.rs, current_cli_executable in server/src/ghostex_cli/launchers.rs.
 ln -sfh gxserver "$WEB_DIR/gxserver/bin/ghostex"
 ln -sfh ../../bin/zmx "$WEB_DIR/gxserver/bin/zmx"
+for linked_tool in ghostex zmx; do
+	if [[ ! -x "$WEB_DIR/gxserver/bin/$linked_tool" ]]; then
+		echo "The gxserver package's bin/$linked_tool link does not resolve inside the bundle." >&2
+		exit 1
+	fi
+done
 if [[ "$GHOSTEX_ON_DEMAND_ASSETS" == "1" ]]; then
 	rm -rf "$WEB_DIR/code-server"
 	rm -f "$WEB_DIR/local-start-code-server-root"

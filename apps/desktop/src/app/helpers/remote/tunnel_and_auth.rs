@@ -258,6 +258,44 @@ pub(crate) fn gpui_remote_gxserver_capabilities_from_health_response(
     GpuiRemoteGxserverCapabilities {
         code_server_prompt_editor: advertises(GPUI_GXSERVER_CODE_SERVER_PROMPT_EDITOR_CAPABILITY),
         browser_tcp_websocket_v1: advertises("browserTcpWebSocketV1"),
+        zmx_missing: value
+            .get("tools")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .any(|tool| {
+                tool.get("tool").and_then(serde_json::Value::as_str) == Some("zmx")
+                    && tool
+                        .get("availability")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|availability| availability != "available")
+            }),
+    }
+}
+
+#[cfg(test)]
+mod zmx_health_tests {
+    use super::gpui_remote_gxserver_capabilities_from_health_response;
+
+    fn capabilities(body: &str) -> crate::app::model::GpuiRemoteGxserverCapabilities {
+        gpui_remote_gxserver_capabilities_from_health_response(&format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        ))
+    }
+
+    #[test]
+    fn a_health_answer_says_when_zmx_cannot_be_resolved() {
+        let tool = |availability: &str| {
+            format!(
+                r#"{{"tools":[{{"tool":"bd","availability":"missing"}},{{"tool":"zmx","availability":"{availability}"}}]}}"#
+            )
+        };
+        assert!(capabilities(&tool("missing")).zmx_missing);
+        // A missing `bd` is the project board's business, not the machine's.
+        assert!(!capabilities(&tool("available")).zmx_missing);
+        // An older daemon's answer says nothing either way.
+        assert!(!capabilities(r#"{"capabilities":[]}"#).zmx_missing);
     }
 }
 

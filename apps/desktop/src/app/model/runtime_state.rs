@@ -55,6 +55,9 @@ response text may be retained here.
 pub(crate) struct GpuiRemoteGxserverCapabilities {
     pub(crate) code_server_prompt_editor: bool,
     pub(crate) browser_tcp_websocket_v1: bool,
+    /// The daemon says it cannot resolve its session host, so no session can start there. An older
+    /// answer without the tool list reads as not missing.
+    pub(crate) zmx_missing: bool,
 }
 
 pub(crate) struct GpuiRemoteGxserverConnection {
