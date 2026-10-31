@@ -6,9 +6,11 @@
 # container (the oldest host the release targets, only the host libraries the
 # AppImage excludelist promises, a virtual X display, no network) and waits for
 # the first window, which offline is "Ghostex Setup" saying the browser
-# runtime could not be downloaded, and checks the window is not blank the way
-# the catalog does (one colour on 95% of it fails). Run it on the architecture
-# of the image.
+# runtime could not be downloaded, and checks the window is not blank. The
+# catalog fails a window of 95% one colour only when it also shows almost no
+# text; the offline window is about 94% one colour with two lines of text, and
+# a window that drew nothing is about 100%, so this fails at 99%. Run it on the
+# architecture of the image.
 # SEE-ALSO: tooling/release-gpui/appimage-bundle-libraries.mjs (what the image bundles).
 #
 # Usage: linux-appimage-smoke.sh <AppImage> [screenshot.png]
@@ -67,10 +69,10 @@ for _ in $(seq 1 90); do
 			import -window "$(echo "$WINDOW" | awk "{ print \$1 }")" /out/screen.png
 			SHARE="$(convert /out/screen.png -alpha off -depth 8 -format "%c" histogram:info:- | sort -rn |
 				awk -v size="$(identify -format "%w %h" /out/screen.png)" "NR == 1 { top = \$1 + 0 } END { split(size, s, \" \"); print int(100 * top / (s[1] * s[2])) }")"
-			[ "$SHARE" -lt 90 ] && break
+			[ "$SHARE" -lt 97 ] && break
 		done
 		echo "Window shown: $WINDOW (${SHARE}% one colour)"
-		[ "$SHARE" -lt 95 ] || { echo "The window looks blank" >&2; exit 1; }
+		[ "$SHARE" -lt 99 ] || { echo "The window looks blank" >&2; exit 1; }
 		test -x "$HOME/.local/share/ghostex/appimage/Ghostex" || { echo "AppRun did not copy the payload" >&2; exit 1; }
 		exit 0
 	fi
