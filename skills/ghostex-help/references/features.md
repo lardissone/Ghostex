@@ -357,7 +357,9 @@ view from the strip.
   A page an agent opens for a project that is not on screen (`ghostex browser open`
   uses the agent's own project) goes to that project's Browser: the project you are
   looking at stays as it is, a notice names the project, and the page is in front
-  when you switch to it.
+  when you switch to it. The agent's browser tools then work in that page: they
+  only use pages of the agent's own project (unless the agent names another page),
+  and switching tabs by hand never moves the agent onto your tab.
   The Browser runs on the web runtime (Chromium), an optional one-time install
   that Ghostex does not need for anything else: until it is installed the
   Browser, the VS Code view, website and extension views, and HTML, drawing and
