@@ -2982,6 +2982,14 @@ start-work <bead-id>`); the session is linked to the card and the card shows
   `bd comment`, move to test or review, and `bd close`.
 - Ask a coordinator agent to "work the high-priority beads on the board" to
   have it pick cards and spawn workers.
+- Blockers: opening a card (or New ticket) shows **Blocked by** (the cards it
+  waits on) and **Blocks** (the cards waiting on it), including the ones an
+  agent set with `bd dep add`. Pick **Blocked by** or **Blocks** under Add,
+  search cards by title or ID and click one to link it; the x removes a link,
+  and clicking a linked card opens it. On an open card each change is saved to
+  Beads at once; on New ticket the links are saved when the card is created. A
+  card can't block itself, and a link that would make cards wait on each other
+  in a loop is refused.
 - When the columns do not fit, the board scrolls sideways: swipe on a trackpad,
   Shift+wheel on a mouse, or drag the bar under the lanes (each lane has its
   own bar for its cards). Dragging a card to the board's left or right edge
