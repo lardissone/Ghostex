@@ -89,6 +89,7 @@ impl GhostexGpuiApp {
             | "requestToolPermissionStatus"
             | "grantToolPermission"
             | "restartSpaceo"
+            | "restartCuaDriver"
             | "runManagedToolTerminalCommand"
             | "runAgentboxTerminalCommand"
             | "setUpAgentboxWithAgent"
