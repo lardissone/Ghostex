@@ -310,7 +310,13 @@ pub(crate) fn to_agent_resume_input(
         .or_else(|| base_command.clone());
     // The workspace's own gh and gws sign-ins (crate::connectors), on this run only.
     let runtime_command = runtime_command.map(|command| {
-        crate::connectors::with_project_cli_env_for_resume(project, agent_id.as_deref(), command)
+        let command = crate::connectors::with_project_cli_env_for_resume(
+            project,
+            agent_id.as_deref(),
+            command,
+        );
+        // Claude's Bypass Permissions warning, consented to for a bypass resume (bypass_consent.rs).
+        super::with_claude_bypass_consent(agent_id.as_deref(), &command)
     });
     let runtime_command = match agent_id.as_deref() {
         Some("dsh") => runtime_command.map(|command| with_dsh_launch_env(&command)),

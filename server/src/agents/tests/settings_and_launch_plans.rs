@@ -204,7 +204,9 @@ fn create_agent_session_params_use_project_agent_config_and_settings() {
     assert_eq!(launch_plan.get("agentCommand"), Some(&json!("claude")));
     assert_eq!(
         launch_plan.get("command"),
-        Some(&json!("claude --dangerously-skip-permissions"))
+        Some(&json!(
+            r#"claude --dangerously-skip-permissions --settings '{"skipDangerousModePermissionPrompt":true}'"#
+        ))
     );
     assert_eq!(
         launch_plan.get("firstUserMessage"),
@@ -254,7 +256,9 @@ fn create_agent_session_params_use_project_agent_config_and_settings() {
             .get("launchSettings")
             .and_then(|value| value.get("agentLaunchPlan"))
             .and_then(|value| value.get("command")),
-        Some(&json!("claude --dangerously-skip-permissions"))
+        Some(&json!(
+            r#"claude --dangerously-skip-permissions --settings '{"skipDangerousModePermissionPrompt":true}'"#
+        ))
     );
 }
 

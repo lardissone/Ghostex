@@ -200,15 +200,20 @@ pub(crate) fn account_usage_notice_suppressed(
 
 /// Store lookup and merge for read/frame paths holding a screen classification.
 /// A notice the cache keeps but no client may see: a usage notice an account
-/// switch is hiding, or a trust prompt on a remembered folder that the
-/// detection funnel is answering itself. The cache keeps it so the send path
+/// switch is hiding, a trust prompt on a remembered folder that the
+/// detection funnel is answering itself, or Claude's Bypass Permissions
+/// warning while Ghostex accepts it (session_chat_claude_bypass_consent.rs). The cache keeps it so the send path
 /// and the queue still treat the screen as blocked until it is gone.
 pub fn session_chat_notice_hidden(
     project_id: &str,
     session_id: &str,
     notice: &SessionChatTerminalNotice,
 ) -> bool {
-    notice.auto_trust || account_usage_notice_suppressed(project_id, session_id, notice)
+    notice.auto_trust
+        || account_usage_notice_suppressed(project_id, session_id, notice)
+        || crate::session_chat_claude_bypass_consent::bypass_consent_being_answered(
+            project_id, session_id, notice,
+        )
 }
 
 pub fn resolve_session_chat_terminal_notice(

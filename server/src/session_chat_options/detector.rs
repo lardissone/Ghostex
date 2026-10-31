@@ -153,6 +153,7 @@ impl SessionChatOptionDetector {
             }
         }
         let mut auto_trust_plan = None;
+        let mut bypass_consent_plan = None;
         let mut feedback_card_plan = None;
         let mut detected = open_gxserver_database(&self.paths)
             .ok()
@@ -171,6 +172,24 @@ impl SessionChatOptionDetector {
                     session_id,
                     detected.notice.as_ref(),
                 );
+                bypass_consent_plan =
+                    crate::session_chat_claude_bypass_consent::notice_may_be_warning(
+                        detected.notice.as_ref(),
+                    )
+                    .then(|| {
+                        repository
+                            .get_session(project_id, session_id)
+                            .ok()
+                            .flatten()
+                    })
+                    .flatten()
+                    .filter(|session| {
+                        crate::session_chat_claude_bypass_consent::funnel_may_answer(
+                            session,
+                            detected.notice.as_ref(),
+                        )
+                    })
+                    .and_then(|session| crate::zmx::provider_zmx_session_name(&session).ok());
                 feedback_card_plan = crate::session_chat_claude_feedback_card::dismiss_plan(
                     &repository,
                     project_id,
@@ -446,6 +465,17 @@ impl SessionChatOptionDetector {
                     agent,
                 );
             }
+        }
+        // Claude's Bypass Permissions warning on a session started in bypass is accepted from here
+        // for the same reason (session_chat_claude_bypass_consent.rs).
+        if let Some(zmx_name) = bypass_consent_plan {
+            crate::session_chat_claude_bypass_consent::dispatch_bypass_consent(
+                self.clone(),
+                project_id,
+                session_id,
+                zmx_name,
+                agent,
+            );
         }
         // Claude's self-drafted feedback card is closed from here for the same reason
         // (session_chat_claude_feedback_card.rs).
