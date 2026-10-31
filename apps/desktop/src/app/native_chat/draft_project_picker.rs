@@ -89,7 +89,7 @@ impl NativeChatView {
             .rounded(px(7.0 * s))
             .border_1()
             .border_color(p.composer_border)
-            .bg(p.composer_background)
+            // Only its border: the worktree tray under it already has the box's fill.
             .text_color(p.primary)
             .when(!busy, |chip| {
                 chip.chat_cursor_pointer()

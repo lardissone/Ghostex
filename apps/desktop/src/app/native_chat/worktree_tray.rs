@@ -25,6 +25,10 @@ const EXISTING_TRIGGER: &str = "chat-worktree-existing";
 const FAILED_COLOR: u32 = 0xef4444;
 /// One segment of the mode control.
 const SEGMENT_WIDTH: f32 = 112.0;
+/// The message box's corner radius (`composer.rs`), which the tray is inset by.
+const COMPOSER_RADIUS: f32 = 22.0;
+/// The gap the composer's footer leaves between the tray and the box (`composer.rs`).
+const FOOTER_GAP: f32 = 8.0;
 
 impl NativeChatView {
     /// A chip that opens one of the tray's menus.
@@ -51,7 +55,6 @@ impl NativeChatView {
             .rounded(px(7.0 * s))
             .border_1()
             .border_color(p.composer_border)
-            .bg(p.composer_background)
             .text_color(p.primary)
             .when(!busy, |chip| {
                 chip.chat_cursor_pointer()
@@ -331,13 +334,22 @@ impl NativeChatView {
                 }
             }
         }
-        // Attached to the box like a tab: inset from its corners, no bottom edge, over its border.
+        /*
+        CDXC:Worktrees 2026-10-31 DECISION:
+        User: "the bar above the composer must be transparent like it". The tray is part of the
+        message box: the box's own fill and border (`composer_background`, which window glass turns
+        into the bubble's wash), never the pane's solid background. It ends exactly on the box's top
+        edge instead of reaching over its border, because two translucent fills stacked there read
+        darker; the box's top border is the seam. It is inset by the box's corner radius so its sides
+        meet the straight part of that edge, and the chips on it draw only their border so they do
+        not stack a second wash on the tray's.
+        */
         Some(
             div()
                 .w_full()
                 .relative()
-                .px(px(14.0 * s))
-                .mb(px(-9.0 * s))
+                .px(px(COMPOSER_RADIUS * s))
+                .mb(px(-FOOTER_GAP * s))
                 .children(self.render_draft_project_picker(p, cx))
                 .child(
                     div()
@@ -349,7 +361,7 @@ impl NativeChatView {
                         .border_1()
                         .border_b_0()
                         .border_color(p.composer_border)
-                        .bg(p.background)
+                        .bg(p.composer_background)
                         .child(row),
                 )
                 .into_any_element(),
