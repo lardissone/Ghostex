@@ -8,9 +8,9 @@ use std::{
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde_json::{Map, Value};
 
+use crate::domain::DomainStateError;
 #[cfg(not(windows))]
 use crate::platform::shell::command_shell;
-use crate::domain::DomainStateError;
 
 use super::config::GXSERVER_AGENT_HOOK_COLOR_DISABLING_ENVIRONMENT_KEYS;
 #[cfg(not(windows))]
