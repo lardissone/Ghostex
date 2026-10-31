@@ -391,7 +391,8 @@ pub(crate) fn read_work_item(
         for attachment in attachments {
             if let Some(url) = attachment.get("url").and_then(Value::as_str) {
                 texts.push(url.to_string());
-                if !is_github_pull_request_url(url) && media_embed(url).is_none() {
+                // The PR itself shows on its own; anything else stays a plain link.
+                if canonical_github_pull_request_url(url).is_none() && media_embed(url).is_none() {
                     links.push(attachment.clone());
                 }
             }
@@ -698,11 +699,11 @@ fn linear_issue_detail_of(identifier: &str, body: &Value) -> Result<Value, Strin
                 .collect()
         })
         .unwrap_or_default();
-    let pull_request_urls: Vec<&str> = attachments
-        .iter()
-        .filter_map(|attachment| attachment.get("url").and_then(Value::as_str))
-        .filter(|url| is_github_pull_request_url(url))
-        .collect();
+    let pull_request_urls = canonical_github_pull_request_urls(
+        attachments
+            .iter()
+            .filter_map(|attachment| attachment.get("url").and_then(Value::as_str)),
+    );
     let comments: Vec<Value> = issue
         .pointer("/comments/nodes")
         .and_then(Value::as_array)

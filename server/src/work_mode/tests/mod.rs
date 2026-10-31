@@ -11,6 +11,7 @@ mod fixtures;
 mod identity;
 mod link_add;
 mod matching;
+mod pull_request_links;
 mod session_work;
 mod tracker_default;
 mod work_list;
