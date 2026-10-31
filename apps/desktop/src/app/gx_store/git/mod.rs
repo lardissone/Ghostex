@@ -7,7 +7,7 @@
 //! the header's Git button or a Git hotkey does; `review.rs` the commit review dialog and its
 //! confirm; `merge.rs` the review's direct merge into main; `prompt_agent.rs` starts the agent a
 //! Git workflow hands its work to; the `worktree_*.rs` files are the Add, Delete and Rename
-//! Worktree dialogs; `export_transcript.rs` is Handoff / Export and `export_handoff_remote.rs` its Handoff to Remote.
+//! Worktree dialogs; `export_transcript.rs` is Handoff / Export and `export_handoff_remote.rs` its Advanced Handoff.
 //!
 //! CDXC:Git 2026-09-25 WHY:
 //! These used to run in the desktop's QuickJS app runtime (`gxserver-runtime/git/`,
@@ -29,6 +29,7 @@ mod poll;
 mod prompt_agent;
 pub(crate) mod review;
 mod scope;
+mod session_handoff;
 mod toasts;
 mod worktree_create;
 mod worktree_delete;
@@ -43,6 +44,7 @@ use ghostex_gx_core::git_menu::{
 };
 
 pub(crate) use export_transcript::{ExportTranscriptHost, HandoffTarget};
+pub(crate) use session_handoff::SessionHandoffRequest;
 pub(crate) use worktree_list::TrustedWorktreeList;
 
 /// Everything this family keeps between calls.

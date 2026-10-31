@@ -24,6 +24,8 @@ mod fold_motion;
 mod hotkey_label;
 #[path = "../app/window/native_modal_kit/mod.rs"]
 mod native_modal_kit;
+#[path = "../app/window/session_handoff_modal.rs"]
+mod session_handoff_modal;
 #[path = "../ui_fonts.rs"]
 mod ui_fonts;
 // DEMO-MODULES: one `#[path]` include per converted modal, plus its demo module under native_modal_demo/.
@@ -266,7 +268,7 @@ fn deliver_export_result(
     });
 }
 
-/// Two connected computers: one with the repository, one without it.
+/// This computer, and two connected ones: one with the repository, one without it.
 fn demo_handoff_computers() -> Vec<ExportTranscriptComputer> {
     let project = |id: &str, title: &str, path: &str, same_repo: bool| ExportTranscriptProject {
         project_id: id.to_string(),
@@ -276,8 +278,20 @@ fn demo_handoff_computers() -> Vec<ExportTranscriptComputer> {
     };
     vec![
         ExportTranscriptComputer {
+            machine_id: "local".to_string(),
+            label: "This computer".to_string(),
+            is_source: true,
+            projects: vec![
+                project("p-acme", "acme-web", "~/dev/acme-web", false),
+                project("p-docs", "gamma-docs", "~/dev/gamma-docs", false),
+            ],
+            preferred_project_id: None,
+            missing_repository: None,
+        },
+        ExportTranscriptComputer {
             machine_id: "machine-studio".to_string(),
             label: "studio-mac".to_string(),
+            is_source: false,
             projects: vec![
                 project("p-ghostex", "Ghostex", "~/dev/Ghostex", true),
                 project("p-site", "website", "~/sites/website", false),
@@ -288,6 +302,7 @@ fn demo_handoff_computers() -> Vec<ExportTranscriptComputer> {
         ExportTranscriptComputer {
             machine_id: "machine-linux".to_string(),
             label: "linux-box".to_string(),
+            is_source: false,
             projects: vec![project("p-notes", "notes", "~/notes", false)],
             preferred_project_id: None,
             missing_repository: Some("ghostex".to_string()),
@@ -295,11 +310,52 @@ fn demo_handoff_computers() -> Vec<ExportTranscriptComputer> {
     ]
 }
 
+/// `GHOSTEX_NATIVE_MODAL_DEMO_STATE=working` shows the message for a session that is still working.
+fn open_session_handoff(demo: &DemoEnv, cx: &mut App) {
+    use session_handoff_modal::*;
+    let agents = ["claude", "codex"]
+        .into_iter()
+        .map(|id| ExportTranscriptAgent {
+            agent_id: id.to_string(),
+            name: {
+                let mut name = id.to_string();
+                name[..1].make_ascii_uppercase();
+                name
+            },
+            family: Some(id.to_string()),
+        })
+        .collect();
+    let config = SessionHandoffModalConfig {
+        project_title: "acme-web".to_string(),
+        agents,
+        default_agent_id: Some("claude".to_string()),
+        working_agent: (demo.state == "working").then(|| "Claude".to_string()),
+        palette: demo.palette,
+    };
+    let host: SessionHandoffModalHost = Rc::new(move |command, cx: &mut App| match command {
+        SessionHandoffModalCommand::Confirm {
+            agent_id,
+            close_source,
+            warned,
+        } => {
+            eprintln!("handoff to {agent_id}: close_source={close_source} warned={warned}");
+            cx.quit();
+        }
+        SessionHandoffModalCommand::Cancel => cx.quit(),
+    });
+    open_modal_window(
+        SESSION_HANDOFF_MODAL_WIDTH,
+        SESSION_HANDOFF_MODAL_INITIAL_HEIGHT,
+        move |window, cx| cx.new(|cx| GpuiSessionHandoffModalWindow::new(config, host, window, cx)),
+        cx,
+    );
+}
+
 fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
     let initial_mode = match env("GHOSTEX_EXPORT_MODAL_DEMO_MODE").as_str() {
         "export" => Some(ExportTranscriptMode::Export),
         "handoff" => Some(ExportTranscriptMode::Handoff),
-        "remote" => Some(ExportTranscriptMode::HandoffRemote),
+        "remote" => Some(ExportTranscriptMode::HandoffAdvanced),
         _ => None,
     };
     let agents = if demo.state == "noagents" {
@@ -408,6 +464,7 @@ fn main() {
             ui_fonts::register(cx);
             match demo.modal.as_str() {
                 "export-transcript" => open_export_transcript(&demo, cx),
+                "session-handoff" => open_session_handoff(&demo, cx),
                 // DEMO-ARMS: one arm per converted modal.
                 "add-project" => add_project_demo::open(&demo, cx),
                 "new-thread-picker" => new_thread_picker_demo::open(&demo, cx),

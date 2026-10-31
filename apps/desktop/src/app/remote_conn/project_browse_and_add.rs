@@ -261,7 +261,7 @@ impl GhostexGpuiApp {
                         Some(machine_id) => gpui_remote_scoped_project_id(machine_id, &project_id),
                         None => project_id,
                     };
-                    // CDXC:TranscriptExport 2026-10-25 WHY: a project added for Handoff to Remote
+                    // CDXC:TranscriptExport 2026-10-25 WHY: a project added for Advanced Handoff
                     // gets the handed-off session; activating it would also start its default one.
                     if !this.git_export_add_project_waiting() {
                         this.dispatch_gpui_menu_bar_project_activation(&scoped_project_id, cx);

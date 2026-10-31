@@ -26,6 +26,7 @@ mod doc_sync;
 mod focus;
 pub mod git_menu;
 pub mod handoff_target;
+pub mod session_handoff;
 pub mod hud;
 pub mod indicators;
 mod keys;
@@ -192,13 +193,15 @@ pub use crate::sidebar_command_run::{
 };
 pub use crate::sidebar_drag::{
     owns_order_write_message, owns_project_move_command, owns_project_order_message,
-    owns_session_drop_command, owns_session_move_command, plan_added_project_placement,
+    check_session_handoff, owns_session_drop_command, owns_session_move_command,
+    plan_added_project_placement,
     plan_added_project_space_membership, plan_order_write, plan_project_move,
     plan_project_order_write, plan_section_move, plan_session_drop, plan_session_move,
     project_body_drop_command, project_drop_command, project_drop_landing,
     sidebar_group_membership, sidebar_project_group_order, AddedProjectPlacement, OrderWrite,
-    OrderWritePlan, ProjectMovePlan, ProjectWrite, SessionDrop, SessionMovePlan,
-    ORDER_WRITE_MESSAGE_TYPES, PROJECT_MOVE_COMMAND_TYPES, PROJECT_ORDER_MESSAGE_TYPE,
+    OrderWritePlan, ProjectMovePlan, ProjectWrite, SessionDrop, SessionHandoffCheck,
+    SessionHandoffDrop, SessionMovePlan, ORDER_WRITE_MESSAGE_TYPES, PROJECT_MOVE_COMMAND_TYPES,
+    PROJECT_ORDER_MESSAGE_TYPE, SESSION_DROP_ZONE_LIST_END,
 };
 pub use crate::sidebar_menu::{
     agent_launcher_items, agent_launcher_items_with_accounts, agent_logo_icons, agent_logo_svg,

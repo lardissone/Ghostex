@@ -29,7 +29,7 @@ impl GhostexGpuiApp {
             palette: self.gpui_native_dialog_palette(),
             clone_job_poll_interval: AddProjectModalConfig::CLONE_JOB_POLL_INTERVAL,
             slow_operation_notice: AddProjectModalConfig::SLOW_OPERATION_NOTICE,
-            // Handoff to Remote's clone of the session's repository (gx_store/git/export_handoff_remote.rs).
+            // Advanced Handoff's clone of the session's repository (gx_store/git/export_handoff_remote.rs).
             initial_clone_url: message
                 .get("cloneUrl")
                 .and_then(serde_json::Value::as_str)
@@ -90,7 +90,7 @@ impl GhostexGpuiApp {
             }
             AddProjectModalCommand::Close => {
                 self.release_native_app_modal_window(kind, cx);
-                // Opened from Handoff to Remote: Handoff / Export comes back now.
+                // Opened from Advanced Handoff: Handoff / Export comes back now.
                 self.git_export_add_project_closed(cx);
             }
         }

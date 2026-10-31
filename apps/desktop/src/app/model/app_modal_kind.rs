@@ -25,6 +25,9 @@ pub(crate) enum GpuiAppModalKind {
     RenameSession,
     SessionNote,
     ExportTranscriptResult,
+    /// The message a session dropped on another project opens. Opened directly by the sidebar's
+    /// drop, never by a bridge message.
+    SessionHandoff,
     ConfigureAgents,
     ConfigureActions,
     OpenTargets,
@@ -85,6 +88,7 @@ impl GpuiAppModalKind {
             "renameSession" => Some(Self::RenameSession),
             "sessionNote" => Some(Self::SessionNote),
             "exportTranscriptResult" => Some(Self::ExportTranscriptResult),
+            "sessionHandoff" => Some(Self::SessionHandoff),
             "configureAgents" => Some(Self::ConfigureAgents),
             "configureActions" => Some(Self::ConfigureActions),
             "openTargets" => Some(Self::OpenTargets),
@@ -133,6 +137,7 @@ impl GpuiAppModalKind {
             Self::RenameSession => "renameSession",
             Self::SessionNote => "sessionNote",
             Self::ExportTranscriptResult => "exportTranscriptResult",
+            Self::SessionHandoff => "sessionHandoff",
             Self::ConfigureAgents => "configureAgents",
             Self::ConfigureActions => "configureActions",
             Self::OpenTargets => "openTargets",
@@ -178,6 +183,7 @@ impl GpuiAppModalKind {
             Self::RenameSession => "Ghostex Rename Session",
             Self::SessionNote => "Ghostex Session Note",
             Self::ExportTranscriptResult => "Ghostex Handoff / Export",
+            Self::SessionHandoff => "Ghostex Handoff",
             Self::ConfigureAgents => "Ghostex Configure Agents",
             Self::ConfigureActions => "Ghostex Actions",
             Self::OpenTargets => "Ghostex Open Targets",
@@ -285,6 +291,10 @@ impl GpuiAppModalKind {
             Self::ExportTranscriptResult => size(
                 px(APP_MODAL_HOST_EXPORT_TRANSCRIPT_RESULT_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_EXPORT_TRANSCRIPT_RESULT_WINDOW_HEIGHT),
+            ),
+            Self::SessionHandoff => size(
+                px(crate::app::window::SESSION_HANDOFF_MODAL_WIDTH),
+                px(crate::app::window::SESSION_HANDOFF_MODAL_INITIAL_HEIGHT),
             ),
             Self::MissingProjectFolder => size(
                 px(APP_MODAL_HOST_MISSING_PROJECT_FOLDER_WINDOW_WIDTH),
@@ -541,6 +551,7 @@ impl GpuiAppModalKind {
             | Self::RenameWorktree
             | Self::SidebarSpaceEditor
             | Self::ExportTranscriptResult
+            | Self::SessionHandoff
             | Self::MissingProjectFolder => serde_json::json!({
                 "modal": self.modal_id(),
                 "type": "open",

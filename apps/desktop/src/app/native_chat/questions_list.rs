@@ -156,29 +156,29 @@ pub(super) fn questions_menu_height(open: &Value, list: &QuestionList) -> Option
     // Each group's own "Show more" row sits under its rows while the core cut some, and a folded
     // group shows none.
     let rows: f32 = sections
-            .iter()
-            .map(|section| {
-                let shown = if list.folded(&text(section, "id")) {
-                    0
-                } else {
-                    section["rows"].as_array().map_or(0, Vec::len)
-                };
-                // A group with no title (Earlier, alone) has no header line.
-                let header = if text(section, "title").is_empty() {
-                    0.0
-                } else {
-                    SECTION_HEIGHT
-                };
-                let more = if !list.folded(&text(section, "id"))
-                    && section["remaining"].as_u64().unwrap_or(0) > 0
-                {
-                    ROW_HEIGHT
-                } else {
-                    0.0
-                };
-                more + header + shown as f32 * ROW_HEIGHT
-            })
-            .sum::<f32>();
+        .iter()
+        .map(|section| {
+            let shown = if list.folded(&text(section, "id")) {
+                0
+            } else {
+                section["rows"].as_array().map_or(0, Vec::len)
+            };
+            // A group with no title (Earlier, alone) has no header line.
+            let header = if text(section, "title").is_empty() {
+                0.0
+            } else {
+                SECTION_HEIGHT
+            };
+            let more = if !list.folded(&text(section, "id"))
+                && section["remaining"].as_u64().unwrap_or(0) > 0
+            {
+                ROW_HEIGHT
+            } else {
+                0.0
+            };
+            more + header + shown as f32 * ROW_HEIGHT
+        })
+        .sum::<f32>();
     Some(
         super::chat_pills::MENU_HEADER_HEIGHT
             + super::chat_pills::MENU_SECTION_GAP
@@ -480,7 +480,9 @@ impl NativeChatView {
     ) -> AnyElement {
         let s = p.scale;
         div()
-            .id(SharedString::from(format!("chat-questions-show-more:{group}")))
+            .id(SharedString::from(format!(
+                "chat-questions-show-more:{group}"
+            )))
             .role(gpui::Role::Button)
             .aria_label(format!("Show more, {remaining} left"))
             .flex_shrink_0()
@@ -875,7 +877,10 @@ mod tests {
         let plain = json!({"total": 31, "sections": [whole, other.clone()]});
         let with_more = json!({"total": 31, "sections": [cut.clone(), other]});
         let base = questions_menu_height(&plain, &list).unwrap();
-        assert_eq!(questions_menu_height(&with_more, &list).unwrap(), base + ROW_HEIGHT);
+        assert_eq!(
+            questions_menu_height(&with_more, &list).unwrap(),
+            base + ROW_HEIGHT
+        );
         // Folded: the group's rows and its Show more both go (the 401 under another group).
         list.toggled.insert("pages".to_string());
         let folded = questions_menu_height(&with_more, &list).unwrap();

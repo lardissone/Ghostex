@@ -1,4 +1,4 @@
-//! Handoff to Remote: which of another computer's projects a handed-off session should land in,
+//! Advanced Handoff: which of another computer's projects a handed-off session should land in,
 //! and what the dialog says when the two checkouts are on different branches.
 //!
 //! CDXC:TranscriptExport 2026-10-25 DECISION:
@@ -32,6 +32,43 @@ pub struct HandoffProjectChoice {
 pub struct HandoffProjectRanking {
     pub choices: Vec<HandoffProjectChoice>,
     pub preferred_project_id: Option<String>,
+}
+
+/// One computer's rows for Advanced Handoff, and the repository it lacks.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HandoffComputerRanking {
+    pub ranking: HandoffProjectRanking,
+    /// The repository's name when the session's project has a git remote that no project on this
+    /// computer matches: the dialog then offers to clone it there.
+    pub missing_repository: Option<String>,
+}
+
+/// Ranks a computer's projects for a session. `own_project` is the session's project when this is
+/// the session's own computer: a handoff there goes to ANOTHER project, so it is not a choice, and
+/// that computer never lacks the repository, whatever its other projects hold.
+///
+/// CDXC:TranscriptExport 2026-10-31 DECISION:
+/// User (Q865): "we should just be able to handoff to another project in the same machine using the 'handoff to remote' option". See `ExportTranscriptMode::HandoffAdvanced`.
+pub fn rank_handoff_computer(
+    origin_url: Option<&str>,
+    source_path: Option<&str>,
+    candidates: &[HandoffProjectCandidate],
+    own_project: Option<&str>,
+) -> HandoffComputerRanking {
+    let offered: Vec<HandoffProjectCandidate> = candidates
+        .iter()
+        .filter(|candidate| own_project != Some(candidate.project_id.as_str()))
+        .cloned()
+        .collect();
+    let ranking = rank_handoff_projects(origin_url, source_path, &offered);
+    let missing_repository = match (&ranking.preferred_project_id, own_project) {
+        (None, None) => origin_url.and_then(repository_display_name),
+        _ => None,
+    };
+    HandoffComputerRanking {
+        ranking,
+        missing_repository,
+    }
 }
 
 /// A git remote URL reduced to `host/owner/repo`, lowercased, so the https, ssh and scp forms of
@@ -273,5 +310,51 @@ mod tests {
         );
         assert_eq!(branch_difference_line(None, Some("main"), "m"), None);
         assert_eq!(branch_difference_line(Some("main"), Some(" "), "m"), None);
+    }
+
+    #[test]
+    fn the_sessions_own_computer_offers_its_other_projects() {
+        let origin = Some("git@github.com:o/ghostex.git");
+        let candidates = [
+            candidate("own", "/dev/ghostex", origin, false),
+            candidate(
+                "acme",
+                "/dev/acme",
+                Some("git@github.com:o/acme.git"),
+                false,
+            ),
+            candidate("docs", "/dev/docs", None, false),
+        ];
+        let own = rank_handoff_computer(origin, Some("/dev/ghostex"), &candidates, Some("own"));
+        let ids: Vec<&str> = own
+            .ranking
+            .choices
+            .iter()
+            .map(|choice| choice.project_id.as_str())
+            .collect();
+        assert_eq!(ids, ["acme", "docs"]);
+        // Nothing to preselect, and no offer to clone a repository this computer already has.
+        assert_eq!(own.ranking.preferred_project_id, None);
+        assert_eq!(own.missing_repository, None);
+    }
+
+    #[test]
+    fn a_second_checkout_on_the_sessions_own_computer_is_preselected() {
+        let origin = Some("git@github.com:o/ghostex.git");
+        let candidates = [
+            candidate("own", "/dev/ghostex", origin, false),
+            candidate("other", "/dev/other-ghostex", origin, false),
+        ];
+        let own = rank_handoff_computer(origin, Some("/dev/ghostex"), &candidates, Some("own"));
+        assert_eq!(own.ranking.preferred_project_id.as_deref(), Some("other"));
+    }
+
+    #[test]
+    fn another_computer_keeps_every_project_and_can_lack_the_repository() {
+        let origin = Some("git@github.com:o/ghostex.git");
+        let candidates = [candidate("notes", "/n/notes", None, false)];
+        let other = rank_handoff_computer(origin, Some("/dev/ghostex"), &candidates, None);
+        assert_eq!(other.ranking.choices.len(), 1);
+        assert_eq!(other.missing_repository.as_deref(), Some("ghostex"));
     }
 }
