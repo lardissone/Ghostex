@@ -152,7 +152,7 @@ pub(super) fn tooltip_with_gap(card: AnyView, top: f32, bottom: f32, cx: &mut Ap
 }
 
 /// A line's width in the UI font at `size`.
-fn text_width(window: &Window, text: &str, size: f32) -> f32 {
+pub(super) fn text_width(window: &Window, text: &str, size: f32) -> f32 {
     let run = gpui::TextRun {
         len: text.len(),
         font: gpui::font(crate::ui_fonts::UI_FONT),

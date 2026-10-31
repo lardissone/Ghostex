@@ -45,6 +45,7 @@ impl GhostexGpuiApp {
         &self,
         snapshot: &NativeSidebarSnapshot,
         appearance: &SidebarAppearance,
+        window: &gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
@@ -89,7 +90,7 @@ impl GhostexGpuiApp {
             .collect();
         let more_owner = super::menus::MenuOwner::default();
         v_flex().w_full().flex_shrink_0()
-            .children(self.render_native_machine_tabs(snapshot, appearance, cx))
+            .children(self.render_native_machine_tabs(snapshot, appearance, window, cx))
             .child(div().h(px(13.0 * scale)).flex_shrink_0())
             // CDXC:Spaces 2026-10-11 DECISION: User: Create a space fits its content, and the Spaces row stays centred with no background behind it (a left-aligned row in a rounded track was tried and removed the same day). The workspace tile left the row for the sidebar's bottom bar (workspace_tile.rs).
             .when(snapshot.spaces_enabled, |column| column.child(h_flex().id("native-sidebar-space-track").sidebar_drop_target("space-row", String::new(), None, cx).w_full().h(px(40.0 * scale)).pb(px(12.0 * scale)).px(px(6.5 * scale)).justify_center().gap(px(4.0 * scale))

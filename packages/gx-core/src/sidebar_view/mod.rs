@@ -22,6 +22,7 @@ mod links;
 mod machine_connection;
 pub(crate) mod machine_spaces;
 mod machine_switch;
+mod machine_tab_layout;
 mod machines;
 pub(crate) mod membership;
 mod model;
@@ -89,6 +90,9 @@ pub use reveal::{reveal_plan, space_for_focused_row, FocusedRowSpace, SidebarRev
 pub use session_slot::{rendered_session_ids, session_slot_plan, SessionSlotPlan};
 pub use slot_hotkey::{project_slot_plan, ProjectSlotPlan};
 pub use space_landing::space_landing_project_ids;
+pub use machine_tab_layout::{
+    machine_tab_layout, machine_tab_reveal_offset, machine_tabs_out_of_view, MachineTabLayout,
+};
 pub use space_sleep::{plan_space_sleep, SpaceSleepPlan, SpaceSleepPlans, SpaceSleepScope};
 pub use space_switch::{
     plan_space_switch_restore, plan_workspace_switch_restore, SpaceSwitchFocus,

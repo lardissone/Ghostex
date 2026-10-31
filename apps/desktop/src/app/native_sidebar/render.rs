@@ -159,7 +159,7 @@ impl GhostexGpuiApp {
             .child(self.render_native_sidebar_navigation(&appearance, false, usage_meter_count, cx))
             .child(match unified_header {
                 Some(header) => header,
-                None => self.render_native_sidebar_selectors(&snapshot, &appearance, cx),
+                None => self.render_native_sidebar_selectors(&snapshot, &appearance, window, cx),
             })
             /*
             The list and its bottom fade ramp are one child on purpose: the
