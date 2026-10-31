@@ -64,9 +64,22 @@ fn gpui_remote_gxserver_post_typed_operation_once(
         .map_err(|_| "Could not send remote gxserver request.".to_string())?;
 
     let mut response = String::new();
-    stream
-        .read_to_string(&mut response)
-        .map_err(|_| "Could not read remote gxserver response.".to_string())?;
+    stream.read_to_string(&mut response).map_err(|error| {
+        // Say which layer failed (GitHub #361): silence past the timeout is a slow link, not a
+        // broken tunnel, and the chat treats both as "not answering" and retries.
+        if matches!(
+            error.kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+        ) {
+            "Remote gxserver did not answer in time over a slow connection.".to_string()
+        } else {
+            "Could not read remote gxserver response.".to_string()
+        }
+    })?;
+    if !response.is_empty() {
+        // Any answer through the tunnel proves it to the watchdog (tunnel_liveness.rs).
+        gpui_remote_tunnel_note_answer(target.local_port);
+    }
     let (headers, body) = response
         .split_once("\r\n\r\n")
         .ok_or_else(|| "Remote gxserver returned an invalid HTTP response.".to_string())?;

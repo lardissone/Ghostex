@@ -92,6 +92,36 @@ fn defaults() -> Vec<HoverButton> {
     .collect()
 }
 
+/// The Unified sidebar's strip until the user changes it: Snooze, Park and Close always show on
+/// hover, and the chevron brings out Tag and Sleep.
+///
+/// CDXC:Sidebar 2026-10-31 DECISION:
+/// User (Q846, issue #359): "if i expand my strip then it's expanded for all session cards so snooze/park can be 1 click. i think let's save different strip for unified vs project sidebar. we show the strip related to the currently active sidebar in the settings. and we have a button that allows copying from the other view (just icon button pls with tooltip)". Each sidebar keeps its own strip: `sessionCardHoverButtons` stays the Project sidebar's, untouched for existing users, and `unifiedSessionCardHoverButtons` is the Unified sidebar's. The Unified default keeps the user's earlier Snooze and Park request one click away by putting them right of the chevron, beside Close. SEE-ALSO: `DEFAULT_UNIFIED_SESSION_CARD_HOVER_BUTTONS` in the settings catalog.
+pub fn unified_default_hover_buttons() -> Value {
+    let entry = |id: &str, enabled: bool| serde_json::json!({ "id": id, "enabled": enabled });
+    Value::Array(vec![
+        entry("rename", false),
+        entry("pin", false),
+        entry("note", false),
+        entry("closeAfterDone", false),
+        entry("tag", true),
+        entry("sleep", true),
+        entry(CHEVRON_ID, true),
+        entry("snooze", true),
+        entry("park", true),
+        entry("close", true),
+    ])
+}
+
+/// The strip the Unified sidebar's cards use: the user's, or the default until they change it.
+pub fn unified_hover_buttons(settings: &crate::sidebar_view::SidebarSettings) -> Value {
+    if settings.unified_card_hover_buttons.is_null() {
+        unified_default_hover_buttons()
+    } else {
+        settings.unified_card_hover_buttons.clone()
+    }
+}
+
 /// The strip as the user ordered it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HoverStrip {
@@ -239,7 +269,18 @@ pub fn hover_slots(before: usize, chevron: bool, after: usize, expanded: bool) -
 
 #[cfg(test)]
 mod slot_tests {
-    use super::{hover_slots, HoverSlot};
+    use super::{hover_slots, hover_strip, unified_default_hover_buttons, HoverAction, HoverSlot};
+
+    #[test]
+    fn the_unified_default_keeps_snooze_and_park_one_click_away() {
+        let strip = hover_strip(&unified_default_hover_buttons());
+        assert_eq!(strip.before, [HoverAction::Tag, HoverAction::Sleep]);
+        assert_eq!(
+            strip.after,
+            [HoverAction::Snooze, HoverAction::Park, HoverAction::Close]
+        );
+        assert!(strip.chevron);
+    }
 
     #[test]
     fn no_buttons_leaves_the_strip_empty() {

@@ -149,6 +149,8 @@ pub(super) const RENDERER_COMMAND_ACTIONS: &[&str] = &[
     "focusGroup",
     "focusSession",
     "fullReloadSession",
+    // `ghostex browser mcp` asks which pages are its project's (apps/desktop/src/app/browser_agent_pages.rs).
+    "listBrowserPages",
     "moveProject",
     "openBrowser",
     "openBrowserPane",

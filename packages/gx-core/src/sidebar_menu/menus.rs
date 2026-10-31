@@ -264,6 +264,21 @@ impl<'a> SidebarMenus<'a> {
         ))
     }
 
+    /// The submenu of one of a row's actions whatever the hover strip shows
+    /// (`session::session_action_submenu`). `None` when the list does not draw the row.
+    pub fn row_action_submenu(
+        &self,
+        sidebar_session_id: &str,
+        action: HoverAction,
+    ) -> Option<Vec<MenuItem>> {
+        let (group, session) = self.find_row(sidebar_session_id)?;
+        let menu_group = self.menu_group(group);
+        Some(session::session_action_submenu(
+            &self.session_input(&menu_group, &session.row, &[], None),
+            action,
+        ))
+    }
+
     /// The menu a multi-selection carries, or `None` below two selected rows.
     pub fn bulk_menu(&self) -> Option<Vec<MenuItem>> {
         let selected: Vec<&SessionRow> = self

@@ -17,6 +17,8 @@ pub(super) struct McpServerOptions {
     pub(super) port: Option<u64>,
     pub(super) target: Option<String>,
     pub(super) timeout_ms: u64,
+    /// Whose pages the tools drive by default (agent_pages.rs).
+    pub(super) scope: AgentScope,
 }
 
 pub(super) struct McpState {
@@ -126,7 +128,7 @@ pub(super) fn handle_browser_mcp_message(message: &Value, state: &mut McpState) 
 
 pub(super) fn browser_mcp_tools() -> Value {
     let page_selector_properties = json!({
-        "pageId": { "description": "CDP target id. Defaults to the selected page, then the first Ghostex CEF page.", "type": "string" },
+        "pageId": { "description": "CDP target id. Defaults to the selected page, then this agent's own Browser page (the one it opened with `ghostex browser open`, else its project's front page); pages of other projects are used only when named here.", "type": "string" },
         "titleContains": { "description": "Select a page whose title contains this text.", "type": "string" },
         "urlContains": { "description": "Select a page whose URL contains this text.", "type": "string" },
     });
@@ -145,7 +147,7 @@ pub(super) fn browser_mcp_tools() -> Value {
     json!([
         {
             "name": "ghostex_list_pages",
-            "description": "List embedded Ghostex CEF pages available over the local DevTools endpoint.",
+            "description": "List this agent's project's Browser pages (with the one it opened marked agentPage) available over the local DevTools endpoint.",
             "inputSchema": { "type": "object", "properties": {} },
         },
         {

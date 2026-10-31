@@ -1,5 +1,5 @@
-//! Handoff to Remote: Handoff / Export's third mode, which starts the follow-up session on
-//! another computer, in a project there.
+//! Advanced Handoff: Handoff / Export's second mode, which starts the follow-up session in another
+//! project, on this computer or another one.
 //!
 //! The transcript is written where the session runs (that computer's gxserver), its text comes
 //! back with the export (`includeMarkdown`), and this app saves it on the target computer
@@ -10,7 +10,7 @@
 //!
 //! CDXC:TranscriptExport 2026-10-25 DECISION:
 //! User (Q546): only the transcript travels for now; (Q548): the old session is kept as it is, with no option to sleep it.
-//! TODO(Handoff to Remote): carry the chat's attached images and files to the target computer too, next to the transcript, with its links pointing at the copies (user, Q546: "later").
+//! TODO(Advanced Handoff): carry the chat's attached images and files to the target computer too, next to the transcript, with its links pointing at the copies (user, Q546: "later").
 //!
 //! SEE-ALSO: apps/desktop/src/app/window/export_transcript_modal.rs (the dialog),
 //! packages/gx-core/src/handoff_target.rs (project ranking and the branch notice),
@@ -20,7 +20,7 @@
 use base64::Engine as _;
 use ghostex_gx_core::git_menu::GitToastLevel;
 use ghostex_gx_core::handoff_target::{
-    HandoffProjectCandidate, branch_difference_line, rank_handoff_projects, repository_display_name,
+    HandoffComputerRanking, HandoffProjectCandidate, branch_difference_line, rank_handoff_computer,
 };
 use ghostex_gx_core::{MachineId, ProjectKey};
 use serde_json::{Value, json};
@@ -40,7 +40,7 @@ const LOCAL_MACHINE_ID: &str = "local";
 /// `saveSessionChatAttachment`'s own limit (`SESSION_CHAT_ATTACHMENT_MAX_BYTES`).
 const ATTACHMENT_MAX_BYTES: usize = 32 * 1024 * 1024;
 
-/// A project Add Project registered while Handoff to Remote waited on it.
+/// A project Add Project registered while Advanced Handoff waited on it.
 #[derive(Clone, Debug)]
 pub(crate) struct AddedProject {
     project_id: String,
@@ -48,7 +48,7 @@ pub(crate) struct AddedProject {
     path: Option<String>,
 }
 
-/// Add Project opened from Handoff to Remote.
+/// Add Project opened from Advanced Handoff.
 #[derive(Clone, Debug)]
 pub(crate) struct HandoffAddProject {
     machine_id: String,
@@ -106,16 +106,16 @@ impl GhostexGpuiApp {
         )
     }
 
-    /// The computers Handoff to Remote offers: every connected one but the session's own, each
-    /// with its projects ranked for this session.
+    /// The computers Advanced Handoff offers: the session's own first, with its other projects,
+    /// then every other connected one, each with its projects ranked for this session.
     pub(crate) fn git_export_handoff_computers(&self) -> Vec<ExportTranscriptComputer> {
-        let Some(source) = self
+        let Some(source_project) = self
             .gx_store
             .git
             .export
             .request
             .as_ref()
-            .map(|request| request.session.machine.clone())
+            .map(|request| request.session.project_key())
         else {
             return Vec::new();
         };
@@ -129,16 +129,17 @@ impl GhostexGpuiApp {
             .and_then(|add| Some((add.machine_id.clone(), add.added.clone()?)));
         let presentation = self.gx_store.core.presentation();
         let options = self.gpui_add_project_dialog_machine_options();
-        options
+        let mut computers: Vec<ExportTranscriptComputer> = options
             .as_array()
             .into_iter()
             .flatten()
             .filter_map(|option| {
                 let machine_id = text(option, "machineId")?;
                 let machine = machine_key(&machine_id);
-                if machine == source || self.git_export_remote_for(&machine).is_none() {
+                if self.git_export_remote_for(&machine).is_none() {
                     return None;
                 }
+                let is_source = machine == source_project.machine;
                 let loaded = match &machine {
                     MachineId::Local => presentation.loaded(&machine),
                     MachineId::Remote(_) => presentation.loaded_live(&machine),
@@ -176,15 +177,19 @@ impl GhostexGpuiApp {
                         is_worktree: false,
                     });
                 }
-                let ranking =
-                    rank_handoff_projects(origin.as_deref(), source_path.as_deref(), &candidates);
-                let missing_repository = match ranking.preferred_project_id {
-                    Some(_) => None,
-                    None => origin.as_deref().and_then(repository_display_name),
-                };
+                let HandoffComputerRanking {
+                    ranking,
+                    missing_repository,
+                } = rank_handoff_computer(
+                    origin.as_deref(),
+                    source_path.as_deref(),
+                    &candidates,
+                    is_source.then_some(source_project.project_id.as_str()),
+                );
                 Some(ExportTranscriptComputer {
                     label: text(option, "label").unwrap_or_else(|| machine_id.clone()),
                     machine_id,
+                    is_source,
                     projects: ranking
                         .choices
                         .into_iter()
@@ -199,7 +204,9 @@ impl GhostexGpuiApp {
                     missing_repository,
                 })
             })
-            .collect()
+            .collect();
+        computers.sort_by_key(|computer| !computer.is_source);
+        computers
     }
 
     /// Reads both checkouts' branches and gives the dialog the notice's first line (Q545).
@@ -218,10 +225,23 @@ impl GhostexGpuiApp {
         ) else {
             return;
         };
-        let label = self
+        let computer = self
             .git_export_handoff_computers()
             .into_iter()
-            .find(|computer| computer.machine_id == target.machine_id)
+            .find(|computer| computer.machine_id == target.machine_id);
+        // Another repository on the session's own computer has no branch to compare with: only a
+        // second checkout of this repository does.
+        if computer.as_ref().is_some_and(|computer| {
+            computer.is_source
+                && !computer
+                    .projects
+                    .iter()
+                    .any(|project| project.project_id == target.project_id && project.same_repo)
+        }) {
+            self.push_gpui_export_transcript_branch_notice(target, None, cx);
+            return;
+        }
+        let label = computer
             .map(|computer| computer.label)
             .unwrap_or_else(|| target.machine_id.clone());
         let source_project = request.session.project_id.clone();
@@ -273,7 +293,7 @@ impl GhostexGpuiApp {
         self.open_gpui_add_project_modal(&message, cx);
     }
 
-    /// Add Project is open for Handoff to Remote: the project it registers is not activated (the
+    /// Add Project is open for Advanced Handoff: the project it registers is not activated (the
     /// handoff opens its own session there).
     pub(crate) fn git_export_add_project_waiting(&self) -> bool {
         self.gx_store
@@ -284,7 +304,7 @@ impl GhostexGpuiApp {
             .is_some_and(|add| add.waiting)
     }
 
-    /// Add Project's `add` answer while Handoff to Remote waits on it.
+    /// Add Project's `add` answer while Advanced Handoff waits on it.
     pub(crate) fn git_export_note_added_project(&mut self, machine_id: &str, answer: &Value) {
         let Some(add) = self
             .gx_store
@@ -314,7 +334,7 @@ impl GhostexGpuiApp {
         });
     }
 
-    /// Add Project closed: Handoff / Export comes back on Handoff to Remote, as the user left it,
+    /// Add Project closed: Handoff / Export comes back on Advanced Handoff, as the user left it,
     /// with the new project picked when one was added (cloned or opened).
     pub(crate) fn git_export_add_project_closed(&mut self, cx: &mut gpui::Context<Self>) {
         let host = &mut self.gx_store.git.export;
@@ -340,8 +360,8 @@ impl GhostexGpuiApp {
         self.open_app_modal_from_bridge(open_message, cx);
     }
 
-    /// Start for Handoff to Remote: save the transcript on the target computer, then start the
-    /// session in the picked project there.
+    /// Start for Advanced Handoff: on the session's own computer the transcript is already there;
+    /// on another one it is saved there first. Then the session starts in the picked project.
     pub(super) fn git_start_remote_handoff(
         &mut self,
         request_id: &str,
@@ -371,6 +391,18 @@ impl GhostexGpuiApp {
         let Some(remote) = self.git_export_remote_for(&key.machine) else {
             return fail(self, "That computer is not connected.".to_string(), cx);
         };
+        if key.machine == exported.project.machine {
+            let Ok(scope) = self.git_scope_for_key(key) else {
+                return self.git_toast(
+                    GitToastLevel::Error,
+                    "Could not start the conversation",
+                    ToastOptions::described("That project is no longer available."),
+                    cx,
+                );
+            };
+            let path = exported.path.clone();
+            return self.git_launch_handoff(&scope, agent, &exported, &path, cx);
+        }
         let Some(markdown) = exported.markdown.clone() else {
             return fail(
                 self,

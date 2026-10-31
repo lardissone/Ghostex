@@ -392,7 +392,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             demo.palette
         },
         clone_job_poll_interval: AddProjectModalConfig::CLONE_JOB_POLL_INTERVAL,
-        // GHOSTEX_ADD_PROJECT_DEMO_CLONE_URL opens on the clone destination step, as Handoff to Remote does.
+        // GHOSTEX_ADD_PROJECT_DEMO_CLONE_URL opens on the clone destination step, as Advanced Handoff does.
         initial_clone_url: std::env::var("GHOSTEX_ADD_PROJECT_DEMO_CLONE_URL")
             .ok()
             .filter(|url| !url.trim().is_empty()),

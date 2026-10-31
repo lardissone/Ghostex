@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::keys::MachineId;
-use crate::sidebar_view::ordering::{is_grouped_working, session_is_snoozed};
+use crate::sidebar_view::ordering::session_is_snoozed;
 use crate::sidebar_view::spaces::space_claims_project;
 use crate::sidebar_view::{
     GroupView, SessionRow, SessionView, SidebarView, SpacesState, LOCAL_MACHINE_ID, OTHER_SPACE_ID,
@@ -25,8 +25,8 @@ pub struct UnifiedMachineInput<'a> {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UnifiedSettings {
-    /// `groupWorkingSessions`: working rows fold into the Working shelf.
-    pub group_working_sessions: bool,
+    /// `unifiedWorkingSection`: working rows fold into the Working shelf.
+    pub working_section: bool,
     /// `enableSessionParking`: parked rows sit in the Parked shelf.
     pub enable_session_parking: bool,
 }
@@ -41,11 +41,39 @@ pub struct UnifiedFilter {
     pub machines: BTreeSet<String>,
     /// [`space_filter_key`]s.
     pub spaces: BTreeSet<String>,
+    /// What is typed in the header's search field. It narrows with the rest but is no pick of the
+    /// filter menu, and it is not kept across restarts.
+    pub query: String,
 }
 
 impl UnifiedFilter {
+    /// No pick of the filter menu is set; the search field is separate.
     pub fn is_empty(&self) -> bool {
         self.repos.is_empty() && self.machines.is_empty() && self.spaces.is_empty()
+    }
+
+    /// Nothing narrows the list at all.
+    pub fn keeps_everything(&self) -> bool {
+        self.is_empty() && self.query.trim().is_empty()
+    }
+
+    /// The picks that still name a choice. A restored filter can name a project that is hidden now
+    /// or a machine that is away, which would leave an empty list with nothing ticked to clear; it
+    /// stays saved, so it is back when they are.
+    pub fn within(&self, options: &UnifiedFilterOptions) -> Self {
+        let kept = |picks: &BTreeSet<String>, options: &[UnifiedFilterOption]| {
+            picks
+                .iter()
+                .filter(|pick| options.iter().any(|option| option.key == **pick))
+                .cloned()
+                .collect()
+        };
+        Self {
+            repos: kept(&self.repos, &options.repos),
+            machines: kept(&self.machines, &options.machines),
+            spaces: kept(&self.spaces, &options.spaces),
+            query: self.query.clone(),
+        }
     }
 
     fn keeps(&self, row: &UnifiedRow) -> bool {
@@ -56,12 +84,35 @@ impl UnifiedFilter {
                     .space_key
                     .as_ref()
                     .is_some_and(|key| self.spaces.contains(key)))
+            && query_matches(&self.query, row)
     }
+}
+
+/// Whether every word typed in the search field is in a row's title, project, branch or machine.
+///
+/// CDXC:Sidebar 2026-10-31 DECISION:
+/// User (Q854, "field in header"): a search field always in the Unified header types into the list itself: the title, the project and the branch, for a reporter with a hundred projects who could not find one in the filter menu. Each word has to match somewhere, in any order and any case, so "acme fix" finds the acme session whose title says fix. The machine's name counts too, so "studio" narrows to that computer. Searching runs after the filter menu's picks and over every shelf, so a snoozed session is findable.
+fn query_matches(query: &str, row: &UnifiedRow) -> bool {
+    let words = query.split_whitespace().map(str::to_lowercase);
+    let session = &row.session.row;
+    let branch = session.menu_facts.branch.as_deref().unwrap_or_default();
+    let machine = row.machine_label.as_deref().unwrap_or_default();
+    let haystack = [
+        session.display_title.as_str(),
+        row.repo.label.as_str(),
+        branch,
+        machine,
+    ]
+    .join("\n")
+    .to_lowercase();
+    words.into_iter().all(|word| haystack.contains(&word))
 }
 
 /// Where a row sits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum UnifiedShelf {
+    /// Sessions nobody has sent a message to yet ([`is_unified_draft`]).
+    Drafts,
     Pinned,
     Active,
     Working,
@@ -151,6 +202,7 @@ pub struct UnifiedFilterOptions {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct UnifiedSidebarView {
+    pub drafts: Vec<UnifiedRow>,
     pub pinned: Vec<UnifiedRow>,
     pub active: Vec<UnifiedRow>,
     pub working: Vec<UnifiedRow>,
@@ -163,7 +215,8 @@ pub struct UnifiedSidebarView {
 
 impl UnifiedSidebarView {
     pub fn is_empty(&self) -> bool {
-        self.pinned.is_empty()
+        self.drafts.is_empty()
+            && self.pinned.is_empty()
             && self.active.is_empty()
             && self.working.is_empty()
             && self.snoozed.is_empty()
@@ -186,7 +239,7 @@ pub fn space_filter_key(machine: &MachineId, space_id: &str) -> String {
     format!("{}|{space_id}", machine_key(machine))
 }
 
-fn machine_key(machine: &MachineId) -> &str {
+pub(super) fn machine_key(machine: &MachineId) -> &str {
     machine.remote_id().unwrap_or(LOCAL_MACHINE_ID)
 }
 
@@ -206,11 +259,31 @@ pub fn came_back_ms(row: &SessionRow) -> i64 {
     created.max(moment.unwrap_or(0))
 }
 
+/// Whether a row is a draft card: a session nobody has sent a message to yet (gxserver's
+/// `draftStatus`, the pencil on its row), whether or not its chat box holds text.
+///
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User: "when a session is like this one in the unified sidebar then it should be placed in a new area at the top of the sidebar called "Drafts"", pointing at an empty pencil card ("Claude Session"; a draft holding text is retitled from that text, so that card had none). Every never-sent session is a draft card, typed into or not, unlike the Project sidebar's Drafts section, which holds only drafts with text (CDXC:Drafts 2026-09-15 in sidebar_view/ordering.rs). The Drafts shelf sits at the very top, above Pinned, open, newest first, and is left out when empty. A pinned, snoozed or parked draft stays in its own place, as in the Project sidebar. The first message sent clears the marker and the session joins the list by the usual order; typing alone never moves a card.
+pub fn is_unified_draft(row: &SessionRow) -> bool {
+    row.is_draft
+}
+
 /// The shelf of a row.
 ///
 /// CDXC:Sidebar 2026-10-30 DECISION:
-/// User (Q791, Q792): working sessions fold into a Working shelf at the bottom only while Group working sessions is on (the session you have open stays in the list, as in the classic sidebar), and parking stays manual: the Parked shelf is the classic Parked section, so it follows Enable session parking.
-pub fn unified_shelf(row: &SessionView, settings: UnifiedSettings, now_ms: u64) -> UnifiedShelf {
+/// User (Q791, Q792): working sessions fold into a Working shelf at the bottom only while Group working sessions is on, and parking stays manual: the Parked shelf is the classic Parked section, so it follows Enable session parking.
+///
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User: "i often see the sidebar scroll by itself when i activate another session", asking that the cards under the pointer never jump. Which session is open no longer decides a shelf: the Project sidebar keeps the open working session in Sessions, but here that pulled the newly opened card out of the Working shelf and dropped the previously open one into it, reshuffling the list on every activation. A working card stays in the Working shelf while it is open. This supersedes the open-session exception of the Q791 note above.
+///
+/// CDXC:Sidebar 2026-10-30 DECISION:
+/// User: the Unified sidebar gets its own "Working section" switch in Settings › Sidebar & Sessions › Sidebar, shown while it is selected and on by default, instead of following Group working sessions: "Fold sessions whose agent is working or still running something in the background into a Working section at the bottom of the list. They return to the top of the list when they need you." A session is on the shelf while its status is Working, or Waiting (its turn ended but a shell or monitor it started still runs); the moment it asks a question, needs an approval, fails or finishes, that status outranks Working (`unified_status`) and it leaves the shelf for the list, which orders it by that return. This supersedes Q791's link to Group working sessions.
+pub fn unified_shelf(
+    row: &SessionView,
+    settings: UnifiedSettings,
+    draft: bool,
+    now_ms: u64,
+) -> UnifiedShelf {
     let session = &row.row;
     if session_is_snoozed(session.timing.snoozed_until_ms, now_ms) {
         UnifiedShelf::Snoozed
@@ -218,7 +291,14 @@ pub fn unified_shelf(row: &SessionView, settings: UnifiedSettings, now_ms: u64) 
         UnifiedShelf::Parked
     } else if session.is_pinned {
         UnifiedShelf::Pinned
-    } else if settings.group_working_sessions && !row.is_focused && is_grouped_working(session) {
+    } else if draft {
+        UnifiedShelf::Drafts
+    } else if settings.working_section
+        && matches!(
+            unified_status(session),
+            Some(UnifiedStatus::Working | UnifiedStatus::Waiting)
+        )
+    {
         UnifiedShelf::Working
     } else {
         UnifiedShelf::Active
@@ -269,6 +349,12 @@ fn repos_of(view: &SidebarView) -> BTreeMap<String, RepoIdentity> {
     by_project
 }
 
+/// The repository of a project on one machine, for setting the filter to it from elsewhere (a
+/// Quick Access project pick).
+pub fn repo_of_project(view: &SidebarView, project_id: &str) -> Option<RepoIdentity> {
+    repos_of(view).remove(project_id)
+}
+
 /// Builds the list.
 pub fn build_unified_sidebar(
     machines: &[UnifiedMachineInput<'_>],
@@ -303,6 +389,14 @@ pub fn build_unified_sidebar(
         let repos = repos_of(machine.view);
         let machine_label = (!machine.machine.is_local()).then(|| machine.label.clone());
         for group in &machine.view.groups {
+            // A hidden collection's projects are still in `groups`; a hidden project is not.
+            if machine
+                .view
+                .hidden_collection_group_ids
+                .contains(&group.core.group_id)
+            {
+                continue;
+            }
             let project_id = group
                 .space_project
                 .as_ref()
@@ -336,7 +430,7 @@ pub fn build_unified_sidebar(
                     session: session.clone(),
                     repo: repo.clone(),
                     space_key: space_key.clone(),
-                    shelf: unified_shelf(session, settings, now_ms),
+                    shelf: unified_shelf(session, settings, is_unified_draft(&session.row), now_ms),
                     status: unified_status(&session.row),
                     came_back_ms: came_back_ms(&session.row),
                 });
@@ -396,6 +490,7 @@ pub fn build_unified_sidebar(
     };
     for row in rows.into_iter().filter(|row| filter.keeps(row)) {
         match row.shelf {
+            UnifiedShelf::Drafts => view.drafts.push(row),
             UnifiedShelf::Pinned => view.pinned.push(row),
             UnifiedShelf::Active => view.active.push(row),
             UnifiedShelf::Working => view.working.push(row),
@@ -409,6 +504,13 @@ pub fn build_unified_sidebar(
             .cmp(&left.came_back_ms)
             .then_with(|| tie_break(left, right))
     };
+    // The newest draft first.
+    view.drafts.sort_by(|left, right| {
+        let created = |row: &UnifiedRow| row.session.row.timing.created_ms.unwrap_or(0);
+        created(right)
+            .cmp(&created(left))
+            .then_with(|| tie_break(left, right))
+    });
     view.pinned.sort_by(by_came_back);
     view.active.sort_by(by_came_back);
     // The Working shelf lists the session you last sent work to first.

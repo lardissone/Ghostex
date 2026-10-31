@@ -204,7 +204,14 @@ impl GhostexGpuiApp {
         let action = command["action"].as_str().and_then(HoverAction::from_id);
         let host = self.gx_store_menu_host();
         let now_ms = super::host::now_ms();
-        let items = {
+        let unified = self.gx_store.unified_sidebar.row_menu(
+            &self.gx_store.core,
+            &host,
+            &session_id,
+            action,
+            now_ms,
+        );
+        let items = unified.or_else(|| {
             let list = &self.gx_store.sidebar_list;
             let menus = SidebarMenus::new(
                 &self.gx_store.core,
@@ -223,7 +230,7 @@ impl GhostexGpuiApp {
                     .map(ghostex_gx_core::MenuItem::to_json)
                     .collect::<Vec<Value>>()
             })
-        };
+        });
         // A row the list no longer draws answers with nothing, which closes the panel, exactly as
         // the TypeScript's empty reply did.
         let items = items.unwrap_or_default();

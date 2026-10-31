@@ -15,6 +15,7 @@
 #[macro_use]
 mod open_enum;
 
+pub mod agent_message_delivery;
 pub mod agentbox;
 pub mod chat;
 pub mod client_message;
@@ -30,6 +31,7 @@ pub mod session_ref;
 pub mod side_state;
 pub mod starting;
 pub mod tri;
+pub mod worktree_name;
 
 pub use chat::*;
 pub use client_message::*;

@@ -155,6 +155,15 @@ pub fn session_hover_submenu(input: &SessionMenuInput<'_>, action: HoverAction) 
         .unwrap_or_default()
 }
 
+/// The submenu of one of the row's actions (Snooze's presets, Park's tags) whether or not the
+/// user's hover strip shows that action: the Unified sidebar's own Snooze button opens it.
+pub fn session_action_submenu(input: &SessionMenuInput<'_>, action: HoverAction) -> Vec<MenuItem> {
+    let (rows, _) = action_rows(input, true);
+    rows.get(action)
+        .and_then(|item| item.children.clone())
+        .unwrap_or_default()
+}
+
 /// CDXC:Sessions 2026-09-12 DECISION:
 /// User: hover buttons are icons only; the tooltip names the action. A button on a pinned, parked or snoozed row shows the reverse action (Unpin, Unpark, Unsnooze) so one slot toggles the state, which is why the strip reuses the menu's own action rows.
 fn build(input: &SessionMenuInput<'_>, include_menu: bool) -> SessionActions {
@@ -268,8 +277,7 @@ fn action_rows(
                 MenuCommand::session_action(id, "rename"),
             )
         }),
-        note: caps
-            .can_open_session_note
+        note: (settings.session_notes_enabled && caps.can_open_session_note)
             .then(|| MenuItem::row("Note", "note", MenuCommand::session_action(id, "note"))),
         sleep: caps.can_sleep_session.then(|| {
             MenuItem::row(

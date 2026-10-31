@@ -59,6 +59,9 @@ pub(crate) struct SidebarMenuPanel {
     pub(crate) measured_height: Option<Pixels>,
     /// The row of this panel that opened the panel stacked on top of it, if one is open.
     pub(crate) child_item: Option<usize>,
+    /// A dropdown's tallest height (scaled): it stays under what opened it, never taller than this
+    /// or the room below, and its rows scroll inside it. `None` lets the panel grow to the sidebar.
+    pub(crate) max_height: Option<Pixels>,
 }
 
 pub(crate) struct SidebarMenuState {
@@ -86,6 +89,7 @@ impl SidebarMenuPanel {
             pages: vec![],
             measured_height: None,
             child_item: None,
+            max_height: None,
         }
     }
 
@@ -194,6 +198,13 @@ impl SidebarMenuPanel {
             let left =
                 menu_left_at_button(from, align_right, sidebar.left(), sidebar.right(), width);
             let below = owner.bottom() + gap;
+            if let Some(max_height) = self.max_height {
+                let room = (sidebar.bottom() - margin - below).max(gpui::px(0.0));
+                return Bounds {
+                    origin: Point::new(left, below),
+                    size: gpui::size(width, height.min(max_height).min(room)),
+                };
+            }
             let above = owner.top() - gap - height;
             let top = if below + height <= sidebar.bottom() - margin {
                 below
@@ -311,5 +322,54 @@ impl SidebarMenuState {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::{px, size};
+
+    fn dropdown(rows: usize) -> SidebarMenuPanel {
+        let items = (0..rows)
+            .map(|row| serde_json::json!({"label": format!("Project {row}")}))
+            .collect();
+        let owner = Bounds::new(Point::new(px(8.0), px(40.0)), size(px(200.0), px(28.0)));
+        SidebarMenuPanel {
+            placement: SidebarMenuPlacement::Attached {
+                owner,
+                from: owner,
+                align_right: false,
+                gap: px(3.0),
+            },
+            max_height: Some(px(420.0)),
+            ..SidebarMenuPanel::new(items, Point::default())
+        }
+    }
+
+    fn sidebar(height: f32) -> Bounds<Pixels> {
+        Bounds::new(Point::default(), size(px(300.0), px(height)))
+    }
+
+    #[test]
+    fn a_long_dropdown_hangs_under_its_button_and_stops_at_its_cap() {
+        let bounds = dropdown(60).bounds(sidebar(1000.0), 1.0, false);
+        assert_eq!(bounds.top(), px(71.0));
+        assert_eq!(bounds.left(), px(8.0));
+        assert_eq!(bounds.size.height, px(420.0));
+    }
+
+    #[test]
+    fn a_short_dropdown_shrinks_to_its_rows() {
+        let bounds = dropdown(3).bounds(sidebar(1000.0), 1.0, false);
+        assert_eq!(bounds.top(), px(71.0));
+        assert_eq!(bounds.size.height, px(14.0 + 3.0 * 34.0));
+    }
+
+    #[test]
+    fn a_dropdown_never_runs_past_the_window() {
+        let bounds = dropdown(60).bounds(sidebar(400.0), 1.0, false);
+        assert_eq!(bounds.top(), px(71.0));
+        assert_eq!(bounds.bottom(), px(400.0 - 12.0));
     }
 }

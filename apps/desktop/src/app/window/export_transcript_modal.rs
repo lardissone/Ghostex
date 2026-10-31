@@ -35,8 +35,8 @@ const TITLE: &str = "Handoff / Export";
 const DESCRIPTION: &str = "Ghostex writes this conversation to a Markdown file. Pick what to do with it and what to include.";
 const HANDOFF_CARD_TITLE: &str = "Handoff to an agent";
 const HANDOFF_CARD_DESCRIPTION: &str = "Start a new conversation with the handover attached.";
-const REMOTE_CARD_TITLE: &str = "Handoff to Remote";
-const REMOTE_CARD_DESCRIPTION: &str = "Continue on another computer, in a project there.";
+const ADVANCED_CARD_TITLE: &str = "Advanced Handoff";
+const ADVANCED_CARD_DESCRIPTION: &str = "Continue in another project, on this computer or another.";
 const EXPORT_CARD_TITLE: &str = "Export to Markdown";
 const EXPORT_CARD_DESCRIPTION: &str = "Save the conversation as a file and copy its path.";
 const CONTINUE_WITH: &str = "Continue with";
@@ -45,10 +45,11 @@ const COMPUTER: &str = "Computer";
 const SELECT_COMPUTER_PLACEHOLDER: &str = "Select computer";
 const PROJECT: &str = "Project";
 const SELECT_PROJECT_PLACEHOLDER: &str = "Select project";
-const NO_COMPUTER_HINT: &str = "No other computer is connected. Connect one from the sidebar's computer tabs to hand off to it.";
+const NO_COMPUTER_HINT: &str =
+    "No computer is connected. Connect one from the sidebar's computer tabs to hand off to it.";
 const BRANCH_NOTICE_TITLE: &str = "Please note the difference in branches";
 const BRANCH_NOTICE_SUBTITLE: &str =
-    "We're just handing off the session, not switching the branch on the remote machine";
+    "We're just handing off the session, not switching the branch there";
 const EXPORT_HINT: &str = "The file is saved in the Ghostex exports folder.";
 const INCLUDE: &str = "Include";
 const SAVED_AS_MARKDOWN: &str = "Saved as Markdown";
@@ -61,13 +62,15 @@ pub(crate) enum ExportTranscriptMode {
     Handoff,
     /// CDXC:TranscriptExport 2026-10-25 DECISION:
     /// User (Q542): "a 3rd radio card added 2nd there after handoff to agent, call it 'Handoff to Remote'; we should have those extra dropdowns to pick machine and project there only in that case". The Computer and Project selects exist only in this mode, beside the same agent choice Handoff to an agent has; the new session starts on that computer, in that project, with the transcript carried there. Every direction is offered (Q547): this computer to a remote, a remote to this computer, and remote to remote; the session's own computer is not a choice here, since Handoff to an agent already covers it.
-    HandoffRemote,
+    /// CDXC:TranscriptExport 2026-10-31 DECISION:
+    /// User (Q865): "we should just be able to handoff to another project in the same machine using the 'handoff to remote' option but by changing it a bit (rename it to 'Advanced Handoff')". The session's own computer is now a choice too, listing its other projects; that is how the Unified sidebar, which has no drag, reaches another project. The saved mode stays `handoffRemote`, so a saved choice survives the rename.
+    HandoffAdvanced,
     Export,
 }
 
 impl ExportTranscriptMode {
     fn is_handoff(self) -> bool {
-        matches!(self, Self::Handoff | Self::HandoffRemote)
+        matches!(self, Self::Handoff | Self::HandoffAdvanced)
     }
 }
 
@@ -117,7 +120,7 @@ pub(crate) fn load_export_transcript_modal_prefs(path: &Path) -> ExportTranscrip
         mode: match value.get("mode").and_then(serde_json::Value::as_str) {
             Some("export") => Some(ExportTranscriptMode::Export),
             Some("handoff") => Some(ExportTranscriptMode::Handoff),
-            Some("handoffRemote") => Some(ExportTranscriptMode::HandoffRemote),
+            Some("handoffRemote") => Some(ExportTranscriptMode::HandoffAdvanced),
             _ => None,
         },
         include: ExportTranscriptIncludeOptions {
@@ -138,7 +141,7 @@ pub(crate) fn persist_export_transcript_modal_prefs(
     let payload = serde_json::json!({
         "mode": match prefs.mode {
             Some(ExportTranscriptMode::Export) => "export",
-            Some(ExportTranscriptMode::HandoffRemote) => "handoffRemote",
+            Some(ExportTranscriptMode::HandoffAdvanced) => "handoffRemote",
             _ => "handoff",
         },
         "includeCommands": prefs.include.commands,
@@ -165,13 +168,16 @@ pub(crate) struct ExportTranscriptHandoffTarget {
     pub(crate) model: String,
 }
 
-/// A computer Handoff to Remote can start the new session on, with its projects ranked for this
+/// A computer Advanced Handoff can start the new session on, with its projects ranked for this
 /// session (`ghostex_gx_core::handoff_target`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExportTranscriptComputer {
     /// `local` for this computer, else the remote machine id.
     pub(crate) machine_id: String,
     pub(crate) label: String,
+    /// The computer the session runs on: its transcript is already there, and the session's own
+    /// project is not among `projects`.
+    pub(crate) is_source: bool,
     pub(crate) projects: Vec<ExportTranscriptProject>,
     pub(crate) preferred_project_id: Option<String>,
     /// The repository's name when this session's project has a git remote that no project on
@@ -187,7 +193,7 @@ pub(crate) struct ExportTranscriptProject {
     pub(crate) same_repo: bool,
 }
 
-/// Where Handoff to Remote starts the new session.
+/// Where Advanced Handoff starts the new session.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExportTranscriptRemoteTarget {
     pub(crate) machine_id: String,
@@ -205,7 +211,7 @@ pub(crate) struct ExportTranscriptPicks {
     pub(crate) project_id: Option<String>,
 }
 
-/// The computer Handoff to Remote goes to: the picked one while it is still offered, else the
+/// The computer Advanced Handoff goes to: the picked one while it is still offered, else the
 /// first.
 pub(crate) fn handoff_computer<'a>(
     computers: &'a [ExportTranscriptComputer],
@@ -231,6 +237,19 @@ pub(crate) fn handoff_project<'a>(
     selected_project_id
         .and_then(find)
         .or_else(|| computer.preferred_project_id.as_deref().and_then(find))
+}
+
+/// Advanced Handoff's button: it names where the session goes (Q862), with the computer when it
+/// leaves this one.
+fn advanced_handoff_label(
+    computer: &ExportTranscriptComputer,
+    project: &ExportTranscriptProject,
+) -> String {
+    if computer.is_source {
+        format!("Handoff to {}", project.title)
+    } else {
+        format!("Handoff to {} on {}", project.title, computer.label)
+    }
 }
 
 /// A Project select row: the title, the same-repository mark, and the folder.
@@ -289,7 +308,7 @@ pub(crate) enum ExportTranscriptStage {
 /// What the dialog asks its host to do. The dialog removes its own window
 /// before sending any command other than `RunExport`.
 pub(crate) enum ExportTranscriptModalCommand {
-    /// `carry` asks for the file's text too, which Handoff to Remote takes to the other computer.
+    /// `carry` asks for the file's text too, which Advanced Handoff takes to another computer.
     RunExport {
         include: ExportTranscriptIncludeOptions,
         carry: bool,
@@ -326,7 +345,7 @@ pub(crate) struct ExportTranscriptModalConfig {
     pub(crate) prefs_path: Option<PathBuf>,
     /// Overrides the remembered mode on open; the demo uses it to show one branch.
     pub(crate) initial_mode: Option<ExportTranscriptMode>,
-    /// The computers Handoff to Remote offers; the session's own computer is never one of them.
+    /// The computers Advanced Handoff offers, the session's own first.
     pub(crate) computers: Vec<ExportTranscriptComputer>,
     /// The picks to reopen with after a clone (`AddProjectOn`), over the remembered prefs.
     pub(crate) restore: Option<ExportTranscriptPicks>,
@@ -431,7 +450,7 @@ impl GpuiExportTranscriptModalWindow {
         cx.notify();
     }
 
-    /// The computer Handoff to Remote goes to: the pick, else the first one offered.
+    /// The computer Advanced Handoff goes to: the pick, else the first one offered.
     fn effective_computer(&self) -> Option<&ExportTranscriptComputer> {
         handoff_computer(&self.computers, self.selected_machine_id.as_deref())
     }
@@ -468,9 +487,9 @@ impl GpuiExportTranscriptModalWindow {
         })
     }
 
-    /// Tells the host which checkout Handoff to Remote now points at, once per change.
+    /// Tells the host which checkout Advanced Handoff now points at, once per change.
     fn announce_target(&mut self, cx: &mut Context<Self>) {
-        let target = (self.mode == ExportTranscriptMode::HandoffRemote)
+        let target = (self.mode == ExportTranscriptMode::HandoffAdvanced)
             .then(|| self.remote_target())
             .flatten();
         if target == self.announced_target {
@@ -542,7 +561,7 @@ impl GpuiExportTranscriptModalWindow {
                 {
                     let agent_id = agent.agent_id.clone();
                     let target = match self.effective_mode() {
-                        ExportTranscriptMode::HandoffRemote => self.remote_target(),
+                        ExportTranscriptMode::HandoffAdvanced => self.remote_target(),
                         _ => None,
                     };
                     self.close_window_and_send(
@@ -643,7 +662,7 @@ impl GpuiExportTranscriptModalWindow {
             && match self.effective_mode() {
                 ExportTranscriptMode::Export => true,
                 ExportTranscriptMode::Handoff => self.effective_agent().is_some(),
-                ExportTranscriptMode::HandoffRemote => {
+                ExportTranscriptMode::HandoffAdvanced => {
                     self.effective_agent().is_some() && self.remote_target().is_some()
                 }
             }
@@ -664,11 +683,9 @@ impl GpuiExportTranscriptModalWindow {
                 Some(agent) => format!("Handoff to {}", agent.name),
                 None => "Handoff".to_string(),
             },
-            ExportTranscriptMode::HandoffRemote => {
-                match (self.effective_agent(), self.effective_computer()) {
-                    (Some(agent), Some(computer)) => {
-                        format!("Handoff to {} on {}", agent.name, computer.label)
-                    }
+            ExportTranscriptMode::HandoffAdvanced => {
+                match (self.effective_computer(), self.effective_project()) {
+                    (Some(computer), Some(project)) => advanced_handoff_label(computer, project),
                     _ => "Handoff".to_string(),
                 }
             }
@@ -730,7 +747,10 @@ impl GpuiExportTranscriptModalWindow {
         (self.host)(
             ExportTranscriptModalCommand::RunExport {
                 include: self.include,
-                carry: self.effective_mode() == ExportTranscriptMode::HandoffRemote,
+                carry: self.effective_mode() == ExportTranscriptMode::HandoffAdvanced
+                    && self
+                        .effective_computer()
+                        .is_some_and(|computer| !computer.is_source),
             },
             cx,
         );
@@ -1041,10 +1061,10 @@ impl GpuiExportTranscriptModalWindow {
                 ))
                 .child(self.render_mode_card(
                     2,
-                    ExportTranscriptMode::HandoffRemote,
+                    ExportTranscriptMode::HandoffAdvanced,
                     ICON_SERVER,
-                    REMOTE_CARD_TITLE,
-                    REMOTE_CARD_DESCRIPTION,
+                    ADVANCED_CARD_TITLE,
+                    ADVANCED_CARD_DESCRIPTION,
                     cx,
                 ));
         }
@@ -1070,8 +1090,8 @@ impl GpuiExportTranscriptModalWindow {
                 .into_any_element();
         }
         let value = self.effective_agent().map(|agent| agent.name.clone());
-        let remote = self.effective_mode() == ExportTranscriptMode::HandoffRemote;
-        // In Handoff to Remote the three labels share one width so the selects line up.
+        let remote = self.effective_mode() == ExportTranscriptMode::HandoffAdvanced;
+        // In Advanced Handoff the three labels share one width so the selects line up.
         let label = |text: &'static str| {
             let title = modal_section_title(&p, text).flex_shrink_0();
             if remote { title.w(px(96.0)) } else { title }
@@ -1323,7 +1343,7 @@ impl GpuiExportTranscriptModalWindow {
     }
 
     /// CDXC:TranscriptExport 2026-09-15 DECISION:
-    /// User: Handoff / Export is one page, not an options page followed by a result page, and "Handoff to an agent" and "Export to Markdown" are explicit choices on it ("Handoff to Remote" joined them between the two on 2026-10-25, see `ExportTranscriptMode::HandoffRemote`). The mode cards sit above the include-toggles; Handoff writes the file and starts the follow-up conversation in one click, while Export swaps the toggles for the saved path with Copy and Reveal. Starting a conversation never sends a prompt for the user: the mention is typed into the new agent's input and left unsubmitted. Reveal is omitted, not disabled, when the file lives on another machine.
+    /// User: Handoff / Export is one page, not an options page followed by a result page, and "Handoff to an agent" and "Export to Markdown" are explicit choices on it ("Handoff to Remote" joined them between the two on 2026-10-25, see `ExportTranscriptMode::HandoffAdvanced`). The mode cards sit above the include-toggles; Handoff writes the file and starts the follow-up conversation in one click, while Export swaps the toggles for the saved path with Copy and Reveal. Starting a conversation never sends a prompt for the user: the mention is typed into the new agent's input and left unsubmitted. Reveal is omitted, not disabled, when the file lives on another machine.
     fn render_body(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut body = v_flex()
             .w_full()
@@ -1511,6 +1531,7 @@ mod tests {
         ExportTranscriptComputer {
             machine_id: machine_id.to_string(),
             label: machine_id.to_string(),
+            is_source: false,
             projects: projects
                 .iter()
                 .map(|id| ExportTranscriptProject {
@@ -1564,19 +1585,61 @@ mod tests {
     }
 
     #[test]
+    fn advanced_handoff_names_the_project_and_only_a_computer_it_leaves_for() {
+        let project = ExportTranscriptProject {
+            project_id: "p".to_string(),
+            title: "acme-web".to_string(),
+            path: None,
+            same_repo: false,
+        };
+        let computer = |is_source| ExportTranscriptComputer {
+            machine_id: "m".to_string(),
+            label: "studio".to_string(),
+            is_source,
+            projects: vec![project.clone()],
+            preferred_project_id: None,
+            missing_repository: None,
+        };
+        assert_eq!(
+            advanced_handoff_label(&computer(true), &project),
+            "Handoff to acme-web"
+        );
+        assert_eq!(
+            advanced_handoff_label(&computer(false), &project),
+            "Handoff to acme-web on studio"
+        );
+    }
+
+    #[test]
+    fn a_saved_handoff_to_remote_comes_back_as_advanced_handoff() {
+        let dir = std::env::temp_dir().join(format!(
+            "ghostex-advanced-handoff-prefs-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("prefs.json");
+        std::fs::write(&path, r#"{"mode":"handoffRemote"}"#).unwrap();
+        assert_eq!(
+            load_export_transcript_modal_prefs(&path).mode,
+            Some(ExportTranscriptMode::HandoffAdvanced)
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn handoff_remote_mode_round_trips_through_the_prefs_file() {
         let dir = std::env::temp_dir().join(format!("gx-export-prefs-{}", std::process::id()));
         let path = dir.join("prefs.json");
         persist_export_transcript_modal_prefs(
             &path,
             ExportTranscriptModalPrefs {
-                mode: Some(ExportTranscriptMode::HandoffRemote),
+                mode: Some(ExportTranscriptMode::HandoffAdvanced),
                 include: ExportTranscriptIncludeOptions::default(),
             },
         );
         let loaded = load_export_transcript_modal_prefs(&path);
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(loaded.mode, Some(ExportTranscriptMode::HandoffRemote));
+        assert_eq!(loaded.mode, Some(ExportTranscriptMode::HandoffAdvanced));
     }
 
     #[test]

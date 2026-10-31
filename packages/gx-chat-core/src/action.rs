@@ -171,6 +171,9 @@ action_kinds! {
     QuestionForLater => "questionForLater",
     QuestionRemove => "questionRemove",
     QuestionListFilter => "questionListFilter",
+    OpenResource => "openResource",
+    CloseResource => "closeResource",
+    GoToResource => "goToResource",
     QuestionListMore => "questionListMore",
     QuestionListReset => "questionListReset",
     AsyncQuestionToggle => "asyncQuestionToggle",
@@ -193,6 +196,7 @@ action_kinds! {
     Accounts => "accounts",
     SwitchDraftAgent => "switchDraftAgent",
     SwitchDraftRunLocation => "switchDraftRunLocation",
+    SetDraftWorktree => "setDraftWorktree",
     SwitchToTerminal => "switchToTerminal",
     SelectForkBranch => "selectForkBranch",
 

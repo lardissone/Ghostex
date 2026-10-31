@@ -429,6 +429,10 @@ pub(crate) fn populations(data: &QuickAccessData) -> Populations {
                 && ghostex_settings_catalog::hotkey_has_normal_binding(definition.id)
                 && !PANE_ACTION_COMMAND_IDS.contains(&definition.id)
                 && !hidden.contains(definition.id)
+                // A hotkey of a built-in extension that is off (Session Note while Session notes is).
+                && built_in_extensions::hotkey_shown_with(definition.id, |key| {
+                    data.settings().get(key).and_then(Value::as_bool)
+                })
         })
         .map(to_hotkey)
         .collect();
@@ -935,6 +939,24 @@ mod tests {
                 CommandRun::Post(json!({ "extensionId": "lazygit", "type": "launchExtension" })),
             ]
         );
+    }
+
+    fn has_row(data: &QuickAccessData, wanted: &str) -> bool {
+        command_groups("", data)
+            .iter()
+            .flat_map(|group| &group.rows)
+            .any(|row| matches!(row, QuickAccessRow::Command { key, .. } if key == wanted))
+    }
+
+    #[test]
+    fn session_note_is_a_row_only_while_session_notes_is_on() {
+        let mut data = QuickAccessData::default();
+        assert!(!has_row(&data, "hotkey:sessionNote"), "off by default");
+        assert!(has_row(&data, "hotkey:stashPrompt"));
+        data.hud = json!({ "settings": { "sessionNotesHidden": false } });
+        assert!(has_row(&data, "hotkey:sessionNote"));
+        data.hud = json!({ "settings": { "sessionNotesHidden": true } });
+        assert!(!has_row(&data, "hotkey:sessionNote"));
     }
 
     #[test]

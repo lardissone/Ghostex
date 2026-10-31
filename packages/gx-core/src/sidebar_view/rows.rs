@@ -25,6 +25,9 @@ pub(crate) struct RowContext<'a> {
     /// machine's group: a row whose terminal is on another computer says what state it is in even
     /// when a local row would not.
     pub(crate) always_show_state_tooltip: bool,
+    /// The Session notes extension is on; while it is off a row carries no note, so neither its
+    /// dot nor its tooltip line draws and the note itself stays saved.
+    pub(crate) session_notes: bool,
 }
 
 /// `gpui-browser:<project>:<tab>`.
@@ -142,6 +145,7 @@ pub(crate) fn session_row(
     let session_note = session
         .session_note
         .as_deref()
+        .filter(|_| context.session_notes)
         .filter(|note| !js_trim(note).is_empty())
         .map(str::to_string);
     let effective = effective_tag(session.session_tag.as_deref(), session.is_favorite);

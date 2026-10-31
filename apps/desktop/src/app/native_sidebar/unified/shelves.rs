@@ -1,4 +1,4 @@
-//! The folded shelves under the list: Working, Snoozed and Parked.
+//! The shelves: Drafts above the list, open; Working, Snoozed and Parked folded under it.
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use ghostex_gx_core::unified_sidebar::UnifiedShelf;
 
-use super::cards::{now_ms, repo_tile};
+use super::cards::{mark_active, now_ms, repo_tile, show_project_icons};
 use super::model::{UnifiedCard, UnifiedShelfView};
 use crate::GhostexGpuiApp;
 use crate::app::helpers::chrome_color;
@@ -18,6 +18,7 @@ use crate::app::native_sidebar::appearance::SidebarAppearance;
 
 fn shelf_label(shelf: UnifiedShelf) -> &'static str {
     match shelf {
+        UnifiedShelf::Drafts => "Drafts",
         UnifiedShelf::Working => "Working",
         UnifiedShelf::Snoozed => "Snoozed",
         UnifiedShelf::Parked => "Parked",
@@ -37,23 +38,37 @@ fn wake_label(wake_at_ms: i64, now: i64) -> String {
 }
 
 impl GhostexGpuiApp {
-    /// A shelf: its header, and its rows while open. Working keeps the full cards; Snoozed and
-    /// Parked rows are one line.
+    /// A shelf: its header, and its rows while open. Drafts and Working keep the full cards;
+    /// Snoozed and Parked rows are one line. `project` is the repository whose group it sits in,
+    /// which keeps its own open or folded state.
     pub(in crate::app::native_sidebar) fn render_native_unified_shelf(
         &self,
         shelf: &UnifiedShelfView,
+        project: Option<&str>,
         hud: &Value,
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
         let kind = shelf.shelf;
-        let open = self.native_sidebar.unified_open_shelves.contains(&kind);
+        // Drafts starts open and the rest folded, so the set holds whichever was toggled away
+        // from that.
+        let key = match project {
+            Some(repo) => format!("{repo}|{}", shelf_label(kind)),
+            None => shelf_label(kind).to_string(),
+        };
+        let open = self
+            .gx_store
+            .unified_sidebar
+            .saved
+            .toggled_shelves
+            .contains(&key)
+            != (kind == UnifiedShelf::Drafts);
         v_flex()
             .w_full()
             .child(
                 h_flex()
-                    .id(format!("native-unified-shelf-{}", shelf_label(kind)))
+                    .id(format!("native-unified-shelf-{key}"))
                     .role(gpui::Role::Button)
                     .aria_label(format!("{} ({})", shelf_label(kind), shelf.cards.len()))
                     .aria_expanded(open)
@@ -84,19 +99,20 @@ impl GhostexGpuiApp {
                     )
                     .on_click(cx.listener(move |app, _, _, cx| {
                         cx.stop_propagation();
-                        let shelves = &mut app.native_sidebar.unified_open_shelves;
-                        if !shelves.remove(&kind) {
-                            shelves.insert(kind);
+                        let host = &mut app.gx_store.unified_sidebar;
+                        if !host.saved.toggled_shelves.remove(&key) {
+                            host.saved.toggled_shelves.insert(key.clone());
                         }
+                        host.persist();
                         cx.notify();
                     })),
             )
             .when(open, |column| {
                 column.children(shelf.cards.iter().map(|card| {
-                    if kind == UnifiedShelf::Working {
+                    if matches!(kind, UnifiedShelf::Working | UnifiedShelf::Drafts) {
                         self.render_native_unified_card(card, hud, appearance, cx)
                     } else {
-                        self.render_native_unified_slim_row(card, kind, appearance, cx)
+                        self.render_native_unified_slim_row(card, kind, hud, appearance, cx)
                     }
                 }))
             })
@@ -108,6 +124,7 @@ impl GhostexGpuiApp {
         &self,
         card: &UnifiedCard,
         shelf: UnifiedShelf,
+        hud: &Value,
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
@@ -122,6 +139,11 @@ impl GhostexGpuiApp {
             card.session.is_focused,
             card.session.is_visible,
         );
+        let hovered =
+            self.native_sidebar.hovered_session.as_deref() == Some(&card.session.session_id);
+        let action = hovered
+            .then(|| self.render_unified_shelf_row_action(card, shelf, appearance, cx))
+            .flatten();
         let trailing = match wake {
             Some(wake_at) => h_flex()
                 .flex_shrink_0()
@@ -156,15 +178,11 @@ impl GhostexGpuiApp {
             .px(px(8.0 * scale))
             .gap(px(8.0 * scale))
             .rounded(px(5.0 * scale))
-            .when(focused, |row| {
-                row.bg(appearance.session_selected)
-                    .border_1()
-                    .border_color(appearance.session_outline)
-            })
+            .relative()
             .when(!focused, |row| {
                 row.hover(|row| row.bg(appearance.session_hover))
             })
-            .child(repo_tile(&card.repo_label, appearance, true))
+            .child(repo_tile(card, appearance, show_project_icons(hud), true))
             .child(
                 div()
                     .flex_1()
@@ -173,7 +191,14 @@ impl GhostexGpuiApp {
                     .opacity(0.8)
                     .child(card.session.title().to_owned()),
             )
-            .child(trailing);
+            .child(action.unwrap_or(trailing))
+            .when(focused, |row| {
+                mark_active(
+                    row,
+                    appearance.session_selected,
+                    crate::app::native_sidebar::decorations::session_outline(appearance),
+                )
+            });
         div()
             .w_full()
             .pb(px(1.0 * scale))

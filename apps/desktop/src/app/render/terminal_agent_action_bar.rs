@@ -791,6 +791,11 @@ impl GhostexGpuiApp {
                     if *action == TerminalAgentBarAction::CloseAfterDone && is_orchestrator {
                         continue;
                     }
+                    if *action == TerminalAgentBarAction::SessionNote
+                        && !crate::app::session_notes::session_notes_on()
+                    {
+                        continue;
+                    }
                     if let Some(heading) = terminal_agent_bar_menu_group_heading(*action) {
                         rows.push(terminal_agent_bar_menu_group_label(heading));
                     }

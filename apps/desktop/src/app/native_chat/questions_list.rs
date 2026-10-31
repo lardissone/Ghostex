@@ -44,7 +44,13 @@ fn folded_by_default(_section: &str) -> bool {
 /// anywhere in the list (user, 2026-10-28: "lets also not show the Q numbers in the question
 /// tooltip when hovering on them").
 fn row_tooltip(row: &Value) -> String {
-    [text(row, "title"), text(row, "timeTitle")]
+    let thread = text(row, "thread");
+    let posted_in = if thread.is_empty() {
+        String::new()
+    } else {
+        format!("Posted by {thread}")
+    };
+    [text(row, "title"), posted_in, text(row, "timeTitle")]
         .into_iter()
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
@@ -147,30 +153,32 @@ pub(super) fn questions_menu_height(open: &Value, list: &QuestionList) -> Option
                 + ROW_HEIGHT,
         );
     }
-    // The "Show more" row ends the list while the core left rows out.
-    let more = if open["remaining"].as_u64().unwrap_or(0) > 0 {
-        ROW_HEIGHT
-    } else {
-        0.0
-    };
-    let rows: f32 = more
-        + sections
-            .iter()
-            .map(|section| {
-                let shown = if list.folded(&text(section, "id")) {
-                    0
-                } else {
-                    section["rows"].as_array().map_or(0, Vec::len)
-                };
-                // A group with no title (Earlier, alone) has no header line.
-                let header = if text(section, "title").is_empty() {
-                    0.0
-                } else {
-                    SECTION_HEIGHT
-                };
-                header + shown as f32 * ROW_HEIGHT
-            })
-            .sum::<f32>();
+    // Each group's own "Show more" row sits under its rows while the core cut some, and a folded
+    // group shows none.
+    let rows: f32 = sections
+        .iter()
+        .map(|section| {
+            let shown = if list.folded(&text(section, "id")) {
+                0
+            } else {
+                section["rows"].as_array().map_or(0, Vec::len)
+            };
+            // A group with no title (Earlier, alone) has no header line.
+            let header = if text(section, "title").is_empty() {
+                0.0
+            } else {
+                SECTION_HEIGHT
+            };
+            let more = if !list.folded(&text(section, "id"))
+                && section["remaining"].as_u64().unwrap_or(0) > 0
+            {
+                ROW_HEIGHT
+            } else {
+                0.0
+            };
+            more + header + shown as f32 * ROW_HEIGHT
+        })
+        .sum::<f32>();
     Some(
         super::chat_pills::MENU_HEADER_HEIGHT
             + super::chat_pills::MENU_SECTION_GAP
@@ -369,7 +377,12 @@ impl NativeChatView {
             Some(trigger),
             p,
         );
-        let remaining = open["remaining"].as_u64().unwrap_or(0);
+        // The rows still to come in the groups that are open: what scrolling to the bottom loads.
+        let remaining: u64 = sections
+            .iter()
+            .filter(|section| !self.question_list.folded(&text(section, "id")))
+            .map(|section| section["remaining"].as_u64().unwrap_or(0))
+            .sum();
         // A new filter starts again from the top and from one page.
         let filter = text(&open, "filter");
         if *self.question_list.auto_filter.borrow() != filter {
@@ -426,10 +439,12 @@ impl NativeChatView {
                 for row in section["rows"].as_array().into_iter().flatten() {
                     list = list.child(self.question_list_row(headed, row, p, cx));
                 }
+                // This group's own Show more, under its own rows.
+                let left = section["remaining"].as_u64().unwrap_or(0);
+                if left > 0 {
+                    list = list.child(self.question_show_more_row(&id, left, p, cx));
+                }
             }
-        }
-        if remaining > 0 {
-            list = list.child(self.question_show_more_row(remaining, p, cx));
         }
         Some(
             div()
@@ -458,13 +473,16 @@ impl NativeChatView {
     /// scrolling to the bottom adds the next ones by itself.
     fn question_show_more_row(
         &self,
+        group: &str,
         remaining: u64,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> AnyElement {
         let s = p.scale;
         div()
-            .id("chat-questions-show-more")
+            .id(SharedString::from(format!(
+                "chat-questions-show-more:{group}"
+            )))
             .role(gpui::Role::Button)
             .aria_label(format!("Show more, {remaining} left"))
             .flex_shrink_0()
@@ -692,7 +710,9 @@ impl NativeChatView {
             _ => (p.card_muted, p.foreground),
         };
         let tooltip = row_tooltip(row);
+        let thread = text(row, "thread");
         let jump = id.clone();
+        let opens_in_modal = matches!(kind.as_str(), "form" | "chart");
         div()
             .id(SharedString::from(format!("chat-questions-row:{id}")))
             .group(group.clone())
@@ -729,10 +749,29 @@ impl NativeChatView {
                     .text_color(title_color)
                     .child(title),
             )
+            // A page a thread posted names the thread (a coordinator's Thread pages group).
+            .when(!thread.is_empty(), |this| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .max_w(px(140.0 * s))
+                        .truncate()
+                        .text_size(px(11.0 * s))
+                        .text_color(p.card_muted)
+                        .child(thread),
+                )
+            })
             .child(self.row_trailing(&id, &status, &age, buttons, group, p, cx))
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
-                this.invoke(json!({"type": "jumpToQuestion", "id": jump}), cx);
+                // A form or chart opens in the floating modal and the chat stays where it is; a
+                // page opens as it always did.
+                let action = if opens_in_modal {
+                    json!({"type": "openResource", "id": jump})
+                } else {
+                    json!({"type": "jumpToQuestion", "id": jump})
+                };
+                this.invoke(action, cx);
                 this.close_pill_menu(cx);
             }))
             .into_any_element()
@@ -754,6 +793,16 @@ mod tests {
         let tooltip = row_tooltip(&row);
         assert_eq!(tooltip, "Run 4, part 3 of 3\n1:57 AM, 28th October 2026");
         assert!(!tooltip.contains("Q633"));
+    }
+
+    #[test]
+    fn a_worker_pages_tooltip_names_its_worker() {
+        let row =
+            json!({"title": "Layout notes", "thread": "Fix the sidebar", "timeTitle": "1:57 AM"});
+        assert_eq!(
+            row_tooltip(&row),
+            "Layout notes\nPosted by Fix the sidebar\n1:57 AM"
+        );
     }
 
     #[test]
@@ -820,19 +869,26 @@ mod tests {
     }
 
     #[test]
-    fn the_show_more_row_adds_its_height_until_the_cap() {
-        let section = json!({"id": "pages", "rows": [{"id": "a"}], "count": 30});
-        let list = QuestionList::default();
-        let whole = json!({"total": 30, "sections": [section.clone()], "remaining": 0});
-        let cut = json!({"total": 30, "sections": [section.clone()], "remaining": 29});
-        let base = questions_menu_height(&whole, &list).unwrap();
+    fn a_groups_show_more_row_counts_in_its_height_only_while_it_is_open() {
+        let whole = json!({"id": "pages", "rows": [{"id": "a"}], "count": 30, "remaining": 0});
+        let cut = json!({"id": "pages", "rows": [{"id": "a"}], "count": 30, "remaining": 29});
+        let other = json!({"id": "threads", "title": "Worker pages", "rows": [{"id": "w"}], "count": 1, "remaining": 0});
+        let mut list = QuestionList::default();
+        let plain = json!({"total": 31, "sections": [whole, other.clone()]});
+        let with_more = json!({"total": 31, "sections": [cut.clone(), other]});
+        let base = questions_menu_height(&plain, &list).unwrap();
         assert_eq!(
-            questions_menu_height(&cut, &list).unwrap(),
+            questions_menu_height(&with_more, &list).unwrap(),
             base + ROW_HEIGHT
         );
+        // Folded: the group's rows and its Show more both go (the 401 under another group).
+        list.toggled.insert("pages".to_string());
+        let folded = questions_menu_height(&with_more, &list).unwrap();
+        let folded_plain = questions_menu_height(&plain, &list).unwrap();
+        assert_eq!(folded, folded_plain, "a folded group shows no Show more");
         // A long page is capped at the list's maximum, Show more row or not.
         let rows: Vec<Value> = (0..15).map(|i| json!({"id": i})).collect();
-        let long = json!({"total": 90, "sections": [{"id": "answered", "rows": rows, "count": 80}], "remaining": 65});
+        let long = json!({"total": 90, "sections": [{"id": "answered", "rows": rows, "count": 80, "remaining": 65}]});
         let capped = questions_menu_height(&long, &list).unwrap();
         assert_eq!(
             capped,

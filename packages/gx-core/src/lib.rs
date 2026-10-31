@@ -26,6 +26,7 @@ mod doc_sync;
 mod focus;
 pub mod git_menu;
 pub mod handoff_target;
+pub mod session_handoff;
 pub mod hud;
 pub mod indicators;
 mod keys;
@@ -172,7 +173,8 @@ pub use crate::sidebar_actions::{
     owns_delayed_send_command, owns_group_working_sessions_command, owns_machine_disable_command,
     plan_agent_run, plan_delayed_send_action, plan_group_working_sessions, plan_machine_disable,
     GROUP_WORKING_SESSIONS_ACTION, GROUP_WORKING_SESSIONS_SETTINGS_SOURCE,
-    MACHINE_DISABLE_SETTINGS_SOURCE,
+    HIDE_PROJECTS_WITHOUT_SESSIONS_ACTION, MACHINE_DISABLE_SETTINGS_SOURCE,
+    UNIFIED_GROUP_BY_PROJECT_ACTION, UNIFIED_WORKING_SECTION_ACTION,
 };
 pub use crate::sidebar_actions::{
     open_remote_session_terminal, plan_generate_session_title, plan_group_sleep,
@@ -191,20 +193,23 @@ pub use crate::sidebar_command_run::{
 };
 pub use crate::sidebar_drag::{
     owns_order_write_message, owns_project_move_command, owns_project_order_message,
-    owns_session_drop_command, owns_session_move_command, plan_added_project_placement,
+    check_session_handoff, owns_session_drop_command, owns_session_move_command,
+    plan_added_project_placement,
     plan_added_project_space_membership, plan_order_write, plan_project_move,
     plan_project_order_write, plan_section_move, plan_session_drop, plan_session_move,
     project_body_drop_command, project_drop_command, project_drop_landing,
     sidebar_group_membership, sidebar_project_group_order, AddedProjectPlacement, OrderWrite,
-    OrderWritePlan, ProjectMovePlan, ProjectWrite, SessionDrop, SessionMovePlan,
-    ORDER_WRITE_MESSAGE_TYPES, PROJECT_MOVE_COMMAND_TYPES, PROJECT_ORDER_MESSAGE_TYPE,
+    OrderWritePlan, ProjectMovePlan, ProjectWrite, SessionDrop, SessionHandoffCheck,
+    SessionHandoffDrop, SessionMovePlan, ORDER_WRITE_MESSAGE_TYPES, PROJECT_MOVE_COMMAND_TYPES,
+    PROJECT_ORDER_MESSAGE_TYPE, SESSION_DROP_ZONE_LIST_END,
 };
 pub use crate::sidebar_menu::{
     agent_launcher_items, agent_launcher_items_with_accounts, agent_logo_icons, agent_logo_svg,
     colored_agent_logo, hover_slots, hover_strip, machine_workspace_menu, menu_to_json,
-    project_header_actions, workspace_menu, workspace_switch_target, HeaderCommand, HoverAction,
-    HoverSlot, HoverStrip, LauncherAgent, MenuCommand, MenuGroup, MenuHost, MenuItem,
-    MenuOpenTarget, MenuSecondary, MenuSplit, SessionActions, SidebarMenus,
+    project_header_actions, unified_default_hover_buttons, unified_hover_buttons, workspace_menu,
+    workspace_switch_target, HeaderCommand, HoverAction, HoverSlot, HoverStrip, LauncherAgent,
+    MenuCommand, MenuGroup, MenuHost, MenuItem, MenuOpenTarget, MenuSecondary, MenuSplit,
+    SessionActions, SidebarMenus, UNIFIED_TOGGLE_GROUPS_ACTION,
 };
 pub use crate::sidebar_menu::{
     AgentChoicePlace, AgentChoiceScope, AgentChoices, AGENT_CHOICES_STORAGE_KEY,
@@ -227,6 +232,7 @@ pub use crate::sidebar_view::{
     space_for_focused_row, space_landing_project_ids, ArmedAction, BrowserTabInput,
     CloseAfterDoneInput, Collection, CollectionView, CollectionsState, CoordinatorBadge,
     CoordinatorBadgeTone, DelayedSendInput, DelayedSendView, DropLanding, DropWrites, EmptyState,
+    ShowAllProjectsRow,
     FocusedRowSpace, FoldedStatus, GroupCore, GroupSummary, GroupView, LabelDeadline,
     MachineNotice, MachineSummary, MachineTabInput, MachineTabView, NeedsYou, OrderItem, OrderKind,
     ProjectContextView, ProjectDiffStats, ProjectDropLanding, ProjectDropRow, ProjectSlotPlan,

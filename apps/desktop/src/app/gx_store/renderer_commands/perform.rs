@@ -45,7 +45,11 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) -> Result<Value, RendererCommandError> {
-        let verb = plan_renderer_command(&self.gx_store.core, &command.action, &command.payload)?;
+        let payload = super::project_path::with_registered_project_folder(
+            &self.gx_store.core,
+            &command.payload,
+        );
+        let verb = plan_renderer_command(&self.gx_store.core, &command.action, &payload)?;
         let action = command.action.as_str();
         match verb {
             RendererVerb::FocusSession(session) => {
@@ -160,6 +164,7 @@ impl GhostexGpuiApp {
                 project_id,
                 reuse,
                 url,
+                agent_session,
             } => {
                 let mut payload = json!({
                     "reuse": reuse,
@@ -167,14 +172,21 @@ impl GhostexGpuiApp {
                     "url": url,
                     "version": GPUI_SIDEBAR_OPEN_BROWSER_URL_MESSAGE_VERSION,
                 });
-                if let Some(project_id) = project_id {
+                if let Some(project_id) = &project_id {
                     payload["projectId"] = json!(project_id);
                 }
                 if let Ok(message) = gpui_sidebar_open_browser_url_from_json(&payload.to_string()) {
                     self.open_browser_url_from_renderer_command(message, window, cx);
+                    if let (Some(agent_session), Some(project_id)) = (agent_session, &project_id) {
+                        self.note_agent_browser_page(agent_session, project_id);
+                    }
                 }
                 Ok(json!({ "accepted": true, "action": action, "ok": true }))
             }
+            RendererVerb::ListBrowserPages {
+                project_id,
+                agent_session,
+            } => Ok(self.list_agent_browser_pages(&project_id, agent_session.as_deref(), cx)),
             RendererVerb::ReloadSession {
                 session,
                 message_type,

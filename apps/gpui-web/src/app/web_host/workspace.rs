@@ -78,12 +78,15 @@ impl GhostexGpuiApp {
         false
     }
 
-    /// Handoff to Remote's computers: a page reaches only the computer that serves it.
+    /// The page's agents arrive with the HUD (gx_store/host.rs), so there is nothing to refresh.
+    pub(crate) fn refresh_gpui_new_thread_picker_agents(&mut self, _cx: &mut Context<Self>) {}
+
+    /// Advanced Handoff's computers: a page reaches only the computer that serves it.
     pub(crate) fn gpui_add_project_dialog_machine_options(&self) -> Value {
         Value::Array(Vec::new())
     }
 
-    /// Handoff to Remote never opens in a page (it has no other computer), so neither does its
+    /// Advanced Handoff never opens in a page, so neither does its
     /// Add Project round trip.
     pub(crate) fn open_gpui_add_project_modal(&mut self, _message: &Value, _cx: &mut Context<Self>) {}
 

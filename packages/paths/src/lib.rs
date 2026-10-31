@@ -8,7 +8,9 @@ use std::{
 pub mod durable_file;
 pub mod portable;
 pub mod powershell;
+pub mod same_folder;
 pub mod settings_file;
+pub mod tool_path;
 
 #[cfg(not(target_os = "windows"))]
 const PRODUCT_DIR_UNIX: &str = "ghostex";
@@ -972,7 +974,7 @@ fn remove_empty_directory(path: &Path) {
     let _ = fs::remove_dir(path);
 }
 
-fn user_home_dir() -> PathBuf {
+pub fn user_home_dir() -> PathBuf {
     nonempty_env_path("HOME")
         .or_else(|| nonempty_env_path("USERPROFILE"))
         .unwrap_or_else(|| PathBuf::from("."))

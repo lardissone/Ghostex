@@ -157,7 +157,7 @@ pub(crate) struct SidebarList {
     /// The inputs the newest view was built from, so the shadow compares the same moment. Kept
     /// rather than rebuilt: an update that changed one session must not re-parse the browser tabs
     /// or clone the sidebar's whole state.
-    pub(super) last_inputs: SidebarInputs,
+    pub(in crate::app) last_inputs: SidebarInputs,
     /// What the newest update was given, so a difference between the kept list and a fresh one can
     /// say what the cache was reacting to when it went wrong.
     pub(super) last_update: LastUpdate,
@@ -641,6 +641,7 @@ impl GhostexGpuiApp {
                 "copy": Value::Null,
             }),
             machine_notice: None,
+            show_all_projects_row: None,
             hud: std::sync::Arc::new(Value::Null),
             groups: Vec::new(),
             selected_machine_id: view.selected_machine_id.clone(),

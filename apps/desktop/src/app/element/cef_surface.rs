@@ -38,6 +38,8 @@ pub(crate) struct CefSurface {
     workarea_theme: Option<(bool, u32, u32, bool)>,
     /// What the page asked of the computer, waiting for an answer (`site_prompt`).
     site_prompts: site_prompt::SitePromptQueue,
+    /// The id the DevTools endpoint lists this page under, once asked (`learn_devtools_target_id`).
+    devtools_target_id: Option<String>,
 }
 
 impl CefSurface {
@@ -199,7 +201,31 @@ impl CefSurface {
             hidden_since: (!visible).then(std::time::Instant::now),
             workarea_theme: None,
             site_prompts: site_prompt::SitePromptQueue::new(cx),
+            devtools_target_id: None,
         }
+    }
+
+    /// The id the DevTools endpoint lists this page under; `None` until the page has answered.
+    pub(crate) fn devtools_target_id(&self) -> Option<&str> {
+        self.devtools_target_id.as_deref()
+    }
+
+    /// Asks the page for its DevTools target id (`cef/shell/page_target_id.rs`) and keeps the
+    /// answer. A page keeps its id for its whole life, so it is asked once.
+    pub(crate) fn learn_devtools_target_id(surface: &Entity<Self>, cx: &mut gpui::App) {
+        let Some(request) = surface.read(cx).browser.request_devtools_target_id() else {
+            return;
+        };
+        let surface = surface.downgrade();
+        cx.spawn(async move |cx| {
+            let Ok(Some(target_id)) = request.target_id.await else {
+                return;
+            };
+            let _ = surface.update(cx, |surface, _| {
+                surface.devtools_target_id = Some(target_id);
+            });
+        })
+        .detach();
     }
 
     pub(crate) fn load_url(&mut self, url: &str) {

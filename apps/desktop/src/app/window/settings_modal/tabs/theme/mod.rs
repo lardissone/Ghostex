@@ -451,7 +451,7 @@ impl ThemeTab {
                 t.spec_plain(
                     "themeSidebarContrast",
                     "Colourfulness",
-                    "How much of the colour shows in the sidebar and work area. Vivid is lighter and more colourful, Subtle is deeper and nearly neutral.",
+                    "How much of the colour shows in the sidebar and work area. Subtle is deeper and nearly neutral, Vivid lighter and more colourful, and in dark mode Full is the colour you picked itself.",
                 )
                 .icon(ICON_COLOURFULNESS),
                 Some(reset_key::<Self>("themeSidebarContrast")),

@@ -66,6 +66,7 @@ pub fn neutral_indicator_inputs(list_inputs: &SidebarInputs, machine: &MachineId
             .remote_id()
             .unwrap_or(crate::sidebar_view::LOCAL_MACHINE_ID)
             .to_string(),
+        show_all_projects: true,
         ..Default::default()
     };
     inputs.spaces_lifted = true;

@@ -1,9 +1,9 @@
 //! The Sidebar group of General: Sidebar, Session Cards and Sidebar Tags.
 use super::super::super::catalog::{SettingOption, module, settings_catalog};
 use super::super::super::fields::{
-    Chip, PageAction, RowSpec, card_inset, chips_field, custom_note, hover_actions_field,
-    hover_buttons_are_default, normalize_hover_buttons, reset_key, segmented_field, select_field,
-    settings_section, tag_list_field, toggle_field_with,
+    Chip, HoverStripKind, PageAction, RowSpec, card_inset, chips_field, custom_note,
+    hover_actions_field, hover_buttons_are_default, normalize_hover_buttons, reset_key,
+    segmented_field, select_field, settings_section, tag_list_field, toggle_field_with,
 };
 use super::super::super::page::PageBlock;
 use super::super::super::store::SettingsStore;
@@ -111,6 +111,28 @@ fn sidebar_section(
             spec,
             Some(reset_key::<GeneralTab>("sidebarView")),
             g.options("SIDEBAR_VIEW_OPTIONS"),
+            cx,
+        ));
+    }
+    // The Unified sidebar's own Working section switch, under the switch that selects it (CDXC:Sidebar
+    // 2026-10-30 in gx-core unified_sidebar/build.rs `unified_shelf`).
+    if g.values.string("sidebarView") == "unified" {
+        rows.extend(page.toggle(
+            g,
+            s,
+            "unifiedGroupByProject",
+            "Group by project",
+            "Put every machine's sessions of one repository under one header, with its Working, Snoozed and Parked sections inside it. Drag the headers to arrange them. Drafts stay above the groups. Also in the sidebar's Sort & Filter menu. Shown while the Unified sidebar is selected.",
+            false,
+            cx,
+        ));
+        rows.extend(page.toggle(
+            g,
+            s,
+            "unifiedWorkingSection",
+            "Working section",
+            "Fold sessions whose agent is working or still running something in the background into a Working section at the bottom of the list. They return to the top of the list when they need you. Shown while the Unified sidebar is selected.",
+            true,
             cx,
         ));
     }
@@ -437,6 +459,18 @@ fn sidebar_section(
         false,
         cx,
     ));
+    // The Project sidebar's own; the Unified sidebar lists sessions, so it has no empty projects.
+    if g.values.string("sidebarView") != "unified" {
+        rows.extend(page.toggle(
+            g,
+            s,
+            "sidebarHideProjectsWithoutSessions",
+            "Hide projects without sessions",
+            "Leave projects with no sessions out of the Project sidebar, whatever state a session is in; the open project always stays, and a Show all projects row at the end of the list brings them back. Also in the sidebar's Sort & Filter menu.",
+            false,
+            cx,
+        ));
+    }
     // CDXC:Sidebar 2026-06-16-18:19: agentManagerZoomPercent is labelled Sidebar Interface Size.
     rows.extend(page.slider(
         g,
@@ -526,22 +560,32 @@ fn session_cards_section(
     }
     let s = "sessionCards";
     let mut rows: Vec<AnyElement> = Vec::new();
-    if g.visible(s, "sessionCardHoverButtons") {
-        let value = g.values.value("sessionCardHoverButtons");
+    // CDXC:Sidebar 2026-10-31 DECISION: User (Q846): "we show the strip related to the currently active sidebar in the settings. and we have a button that allows copying from the other view (just icon button pls with tooltip)".
+    let unified = g.values.string("sidebarView") == "unified";
+    let strip = if unified {
+        HoverStripKind::Unified
+    } else {
+        HoverStripKind::Project
+    };
+    if g.visible(s, strip.key()) {
+        let value = g.values.value(strip.key());
         let items = normalize_hover_buttons(&value);
         let spec = g
             .spec(
-                "sessionCardHoverButtons",
+                strip.key(),
                 "Session hover buttons (click to toggle, drag to reorder)",
-                "Buttons a session card shows when you hover it. Click an icon to turn it on or off; drag icons to reorder them. Buttons to the right of the chevron always show, buttons to its left hide until the chevron is clicked. By default the strip is Tag, Park, Sleep, chevron, Close.",
+                strip.description(),
             )
-            .modified(!hover_buttons_are_default(&items));
+            .modified(!hover_buttons_are_default(&items, strip));
+        let other = g.values.value(strip.other().key());
         rows.push(hover_actions_field(
             page,
             &g.p,
             spec,
-            Some(reset_key::<GeneralTab>("sessionCardHoverButtons")),
+            Some(reset_key::<GeneralTab>(strip.key())),
             &value,
+            strip,
+            &other,
             cx,
         ));
     }

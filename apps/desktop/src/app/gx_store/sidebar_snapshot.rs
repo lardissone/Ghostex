@@ -121,7 +121,7 @@ struct CachedCollectionMenu {
 struct CachedMoreMenu {
     /// The drawn project group ids, whether any of them is expanded, Show Hidden, and the ticked
     /// filters: everything it reads beyond the shared key.
-    identity: (u64, bool, bool, Vec<String>),
+    identity: (u64, bool, bool, Vec<String>, (bool, bool, bool, bool)),
     menu: Value,
 }
 
@@ -364,8 +364,10 @@ pub(super) fn snapshot_from_view(
             "copy": view.empty_state.copy,
             "detail": view.empty_state.detail,
             "actionLabel": view.empty_state.action_label,
+            "clearTagFilters": view.empty_state.clear_tag_filters,
         }),
         machine_notice: view.machine_notice.clone(),
+        show_all_projects_row: view.show_all_projects_row,
         hud: std::sync::Arc::clone(input.hud),
         groups,
         selected_machine_id: view.selected_machine_id.clone(),
@@ -453,6 +455,12 @@ fn more_menu(
         any_expanded,
         input.show_hidden,
         input.selected_tag_filters.to_vec(),
+        (
+            input.settings.unified_sidebar,
+            input.settings.unified_group_by_project,
+            input.settings.unified_working_section,
+            input.settings.hide_projects_without_sessions,
+        ),
     );
     if let Some(cached) = &cache.more_menu
         && cached.identity == identity

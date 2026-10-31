@@ -795,6 +795,33 @@ impl GhostexGpuiApp {
     }
 }
 
+/// Where an open aimed at one project goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TargetedBrowserOpenRoute {
+    /// The project is on screen: its live Browser.
+    OnScreen,
+    /// The project is off screen: its parked Browser (`open_browser_url_in_parked_project`).
+    /// `realign_browser_model` when the live Browser model still holds that project: it is parked
+    /// first, so the page goes into the project's one tab model rather than a second one the next
+    /// project switch would overwrite.
+    Background { realign_browser_model: bool },
+}
+
+/// Routes an open for `target` by the project on screen (`on_screen`, the Agents workspace's) and
+/// the project the live Browser model holds (`browser_model`).
+pub(crate) fn targeted_browser_open_route(
+    target: &str,
+    on_screen: Option<&str>,
+    browser_model: Option<&str>,
+) -> TargetedBrowserOpenRoute {
+    if on_screen == Some(target) {
+        return TargetedBrowserOpenRoute::OnScreen;
+    }
+    TargetedBrowserOpenRoute::Background {
+        realign_browser_model: on_screen.is_some() && browser_model == Some(target),
+    }
+}
+
 /// The candidates `listed` says their computer's live presentation no longer has, once each.
 /// `listed` answers `None` when it cannot tell (the computer is not live).
 fn removed_project_ids<'a>(
@@ -832,6 +859,33 @@ fn background_browser_page_columns(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_open_for_the_project_on_screen_stays_on_screen() {
+        assert_eq!(
+            targeted_browser_open_route("P1", Some("P1"), Some("P1")),
+            TargetedBrowserOpenRoute::OnScreen
+        );
+    }
+
+    #[test]
+    fn an_open_for_a_project_off_screen_goes_to_its_own_browser() {
+        // The user is on P2; the agent of P1 opens a page.
+        assert_eq!(
+            targeted_browser_open_route("P1", Some("P2"), Some("P2")),
+            TargetedBrowserOpenRoute::Background {
+                realign_browser_model: false
+            }
+        );
+        // The live Browser model still holds P1 while P2 is on screen: P1's model is parked first,
+        // so the page does not go into a second P1 model.
+        assert_eq!(
+            targeted_browser_open_route("P1", Some("P2"), Some("P1")),
+            TargetedBrowserOpenRoute::Background {
+                realign_browser_model: true
+            }
+        );
+    }
 
     #[test]
     fn a_project_the_live_presentation_dropped_is_removed_once() {

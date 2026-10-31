@@ -55,6 +55,9 @@ response text may be retained here.
 pub(crate) struct GpuiRemoteGxserverCapabilities {
     pub(crate) code_server_prompt_editor: bool,
     pub(crate) browser_tcp_websocket_v1: bool,
+    /// The daemon says it cannot resolve its session host, so no session can start there. An older
+    /// answer without the tool list reads as not missing.
+    pub(crate) zmx_missing: bool,
 }
 
 pub(crate) struct GpuiRemoteGxserverConnection {
@@ -67,7 +70,8 @@ pub(crate) struct GpuiRemoteGxserverConnection {
     pub(crate) presentation_stream_generation: Option<u64>,
     pub(crate) token: String,
     pub(crate) child: Child,
-    pub(crate) health_check_failures: u8,
+    /// The watchdog's probes in a row that did not confirm the tunnel (helpers/remote/tunnel_liveness.rs).
+    pub(crate) liveness: crate::app::helpers::GpuiRemoteTunnelLiveness,
     /// The machine's gxserver is this computer's own (`gpui_remote_is_this_computer`), so it is
     /// never installed or updated from here.
     pub(crate) this_computer: bool,

@@ -300,7 +300,12 @@ pub fn project_message(
     projected.insert("questions".to_string(), Value::Array(questions));
     projected.insert(
         "sentMessages".to_string(),
-        Value::Array(project_sent_messages(message, &tool_pairs, line_breaks)),
+        Value::Array(project_sent_messages(
+            message,
+            &tool_pairs,
+            line_breaks,
+            spans,
+        )),
     );
     // The Workflow calls this message made, by call id: the document's `workflowCards` holds each
     // run's card, drawn after the message's tool rows (`workflow_card.rs`).

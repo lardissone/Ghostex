@@ -238,37 +238,139 @@ pub fn dress_received(message: &mut Value) {
 
 /// Brings one recipient's status up to date from gxserver's delivery watch: a send that answered
 /// `pending`, `accepted` or `queued` becomes `delivered` once the recipient's transcript records
-/// the message, or failed with the watch's reason once Ghostex gives up on it.
+/// the message, failed with the watch's reason once Ghostex gives up on it, and `untracked` when
+/// gxserver follows no such send (or stopped following it).
 ///
 /// CDXC:SessionChat 2026-10-14 DECISION:
-/// Asked "Should a sent message's card update once the other session actually receives it?", the user answered "yes, update it to Delivered". A card whose send answered `pending`, `accepted` or `queued` (seen: an orchestrator's sends to two busy threads kept "Waiting for agent" after both had arrived, and read as an error) changes to Delivered when the message reaches the other session, and to Not sent with the reason when Ghostex gives up on it; it stays so after a reload, a restart and on the phone. gxserver decides (server/src/agent_message_deliveries.rs); the card only applies its outcome, by the send's `sendRequestId`. A message sent to several sessions keeps one combined status, from each recipient's live one.
+/// Asked "Should a sent message's card update once the other session actually receives it?", the user answered "yes, update it to Delivered". A card whose send answered `pending`, `accepted` or `queued` (seen: an orchestrator's sends to two busy threads kept "Waiting for agent" after both had arrived, and read as an error) changes to Delivered when the message reaches the other session, and to Not sent with the reason when Ghostex gives up on it; it stays so after a reload, a restart and on the phone. gxserver decides (server/src/agent_message_deliveries.rs); the card only applies its outcome. A message sent to several sessions keeps one combined status, from each recipient's live one.
+/// CDXC:SessionChat 2026-10-31 WHY: the card used to find its outcome by the send's `sendRequestId` alone, which an agent that filters the send's output (`| grep -m1 '"status"'`) never prints, so it said "Queued until its turn ends" for good. Without the id it is found by the message's fingerprint, the recipient and a send time inside its tool call's run (`delivery_key`); a waiting card gxserver does not follow says Sent instead of claiming to be on its way (the 2026-10-31 note in packages/gx-protocol/src/agent_message_delivery.rs).
 /// SEE-ALSO: server/src/server/agent_message_delivery_runtime.rs (the watch), server/src/ghostex_cli/agents/delivery.rs (registers each waiting send).
 pub fn apply_live_delivery(recipient: &mut Value, deliveries: Option<&Value>) {
-    let Some(id) = live_delivery_key(recipient) else {
+    let Some(key) = live_delivery_key(recipient) else {
         return;
     };
-    let Some(outcome) = deliveries.and_then(|deliveries| deliveries.get(id)) else {
+    let Some(outcome) = delivery_lookup(deliveries, &key) else {
         return;
     };
-    match text(outcome, "state") {
+    match text(&outcome, "state") {
         "delivered" => recipient["status"] = "delivered".into(),
         "failed" => {
             recipient["failed"] = true.into();
-            recipient["failure"] = text(outcome, "failure").to_string().into();
+            recipient["failure"] = text(&outcome, "failure").to_string().into();
         }
+        "untracked" => recipient["status"] = "untracked".into(),
         _ => {}
     }
 }
 
-/// The send id [`apply_live_delivery`] looks a recipient up by, or `None` when its send already
-/// settled and the watch's word cannot change it.
-pub fn live_delivery_key(recipient: &Value) -> Option<&str> {
+/// How far a send's time may sit outside its tool call's run: both are taken on the machine that
+/// runs the agent, so only the gap between writing a row and stamping it needs covering.
+const SEND_TIME_SLACK_MS: i64 = 1_000;
+
+/// What [`apply_live_delivery`] looks a recipient up by, or `None` when its send already settled
+/// and the watch's word cannot change it: the send's `sendRequestId`, else `?` and the message's
+/// fingerprint, the recipient's project and session and the tool call's run
+/// (`?<fingerprint>|<project>|<session>|<called>|<answered>`, an unknown part left empty).
+pub fn live_delivery_key(recipient: &Value) -> Option<String> {
     if recipient["failed"] == true
         || !matches!(text(recipient, "status"), "pending" | "accepted" | "queued")
     {
         return None;
     }
-    Some(text(recipient, "sendRequestId")).filter(|id| !id.is_empty())
+    let id = text(recipient, "sendRequestId");
+    if !id.is_empty() {
+        return Some(id.to_string());
+    }
+    let fingerprint = text(recipient, "fingerprint");
+    if fingerprint.is_empty() {
+        return None;
+    }
+    let reference = [text(recipient, "globalRef"), text(recipient, "target")]
+        .into_iter()
+        .find_map(ghostex_gx_protocol::parse_global_session_ref);
+    let (project, session) = match &reference {
+        Some(reference) => (
+            reference.project_id.to_string(),
+            reference.session_id.to_string(),
+        ),
+        None => (String::new(), String::new()),
+    };
+    let time = |key: &str| {
+        recipient
+            .get(key)
+            .and_then(Value::as_i64)
+            .map(|at| at.to_string())
+            .unwrap_or_default()
+    };
+    Some(format!(
+        "?{fingerprint}|{project}|{session}|{}|{}",
+        time("calledAt"),
+        time("answeredAt")
+    ))
+}
+
+/// gxserver's word on the send a [`live_delivery_key`] names: its outcome, a waiting entry, or
+/// `{ "state": "untracked" }` when gxserver lists its sends and follows none such. `None` when
+/// gxserver says nothing (no field yet, or one from before it listed its sends and no id to go by).
+pub fn delivery_lookup(deliveries: Option<&Value>, key: &str) -> Option<Value> {
+    let deliveries = deliveries?;
+    let sends = deliveries
+        .get(ghostex_gx_protocol::agent_message_delivery::SENDS_KEY)
+        .and_then(Value::as_array);
+    let untracked = || json!({ "state": "untracked" });
+    if let Some(query) = key.strip_prefix('?') {
+        return Some(
+            matching_send(sends?, query)
+                .cloned()
+                .unwrap_or_else(untracked),
+        );
+    }
+    if let Some(outcome) = deliveries.get(key) {
+        return Some(outcome.clone());
+    }
+    Some(
+        sends?
+            .iter()
+            .find(|send| text(send, "sendRequestId") == key)
+            .cloned()
+            .unwrap_or_else(untracked),
+    )
+}
+
+/// The send a `?` key names: the message's fingerprint, the recipient when the card knows it, and
+/// the latest send inside the tool call's run (a repeat of the same message in a later call sits
+/// in that call's run); with no run to go by, only a send that is the one such.
+fn matching_send<'a>(sends: &'a [Value], query: &str) -> Option<&'a Value> {
+    let parts: Vec<&str> = query.split('|').collect();
+    let [fingerprint, project, session, called, answered] = parts[..] else {
+        return None;
+    };
+    let called = called.parse::<i64>().ok();
+    let answered = answered.parse::<i64>().ok();
+    let candidates: Vec<&Value> = sends
+        .iter()
+        .filter(|send| {
+            text(send, "fingerprint") == fingerprint
+                && (project.is_empty() || text(send, "projectId") == project)
+                && (session.is_empty() || text(send, "sessionId") == session)
+        })
+        .collect();
+    let sent_at = |send: &Value| send.get("sentAtMs").and_then(Value::as_i64);
+    if called.is_none() && answered.is_none() {
+        return match candidates[..] {
+            [only] => Some(only),
+            _ => None,
+        };
+    }
+    candidates
+        .into_iter()
+        .filter(|send| {
+            sent_at(send).is_some_and(|at| {
+                called.is_none_or(|called| at >= called - SEND_TIME_SLACK_MS)
+                    && answered.is_none_or(|answered| at <= answered + SEND_TIME_SLACK_MS)
+            })
+        })
+        .max_by_key(|send| sent_at(send))
 }
 
 /// Where one recipient's send left the message, as the result said; `Null` when nothing was read
@@ -292,6 +394,13 @@ fn delivery_status(recipient: &Value) -> Value {
         "queued" => status("Queued", "Queued until its turn ends", "waiting", "clock"),
         "pending" => status("Waiting for agent", "Waiting for agent", "waiting", "clock"),
         "accepted" => status("Sent", "Sent", "good", "check"),
+        // A waiting send Ghostex does not follow: it went out, and nothing says where it is now.
+        "untracked" => status(
+            "Sent",
+            "Sent. Ghostex is not following whether it arrived.",
+            "good",
+            "check",
+        ),
         _ => Value::Null,
     }
 }

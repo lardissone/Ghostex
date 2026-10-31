@@ -44,9 +44,28 @@ impl GhostexGpuiApp {
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
+        self.render_native_session_hover_strip(
+            session,
+            group.hover_actions_expanded,
+            json!({"type": "toggleHoverActions", "groupId": group.storage_id}),
+            appearance,
+            cx,
+        )
+    }
+
+    /// The buttons themselves, with what the chevron sends: a Project sidebar row's chevron opens
+    /// its project's strip, a Unified card's opens every card's.
+    pub(crate) fn render_native_session_hover_strip(
+        &self,
+        session: &NativeSidebarSession,
+        expanded: bool,
+        expand_command: Value,
+        appearance: &SidebarAppearance,
+        cx: &mut gpui::Context<Self>,
+    ) -> AnyElement {
         let id = session.session_id.clone();
         let scale = appearance.scale;
-        let actions = session_hover_items(session, group.hover_actions_expanded);
+        let actions = session_hover_items(session, expanded);
         h_flex()
             .id(format!("native-sidebar-hover-actions-{id}"))
             .flex_shrink_0()
@@ -63,7 +82,7 @@ impl GhostexGpuiApp {
                 let command = item.get("command").cloned();
                 let menu = item.get("children").cloned();
                 let expand = item["expand"].as_bool() == Some(true);
-                let storage_id = group.storage_id.clone();
+                let expand_command = expand_command.clone();
                 let session_id = id.clone();
                 let trigger_label = label.clone();
                 let button_owner = super::menus::MenuOwner::default();
@@ -124,10 +143,9 @@ impl GhostexGpuiApp {
                         cx.listener(move |app, event: &gpui::ClickEvent, window, cx| {
                             cx.stop_propagation();
                             if expand {
-                                app.dispatch_native_sidebar_ui(
-                                    json!({"type": "toggleHoverActions", "groupId": storage_id}),
-                                    cx,
-                                );
+                                if !app.gx_store_run_unified_sidebar_command(&expand_command, cx) {
+                                    app.dispatch_native_sidebar_ui(expand_command.clone(), cx);
+                                }
                             } else if let Some(menu) = &menu {
                                 // The session card's menus hang below the card, lined up with this button (menus.rs).
                                 Self::show_native_sidebar_menu_hung(

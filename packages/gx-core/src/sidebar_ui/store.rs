@@ -242,6 +242,10 @@ impl SidebarUiStore {
                 self.state.show_hidden = !self.state.show_hidden;
                 changed(SidebarPersistSet::default())
             }
+            SidebarUiIntent::ToggleShowAllProjects => {
+                self.state.show_all_projects = !self.state.show_all_projects;
+                changed(SidebarPersistSet::default())
+            }
             SidebarUiIntent::HideGroup { group_id } => {
                 let moved = insert_unique(&mut self.state.hidden_items.group_ids, group_id);
                 outcome(moved, SidebarPersistSet::hidden_items())

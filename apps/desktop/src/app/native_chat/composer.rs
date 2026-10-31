@@ -420,6 +420,7 @@ impl NativeChatView {
             waiting.push(card.into_any_element());
         }
         self.sync_files_links_menu(window, cx);
+        self.sync_resource_modal_menu(window, cx);
         if maximized && let Some(suggestions) = self.inline_suggestions(window, cx) {
             let height =
                 super::suggestions::suggestion_panel_height(&self.snapshot["suggestions"], s);
@@ -612,6 +613,10 @@ impl NativeChatView {
             .when(!maximized, |this| this.child(content_measure));
         if !maximized && let Some(run_location) = self.render_run_location(p, cx) {
             waiting.push(run_location.into_any_element());
+        }
+        // The worktree tray sits last, right on top of the box it is attached to.
+        if !maximized && let Some(tray) = self.render_worktree_tray(p, cx) {
+            waiting.push(tray);
         }
         // The box's own lead-in on top of the stack's 8px gap.
         let lead_in = if !waiting.is_empty() {

@@ -3,7 +3,10 @@
 //! installed by the store (gx_store/unified_sidebar.rs).
 
 mod cards;
+mod groups;
 mod header;
+mod hover;
 mod list;
 pub(crate) mod model;
+pub(crate) mod search;
 mod shelves;

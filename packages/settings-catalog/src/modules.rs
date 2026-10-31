@@ -147,6 +147,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 DEFAULT_SESSION_CARD_HOVER_BUTTONS.to_json(),
             ),
             (
+                "DEFAULT_UNIFIED_SESSION_CARD_HOVER_BUTTONS",
+                DEFAULT_UNIFIED_SESSION_CARD_HOVER_BUTTONS.to_json(),
+            ),
+            (
                 "SESSION_CARD_HOVER_BUTTON_LABELS",
                 SESSION_CARD_HOVER_BUTTON_LABELS.to_json(),
             ),

@@ -333,6 +333,23 @@ pub(super) async fn route_chat_http(
                 )
             },
         ),
+        // One form, page or chart of the session's resource index, read back by its offsets
+        // (session_chat_resources.rs).
+        "/api/readSessionChatResource" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, db, params, _| {
+                crate::session_chat_resources::read_resource(
+                    repository,
+                    db,
+                    &read_project_id(params)?,
+                    &read_session_id(params)?,
+                    params.get("id").and_then(Value::as_str).unwrap_or_default(),
+                )
+            },
+        ),
         "/api/exportSessionTranscript" => {
             handle_export_session_transcript_http(&state, endpoint.path, request_id, &body_json)
                 .await
@@ -374,7 +391,7 @@ pub(super) async fn route_chat_http(
             )
         }
         crate::agent_message_deliveries::WATCH_AGENT_MESSAGE_DELIVERY_ENDPOINT => {
-            handle_domain_http(
+            let response = handle_domain_http(
                 &state,
                 endpoint.path,
                 request_id,
@@ -382,7 +399,22 @@ pub(super) async fn route_chat_http(
                 |_, db, params, _| {
                     crate::agent_message_deliveries::handle_watch_agent_message_delivery(db, params)
                 },
-            )
+            );
+            // The sender's chat learns of the send before the agent's tool result reaches it.
+            let sender = read_domain_rpc_params(&body_json).ok().and_then(|params| {
+                Some((
+                    params.get("senderProjectId")?.as_str()?.to_string(),
+                    params.get("senderSessionId")?.as_str()?.to_string(),
+                ))
+            });
+            if let Some((project_id, session_id)) = sender {
+                super::super::coordinator_runtime::republish_session_chat(
+                    &state,
+                    &project_id,
+                    &session_id,
+                );
+            }
+            response
         }
         crate::visual_pages::PUBLISH_VISUAL_PAGE_ENDPOINT => {
             crate::visual_pages::handle_publish_visual_page_http(

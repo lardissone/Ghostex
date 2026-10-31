@@ -417,6 +417,7 @@ pub(crate) fn gpui_ghostex_cli_status_message_with_cua_update_check(
     ) {
         payload.extend(spaceo);
     }
+    gpui_cua_driver_add_permission_fields(&mut payload, &cua_permission_status);
     gpui_decorate_ghostex_cli_status(&mut payload);
     payload
 }

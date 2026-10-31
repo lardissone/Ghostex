@@ -140,6 +140,9 @@ pub struct GhostexGpuiApp {
     /// project next is (`land_pending_parked_browser_open`). Runtime only: after a launch every page
     /// waits for a click (CDXC:Browser 2026-09-19).
     pub(crate) pending_parked_browser_opens: HashMap<String, BrowserTabId>,
+    /// Per agent session, the Browser tab its last `ghostex browser open` opened, with the tab's
+    /// project (browser_agent_pages.rs). Runtime only, like the pages it names.
+    pub(crate) browser_agent_pages: HashMap<String, (String, BrowserTabId)>,
     /// The tabs (by project) opened while their project was not on screen whose page CEF could not
     /// make at the time (CEF or the workspace profile still starting), made by
     /// `start_waiting_parked_browser_pages` once it can, whichever tab is in front by then. Kept

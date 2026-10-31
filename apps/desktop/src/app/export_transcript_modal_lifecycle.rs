@@ -3,13 +3,8 @@
 use crate::app::helpers::*;
 use crate::app::window::*;
 use crate::*;
-use std::path::PathBuf;
 
-/// GPUI-owned replacement for the React dialog's `ghostex.exportTranscript.mode`
-/// and `ghostex.exportTranscript.includeOptions` localStorage keys.
-pub(crate) fn gpui_export_transcript_modal_prefs_path() -> PathBuf {
-    ghostex_state_root().join("gpui-export-transcript-modal.json")
-}
+use crate::app::session_handoff_modal_lifecycle::gpui_export_transcript_modal_prefs_path;
 
 impl GhostexGpuiApp {
     /*
@@ -192,39 +187,7 @@ impl GhostexGpuiApp {
         .is_some()
     }
 
-    /// The configured agents that can take the handoff: the sidebar HUD
-    /// buttons with a launch command, the same filter the React dialog applies.
-    pub(crate) fn gpui_export_transcript_prompt_agents(&self) -> Vec<ExportTranscriptAgent> {
-        self.new_thread_picker_agents
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .filter_map(|value| {
-                let field = |key: &str| {
-                    value
-                        .get(key)
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::trim)
-                        .filter(|text| !text.is_empty())
-                        .map(str::to_string)
-                };
-                field("command")?;
-                Some(ExportTranscriptAgent {
-                    agent_id: field("agentId")?,
-                    name: field("name")?,
-                    // The chat core's own mapping, so the dialog and the model picker agree on
-                    // which agent a picked model belongs to.
-                    family:
-                        ghostex_gx_chat_core::menus::picker::model_picker::model_picker_provider(
-                            field("icon").as_deref(),
-                        )
-                        .map(|family| family.as_str().to_string()),
-                })
-            })
-            .collect()
-    }
-
-    /// Handoff to Remote's branch notice for `target` (gx_store/git/export_handoff_remote.rs).
+    /// Advanced Handoff's branch notice for `target` (gx_store/git/export_handoff_remote.rs).
     pub(crate) fn push_gpui_export_transcript_branch_notice(
         &mut self,
         target: ExportTranscriptRemoteTarget,
@@ -251,5 +214,6 @@ impl GhostexGpuiApp {
             cx,
             |modal: &mut GpuiExportTranscriptModalWindow, _window, cx| modal.set_agents(agents, cx),
         );
+        self.push_gpui_session_handoff_modal_agents(cx);
     }
 }

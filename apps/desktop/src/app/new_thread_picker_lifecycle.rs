@@ -467,6 +467,7 @@ impl GhostexGpuiApp {
     /// Closes from the main window (hotkey toggle): removes the visible window
     /// and preloads the next one.
     pub(crate) fn close_gpui_new_thread_picker(&mut self, cx: &mut gpui::Context<Self>) {
+        self.gx_store.unified_sidebar.picker_target = None;
         self.new_thread_picker_visible = false;
         self.remove_gpui_new_thread_picker_window(cx);
         self.restore_keyboard_focus_after_app_modal(cx);
@@ -507,21 +508,30 @@ impl GhostexGpuiApp {
                 self.launch_agent_in_active_project(agent_id, account_id, run_location, cx);
             }
             NewThreadPickerCommand::OpenBrowser => {
-                self.dispatch_gpui_sidebar_host_message(
-                    json!({ "type": "openBrowserPaneInGroup" }),
-                    cx,
-                );
+                let mut message = json!({ "type": "openBrowserPaneInGroup" });
+                if let Some(group_id) = self.gx_store.unified_sidebar.picker_target.take() {
+                    message["groupId"] = json!(group_id);
+                }
+                self.dispatch_gpui_sidebar_host_message(message, cx);
                 self.release_gpui_new_thread_picker_window(cx);
             }
             NewThreadPickerCommand::CreateTerminal => {
-                self.dispatch_gpui_sidebar_host_message(json!({ "type": "createSession" }), cx);
+                let message = match self.gx_store.unified_sidebar.picker_target.take() {
+                    Some(group_id) => {
+                        json!({ "type": "createSessionInGroup", "groupId": group_id })
+                    }
+                    None => json!({ "type": "createSession" }),
+                };
+                self.dispatch_gpui_sidebar_host_message(message, cx);
                 self.release_gpui_new_thread_picker_window(cx);
             }
             NewThreadPickerCommand::AddAccount => {
+                self.gx_store.unified_sidebar.picker_target = None;
                 self.open_gpui_settings_tab_from_new_thread_picker("accounts", cx);
                 self.release_gpui_new_thread_picker_window(cx);
             }
             NewThreadPickerCommand::OpenCloudBoxesSettings => {
+                self.gx_store.unified_sidebar.picker_target = None;
                 self.open_gpui_settings_tab_from_new_thread_picker("cloudBoxes", cx);
                 self.release_gpui_new_thread_picker_window(cx);
             }
@@ -529,6 +539,7 @@ impl GhostexGpuiApp {
                 self.refresh_gpui_new_thread_picker_accounts(cx);
             }
             NewThreadPickerCommand::Closed => {
+                self.gx_store.unified_sidebar.picker_target = None;
                 self.release_gpui_new_thread_picker_window(cx);
             }
         }

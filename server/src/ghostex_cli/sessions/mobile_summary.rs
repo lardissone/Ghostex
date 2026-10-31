@@ -154,6 +154,55 @@ pub(super) fn to_mobile_session_list(result: &Value, settings: &Map<String, Valu
     {
         map.insert("newSessionAgentScope".to_string(), json!(scope));
     }
+    // CDXC:Sidebar 2026-10-30 SEE-ALSO: packages/gx-core/src/unified_sidebar/; the phone's session list follows the computer's Settings > Sidebar & Sessions > Sidebar (apps/mobile/app/src/contract/unified/). Sent only when it is not the default: `sidebarView` when Unified is picked, `unifiedWorkingSection` when its Working section is switched off, `enableSessionParking` when parking is.
+    if settings.get("sidebarView").and_then(Value::as_str) == Some("unified") {
+        map.insert("sidebarView".to_string(), json!("unified"));
+    }
+    if settings
+        .get("unifiedWorkingSection")
+        .and_then(Value::as_bool)
+        == Some(false)
+    {
+        map.insert("unifiedWorkingSection".to_string(), json!(false));
+    }
+    // CDXC:Sidebar 2026-10-31 SEE-ALSO: gx-core unified_sidebar/grouping.rs and sidebar_menu/hover.rs; User (Q856): the phone follows the same build. Group by Project, the dragged project order, the Unified strip the phone's swipe buttons follow, and the Project sidebar's hide switch, each sent only when set.
+    if settings
+        .get("unifiedGroupByProject")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        map.insert("unifiedGroupByProject".to_string(), json!(true));
+    }
+    if let Some(order) = settings
+        .get("unifiedProjectOrder")
+        .filter(|order| order.as_array().is_some_and(|keys| !keys.is_empty()))
+    {
+        map.insert("unifiedProjectOrder".to_string(), order.clone());
+    }
+    if let Some(strip) = settings
+        .get("unifiedSessionCardHoverButtons")
+        .filter(|strip| strip.is_array())
+    {
+        map.insert("unifiedSessionCardHoverButtons".to_string(), strip.clone());
+    }
+    if settings
+        .get("sidebarHideProjectsWithoutSessions")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        map.insert(
+            "sidebarHideProjectsWithoutSessions".to_string(),
+            json!(true),
+        );
+    }
+    // Its Parked shelf shows only while session parking is on (the default).
+    if settings
+        .get("enableSessionParking")
+        .and_then(Value::as_bool)
+        == Some(false)
+    {
+        map.insert("enableSessionParking".to_string(), json!(false));
+    }
     if let Some(projects) = &projects {
         map.insert(
             "projects".to_string(),
@@ -165,6 +214,12 @@ pub(super) fn to_mobile_session_list(result: &Value, settings: &Map<String, Valu
                         insert_present(&mut project_map, "name", project.get("name"));
                         insert_present(&mut project_map, "path", project.get("path"));
                         insert_present(&mut project_map, "projectId", project.get("projectId"));
+                        // The Unified list names a project by its repository, so one repository on two computers is one project (packages/gx-core/src/unified_sidebar/repo.rs).
+                        insert_present(
+                            &mut project_map,
+                            "gitRemoteOriginUrl",
+                            project.get("gitRemoteOriginUrl"),
+                        );
                         /*
                          * CDXC:Icons 2026-08-21:
                          * The phone's sessions list ranks project icons exactly
@@ -772,6 +827,13 @@ fn to_mobile_session_summary(session: &Value) -> Value {
         &[s("backgroundWorkDetectedAt")],
     );
     insert_js(&mut map, "awaitingApproval", &[s("awaitingApproval")]);
+    // The Unified list's working start and failed model change (CDXC:Sidebar 2026-10-30 in cli_session.rs).
+    insert_js(&mut map, "workingStartedAt", &[s("workingStartedAt")]);
+    insert_js(
+        &mut map,
+        "modelSelectionFailure",
+        &[s("modelSelectionFailure")],
+    );
     insert_js(
         &mut map,
         "closeAfterDoneDeadlineAt",

@@ -130,6 +130,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("readAloudHidden", J::Bool(true)),
     // CDXC:SessionDetails 2026-10-25 DECISION: the Session details panel is a beta built-in extension, on by default (official_extensions.rs).
     ("sessionDetailsPanelHidden", J::Bool(false)),
+    // CDXC:SessionNotes 2026-10-30 DECISION: Session notes is off by default (official_extensions.rs).
+    ("sessionNotesHidden", J::Bool(true)),
     // CDXC:Extensions 2026-10-25 DECISION: Claude is off by default (official_extensions.rs).
     ("claudeWebHidden", J::Bool(true)),
     // CDXC:Extensions 2026-10-19 DECISION: Connectors, OS Integration and Debugging are on by default; their old gates still apply (official_extensions.rs).
@@ -511,6 +513,12 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("sidebarSpacesEnabled", J::Bool(false)),
     ("sidebarSpaceSwitchBehavior", J::Str("restore")),
     ("sidebarView", J::Str("project")),
+    ("unifiedWorkingSection", J::Bool(true)),
+    ("unifiedGroupByProject", J::Bool(false)),
+    // CDXC:Sidebar 2026-10-31 SEE-ALSO: gx-core unified_sidebar/grouping.rs; repository keys in the order the user dragged the project groups into. No Settings row: the drag is how it is set.
+    ("unifiedProjectOrder", J::Arr(&[])),
+    ("unifiedSessionCardHoverButtons", super::session_card_hover_actions::DEFAULT_UNIFIED_SESSION_CARD_HOVER_BUTTONS),
+    ("sidebarHideProjectsWithoutSessions", J::Bool(false)),
     ("projectSwitchKeepAliveMinutes", J::Num(10.0)),
     ("sidebarSpaceFollowActiveSession", J::Bool(false)),
     ("sidebarVisibilityMemory", J::Str("shared")),

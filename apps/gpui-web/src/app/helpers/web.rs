@@ -206,3 +206,42 @@ pub(crate) fn gpui_launch_open_target(
 ) -> Result<(), String> {
     Err("Open In needs the Ghostex app.".to_string())
 }
+
+/// The desktop's `refresh_gpui_visual_settings` (helpers/project/colors.rs) for the theme colours
+/// only: the sidebar, title bar, menus and work area take the colours the page's `?settings=`
+/// resolve to, so a theme can be checked in a browser. A page with no settings keeps the defaults.
+pub(crate) fn apply_settings_theme_colours() {
+    use crate::app::consts::{
+        GPUI_TITLEBAR_BACKGROUND_RGB, GPUI_TITLEBAR_GRADIENT_LEFT_RGB,
+        GPUI_TITLEBAR_GRADIENT_RIGHT_RGB, GPUI_WORKSPACE_BACKGROUND_RGB,
+    };
+    use crate::app::helpers::*;
+    use std::sync::atomic::Ordering;
+    let snapshot = crate::shared_settings::shared_sidebar_settings_snapshot();
+    let object = snapshot.object();
+    if object.is_empty() {
+        return;
+    }
+    let light = sidebar_uses_light_theme(object);
+    crate::CHROME_LIGHT_APPEARANCE.store(light, Ordering::Relaxed);
+    let chrome = resolved_custom_sidebar_titlebar_background_for_variant(object, light);
+    GPUI_TITLEBAR_BACKGROUND_RGB.store(u64::from(chrome), Ordering::Relaxed);
+    crate::GPUI_MENU_BACKGROUND_RGB.store(
+        sidebar_titlebar_menu_background_for_chrome(chrome),
+        Ordering::Relaxed,
+    );
+    let (left, right) = if light {
+        (chrome, chrome)
+    } else {
+        sidebar_titlebar_gradient_stops_toward_full(
+            chrome,
+            theme_full_colour_fade(object, "themeSidebarContrast"),
+        )
+    };
+    GPUI_TITLEBAR_GRADIENT_LEFT_RGB.store(u64::from(left), Ordering::Relaxed);
+    GPUI_TITLEBAR_GRADIENT_RIGHT_RGB.store(u64::from(right), Ordering::Relaxed);
+    GPUI_WORKSPACE_BACKGROUND_RGB.store(
+        u64::from(work_area_background_for_variant(object, light)),
+        Ordering::Relaxed,
+    );
+}

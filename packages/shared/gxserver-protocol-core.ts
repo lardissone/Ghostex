@@ -125,6 +125,7 @@ export type GxserverEndpointPath =
    * box. A box picked here starts with the draft's first message.
    */
   | '/api/draftRunLocation'
+  | '/api/draftWorktree'
   /*
    * CDXC:AgentProviders 2026-09-03:
    * Moves a PROMPTED session onto another agent configuration of the same CLI

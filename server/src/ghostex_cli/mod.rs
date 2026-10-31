@@ -657,6 +657,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         session selector; with neither, the presence of `--note` decides.
         */
         "session-note" => {
+            require_built_in(ghostex_settings_catalog::built_in_extensions::SESSION_NOTES)?;
             let (action, parser, rest): (&str, Parser, &[String]) =
                 match args.first().map(String::as_str) {
                     Some("read") => ("readSessionAgentNote", Parser::SessionSelector, &args[1..]),

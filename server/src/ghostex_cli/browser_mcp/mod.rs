@@ -14,6 +14,7 @@ click, fill) are the verbatim JS function sources the Node CLI produced via
 Runtime.evaluate, so they must not be "translated" to Rust.
 */
 
+mod agent_pages;
 mod cdp_client;
 mod cdp_pages;
 mod command;
@@ -22,6 +23,7 @@ mod mcp_server;
 mod mcp_tools;
 mod page_scripts;
 
+use agent_pages::*;
 use cdp_client::*;
 use cdp_pages::*;
 pub use command::*;

@@ -608,11 +608,21 @@ request and agent. A project is named after its repository there, so the same
 repository on this computer and a remote one is one project. Sessions are
 ordered by when they last came back to you (started, sent a message, or a
 finished turn), never by output while an agent works; pinned sessions come
-first. Working, Snoozed and Parked fold into shelves at the bottom: Working only
-while Group working sessions is on, Parked only while session parking is on.
-The filter button at the top narrows the list to projects, machines or Spaces;
-next to it are Add project and New session. Clicking, right-clicking and the
-hover buttons work as in the Project sidebar.
+first, and above them a Drafts section holds every session nobody has sent a
+message to yet (the pencil), newest first, until its first message is sent.
+Working, Snoozed and Parked fold into shelves at the bottom. Working holds
+sessions whose agent works or still runs something in the background, while the
+Working section switch (`unifiedWorkingSection`, on by default, under the
+Sidebar switch) is on; a session leaves it for the top of the list when it needs
+you. Parked shows only while session parking is on. Hovering a card swaps its
+status for Snooze (1 Hour, 3 Hours, Tomorrow or Next Week) and Park; a snoozed
+or parked row offers Unsnooze or Unpark instead. The filter button at the top
+narrows the list to projects, machines or Spaces in a dropdown that scrolls when
+long; picking a project in Quick Access > Projects also filters to it. Next to
+the filter are Add project and New session, which opens the new-session picker
+(agents, Browser, Terminal) in the filtered project when the filter is one
+project. Cards show the project's own icon when it has one, and right-clicking
+any card opens that session's menu, as in the Project sidebar.
 
 The sidebar lists projects and their sessions. Project headers carry the git
 branch and diff stats and, on hover, a New Terminal button, the agent launcher
@@ -892,7 +902,8 @@ where they are while you open, change and close views.
   Cancel Close After Done). The enabled buttons also stay in the
   session's right-click menu, which always runs Rename, Pin, Snooze, Park,
   Sleep, then Tag As after a line, like ChatGPT's menu; Note is under the
-  menu's Advanced submenu unless its hover button is on. Close is the
+  menu's Advanced submenu unless its hover button is on (Note and its hover
+  button show only while Session notes is on in Settings > Extensions). Close is the
   exception: while it is on the card it is never in the menu, and turning it
   off puts Close back as the menu's last row. Hover buttons also in context
   menu (on by default) controls the rest; turn it off and every enabled
@@ -1200,7 +1211,8 @@ Related settings: `autoSleep*`, `keepViewsLoaded`, `clickToWakeSleepingSessions`
 Session Chat renders the same agent session as a chat GUI: composer with
 image paste and Ctrl+G rich prompt editor, a prompt queue that sends when the
 agent stops, transcript with thinking, tool, and edit cards, subagent
-transcripts, question and approval cards, rewind, and a note per session.
+transcripts, question and approval cards, rewind, and a note per session (with
+the Session notes extension on).
 Type `@` in the chat box to mention a project file, `$` to pick one of the
 agent's skills, and `+` (at the start or after a space) to mention another agent
 session of the same project: the list shows each session's logo, title and
@@ -1594,7 +1606,7 @@ on macOS, from anywhere in the form or page) delivers your answers to the agent 
 busy, they wait in the chat's queue and go as soon as it is free), the chat
 shows them as a card, and the form then reads Answered. Questions that need a picture,
 such as choosing between two mockups, come as a page instead, where you can
-also pick an option right at its mockup with the Pick button by its title. A
+also pick an option right at its mockup with the Pick button at the right end of its title. A
 page works the same way: its card reads Answered once you send, and opening it
 again shows what you sent. The desktop's floating page window and the mobile page close once your answers are
 sent, and stay open with the error if they could not be; in the Files view or your browser the page stays open. Until you send,
@@ -3595,6 +3607,11 @@ On the computer the list opens when you rest the pointer on the pill, and a clic
 on the pill still steps to the previous unanswered question; on the phone a tap
 opens it. The pill stays while the chat has anything to list, with its dot and
 count only while a question is unanswered.
+The count and the list cover the whole conversation, including what the chat hasn't
+loaded. A coordinator's list also has Worker pages: the pages its Workers posted,
+closed Workers included, each with the Worker's name. They open read-only there.
+Each group (Unanswered, Earlier, Worker pages) shows 12 rows at first with its own
+Show more under them; a folded group shows none.
 Every copy shows a small "Copied!" bubble at the pointer for a moment, whether
 it came from a terminal, a chat message, a copy button, or a menu. Copy sound is
 off by default. Enable it under Settings > Notifications > Sounds to also hear a
@@ -4158,6 +4175,19 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   signed in as a different email than its account offers **Sign in as** the
   right account. With no saved Claude account, the page uses one shared
   sign-in. Setting: `claudeWebHidden`.
+- **Session notes** is a built-in extension, off by default: turn it on with its
+  switch in Settings > Extensions (Features) to attach a note to an agent
+  conversation, such as what to do next when you come back to it. Then
+  right-click a session and choose **Note** (or use its hover button, or
+  Option+Cmd+N on macOS for the focused session), or pick **Session note** in the chat's
+  or the terminal's More actions; a session with a note shows a small dot on
+  its card, the note in its tooltip and a "1" beside Session note. The note
+  belongs to the conversation, so it is still there after you close the
+  session and resume it, and the phone app shows and edits the same notes.
+  Turning it off hides all of that, here and on the phone, and keeps every
+  note you wrote for when you turn it back on. Setting: `sessionNotesHidden`;
+  CLI: `ghostex session-note read --session-id <id>` and `ghostex session-note
+  save --session-id <id> --note '<text>'` (only while it is on).
 - Settings > Open In chooses which apps appear on session and project Open In
   menus and adds custom open targets. Open In is a built-in extension, on by
   default: switching it off in Settings > Extensions (Features) removes the

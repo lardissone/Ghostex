@@ -69,6 +69,12 @@ fn follower_snapshot_drain(
         state
             .incremental
             .seed_leaf_row_id(tail.newest_tree_row_id.clone());
+        state.incremental.seed_last_message_timestamp(
+            tail.messages
+                .iter()
+                .rev()
+                .find_map(|message| message.timestamp),
+        );
         // Pick up anything written after consumed_to before we settle.
         let mut appended_lifecycle: Option<SessionChatTurnLifecycle> = None;
         let mut capture_lifecycle =

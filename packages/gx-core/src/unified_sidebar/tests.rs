@@ -88,7 +88,7 @@ fn sidebar(groups: Vec<GroupView>) -> SidebarView {
 
 fn settings() -> UnifiedSettings {
     UnifiedSettings {
-        group_working_sessions: true,
+        working_section: true,
         enable_session_parking: true,
     }
 }
@@ -209,7 +209,7 @@ fn rows_are_ordered_by_when_they_last_came_back_not_by_output_while_working() {
         spaces: None,
     }];
     let unfolded = UnifiedSettings {
-        group_working_sessions: false,
+        working_section: false,
         ..settings()
     };
     let built = build_unified_sidebar(&machines, unfolded, &UnifiedFilter::default(), NOW);
@@ -217,7 +217,7 @@ fn rows_are_ordered_by_when_they_last_came_back_not_by_output_while_working() {
 }
 
 #[test]
-fn shelves_follow_pin_snooze_park_and_group_working_sessions() {
+fn shelves_follow_pin_snooze_park_and_working_section() {
     let local = MachineId::Local;
     let mut pinned = row(&local, "p", "pinned");
     pinned.is_pinned = true;
@@ -253,12 +253,15 @@ fn shelves_follow_pin_snooze_park_and_group_working_sessions() {
     }];
     let built = build_unified_sidebar(&machines, settings(), &UnifiedFilter::default(), NOW);
     assert_eq!(ids(&built.pinned), ["pinned"]);
-    assert_eq!(ids(&built.working), ["working"]);
+    // The open session folds too: opening a card never moves it.
+    let mut working = ids(&built.working);
+    working.sort();
+    assert_eq!(working, ["open", "working"]);
     assert_eq!(ids(&built.snoozed), ["snoozed"]);
     assert_eq!(ids(&built.parked), ["parked"]);
     let mut active = ids(&built.active);
     active.sort();
-    assert_eq!(active, ["asking", "open", "woke"]);
+    assert_eq!(active, ["asking", "woke"]);
 
     // Group working sessions off: nothing folds. Parking off: parked rows are ordinary rows.
     let plain = UnifiedSettings::default();
@@ -515,4 +518,145 @@ fn two_repositories_with_one_name_say_which_is_which() {
             ("unique".to_string(), None),
         ]
     );
+}
+
+#[test]
+fn drafts_are_never_sent_sessions_newest_first_and_leave_once_sent() {
+    let local = MachineId::Local;
+    let draft = |id: &str, created: i64, text: bool| {
+        let mut row = timed(row(&local, "p", id), created, created);
+        row.is_draft = true;
+        row.has_composer_draft = text;
+        row
+    };
+    let older = draft("older", 100, true);
+    // Never sent and nothing typed: still a draft.
+    let empty = draft("empty", 300, false);
+    // Sent once: not a draft, whatever its chat box holds.
+    let mut sent = timed(row(&local, "p", "sent"), 400, 400);
+    sent.has_composer_draft = true;
+    let mut pinned = draft("pinned", 500, true);
+    pinned.is_pinned = true;
+    let view = sidebar(vec![group(
+        "p",
+        "/p",
+        None,
+        vec![older, empty, sent, pinned],
+    )]);
+    let machines = [UnifiedMachineInput {
+        machine: local.clone(),
+        label: "Local".to_string(),
+        view: &view,
+        spaces: None,
+    }];
+    let built = build_unified_sidebar(&machines, settings(), &UnifiedFilter::default(), NOW);
+    assert_eq!(ids(&built.drafts), ["empty", "older"]);
+    assert_eq!(ids(&built.pinned), ["pinned"]);
+    assert_eq!(ids(&built.active), ["sent"]);
+}
+
+#[test]
+fn a_cards_menu_comes_from_the_machine_list_that_holds_it() {
+    use crate::{Core, MenuHost, SidebarInputs, SidebarMenus};
+    let local = MachineId::Local;
+    // The Project sidebar's list shows another Space, without this session.
+    let selected_space = sidebar(vec![group("other", "/other", None, vec![])]);
+    // The Unified sidebar's machine list holds every session.
+    let every_space = sidebar(vec![group("p", "/p", None, vec![row(&local, "p", "far")])]);
+    let core = Core::new();
+    let inputs = SidebarInputs::default();
+    let host = MenuHost::default();
+    let classic = SidebarMenus::new(&core, &selected_space, &inputs, &host, NOW);
+    assert!(classic.row_menu("far").is_none());
+    let unified = SidebarMenus::new(&core, &every_space, &inputs, &host, NOW);
+    let items = unified.row_menu("far").expect("the card's own menu");
+    assert!(!items.is_empty());
+}
+
+#[test]
+fn a_quick_access_project_pick_finds_its_repository() {
+    let local = MachineId::Local;
+    let view = sidebar(vec![group(
+        "p1",
+        "/Users/me/dev/Ghostex",
+        Some("git@github.com:o/Ghostex.git"),
+        vec![row(&local, "p1", "a")],
+    )]);
+    assert_eq!(
+        repo_of_project(&view, "p1").map(|repo| repo.key),
+        Some("github.com/o/ghostex".to_string())
+    );
+    assert!(repo_of_project(&view, "missing").is_none());
+}
+
+#[test]
+fn the_working_section_holds_working_and_background_sessions_until_they_need_you() {
+    let local = MachineId::Local;
+    let mut working = row(&local, "p", "working");
+    working.activity = "working".to_string();
+    // Its turn ended, but a shell it started still runs.
+    let mut monitoring = row(&local, "p", "monitoring");
+    monitoring.has_background_work = true;
+    // Finished while a background shell runs: it needs you.
+    let mut finished = row(&local, "p", "finished");
+    finished.activity = "attention".to_string();
+    finished.has_background_work = true;
+    let mut approval = row(&local, "p", "approval");
+    approval.activity = "working".to_string();
+    approval.awaiting_approval = true;
+    let view = sidebar(vec![group(
+        "p",
+        "/p",
+        None,
+        vec![working, monitoring, finished, approval],
+    )]);
+    let machines = [UnifiedMachineInput {
+        machine: local,
+        label: "Local".to_string(),
+        view: &view,
+        spaces: None,
+    }];
+    let built = build_unified_sidebar(&machines, settings(), &UnifiedFilter::default(), NOW);
+    let mut shelf = ids(&built.working);
+    shelf.sort();
+    assert_eq!(shelf, ["monitoring", "working"]);
+    let mut list = ids(&built.active);
+    list.sort();
+    assert_eq!(list, ["approval", "finished"]);
+
+    // Switched off: nothing folds.
+    let off = UnifiedSettings {
+        working_section: false,
+        ..settings()
+    };
+    let built = build_unified_sidebar(&machines, off, &UnifiedFilter::default(), NOW);
+    assert!(built.working.is_empty());
+    assert_eq!(built.active.len(), 4);
+}
+
+#[test]
+fn a_cards_snooze_button_gets_the_presets_without_a_snooze_hover_button() {
+    use crate::{Core, HoverAction, MenuHost, SidebarInputs, SidebarMenus};
+    let local = MachineId::Local;
+    let view = sidebar(vec![group("p", "/p", None, vec![row(&local, "p", "s")])]);
+    let core = Core::new();
+    let mut inputs = SidebarInputs::default();
+    // The user's hover strip has no Snooze button.
+    inputs.settings.session_card_hover_buttons = serde_json::json!([]);
+    let host = MenuHost::default();
+    let menus = SidebarMenus::new(&core, &view, &inputs, &host, NOW);
+    assert_eq!(
+        menus
+            .row_hover_submenu("s", HoverAction::Snooze)
+            .map(|items| items.len()),
+        Some(0)
+    );
+    let presets = menus
+        .row_action_submenu("s", HoverAction::Snooze)
+        .expect("the row is drawn");
+    let labels: Vec<_> = presets
+        .iter()
+        .filter_map(|item| item.label.clone())
+        .collect();
+    assert_eq!(labels, ["1 Hour", "3 Hours", "Tomorrow", "Next Week"]);
 }

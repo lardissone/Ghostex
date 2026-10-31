@@ -48,6 +48,10 @@ pub const CONNECTORS: &str = "connectors";
 /// The Session details panel (the panel beside a Claude chat, its context ring in the header, its
 /// Claude task-list row on Settings > Chat). Beta, off by default.
 pub const SESSION_DETAILS: &str = "sessionDetailsPanel";
+/// Session notes (a session's Note menu row and hover button, its card's note dot and tooltip
+/// line, the chat's Session note row, the note dialog, its hotkey, `ghostex session-note`). Off by
+/// default; the phone learns it from `builtInFeaturesOff`. Saved notes are kept while it is off.
+pub const SESSION_NOTES: &str = "sessionNotes";
 /// OS Integration (Settings > OS Integration). Gated by Enable Experimental Features.
 pub const OS_INTEGRATION: &str = "osIntegration";
 /// Debugging (Settings > Debugging). Listed while its switch is on; never gated.

@@ -48,9 +48,12 @@ mod quick_access_modal_lifecycle;
 pub(crate) mod read_aloud;
 pub(crate) mod remote_conn;
 mod rename_session_modal_lifecycle;
+pub(crate) mod session_handoff_modal_lifecycle;
 mod rename_worktree_modal_lifecycle;
 pub(crate) mod render;
 mod session_note_modal_lifecycle;
+/// Whether Session notes is on for the computer serving the page (the desktop's `app/session_notes.rs` twin).
+pub(crate) mod session_notes;
 mod work_link_picker_modal_lifecycle;
 #[allow(dead_code)]
 pub(crate) mod sidebar_direct_focus {

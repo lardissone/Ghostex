@@ -9,9 +9,10 @@ pub(crate) struct NativeSidebarState {
     /// The Unified sidebar, installed only while Settings › Sidebar selects it
     /// (gx_store/unified_sidebar.rs); the classic snapshot below is still built and kept.
     pub(crate) unified: Option<Arc<super::unified::model::UnifiedSidebarSnapshot>>,
-    /// The Unified sidebar's shelves the user opened; every shelf starts folded.
-    pub(crate) unified_open_shelves:
-        std::collections::HashSet<ghostex_gx_core::unified_sidebar::UnifiedShelf>,
+    /// The header's search field, made the first time the header draws.
+    pub(crate) unified_search: Option<super::unified::search::UnifiedSearch>,
+    /// A dragged project header is over this group, and below its middle when `true`.
+    pub(crate) unified_drop_target: Option<(String, bool)>,
     /// Redraws the Unified sidebar once a second while a card shows a running timer.
     pub(crate) unified_tick: Option<gpui::Task<()>>,
     pub(crate) disclosures: super::disclosure::SidebarDisclosures,
@@ -101,7 +102,10 @@ impl GhostexGpuiApp {
         snapshot: Arc<NativeSidebarSnapshot>,
         cx: &mut gpui::Context<Self>,
     ) {
-        if let Some(previous) = &self.native_sidebar.snapshot
+        // CDXC:Sidebar 2026-10-30 WHY:
+        // User: "when unified sidebar is enabled then i often see the sidebar scroll by itself when i activate another session". The Unified list shares this scroll box, but it is one list for every Space and machine, so it has no per-Space position to restore: opening a session in another Space switched the Project sidebar's hidden Space, which put that Space's saved offset on the Unified list. While the Unified sidebar is drawn the scope swap is skipped and the list stays where the user left it.
+        if self.native_sidebar.unified.is_none()
+            && let Some(previous) = &self.native_sidebar.snapshot
             && previous.scroll_scope != snapshot.scroll_scope
         {
             self.native_sidebar.scroll_offsets.insert(
