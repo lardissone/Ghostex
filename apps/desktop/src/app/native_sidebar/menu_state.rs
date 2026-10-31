@@ -47,6 +47,77 @@ pub(crate) fn menu_left_at_button(
     .max(min_left)
 }
 
+/// The height of a searchable menu's field row above its rows, before the zoom.
+pub(crate) const SIDEBAR_MENU_SEARCH_HEIGHT: f32 = 40.0;
+
+/// How long a row's armed Remove button waits for its second click.
+pub(crate) const SIDEBAR_MENU_ARM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// A menu narrowed by typing. Its first row asks for it with `search`.
+///
+/// CDXC:Sidebar 2026-10-31 DECISION:
+/// User: "i want to be able to type here to search for a space or project please (in the filter dropdown)". The sidebar's menu draws in a frosted window that never takes keyboard focus, so it works the way Quick Access's pickers do (window/quick_access/chrome.rs, `menu_key` in its window.rs) with their field: the menu's focus takes the keys, and the field always reads as focused with a caret after the typed text. Up and Down walk the rows, Enter picks, Escape closes, Backspace takes off a letter.
+#[derive(Clone)]
+pub(crate) struct SidebarMenuSearch {
+    pub(crate) placeholder: String,
+    pub(crate) query: String,
+    /// Every row; the panel's `items` hold the ones the query leaves.
+    pub(crate) rows: Vec<Value>,
+}
+
+/// The rows `query` leaves: a row whose label and suffix hold every typed word, with the headings
+/// and separators of what is left. A row marked `searchHidden` (All sessions) leaves as soon as
+/// anything is typed, so it can't take Enter from a match.
+pub(crate) fn searched_menu_rows(rows: &[Value], query: &str) -> Vec<Value> {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    let mut left: Vec<Value> = Vec::new();
+    let mut heading: Option<&Value> = None;
+    for row in rows {
+        if row["separator"] == true {
+            heading = None;
+        } else if row["heading"] == true {
+            heading = Some(row);
+        } else {
+            let text = format!(
+                "{} {}",
+                row["label"].as_str().unwrap_or_default(),
+                row["suffix"].as_str().unwrap_or_default()
+            )
+            .to_lowercase();
+            let hidden = !words.is_empty() && row["searchHidden"] == true;
+            if hidden || !words.iter().all(|word| text.contains(word)) {
+                continue;
+            }
+            if let Some(heading) = heading.take() {
+                if !left.is_empty() {
+                    left.push(serde_json::json!({"separator": true}));
+                }
+                left.push(heading.clone());
+            }
+            left.push(row.clone());
+        }
+    }
+    if left.is_empty() {
+        left.push(serde_json::json!({
+            "label": rows
+                .first()
+                .and_then(|row| row["search"]["empty"].as_str())
+                .unwrap_or("No matches"),
+            "disabled": true,
+        }));
+    }
+    left
+}
+
+/// The row's Remove-style button (a `secondary` with a `confirmLabel`), by what it runs: it stays
+/// armed by that across a re-filter that moves the row.
+fn confirm_id(item: &Value) -> Option<String> {
+    let secondary = item.get("secondary")?;
+    secondary["confirmLabel"]
+        .is_string()
+        .then(|| secondary["command"].to_string())
+}
+
 #[derive(Clone)]
 pub(crate) struct SidebarMenuPanel {
     pub(crate) items: Vec<Value>,
@@ -62,6 +133,11 @@ pub(crate) struct SidebarMenuPanel {
     /// A dropdown's tallest height (scaled): it stays under what opened it, never taller than this
     /// or the room below, and its rows scroll inside it. `None` lets the panel grow to the sidebar.
     pub(crate) max_height: Option<Pixels>,
+    /// Set for a menu that narrows as the user types.
+    pub(crate) search: Option<SidebarMenuSearch>,
+    /// The row whose Remove-style button took its first click (`confirm_id`), and which arming
+    /// that was, so an older arming's timer doesn't disarm a newer one.
+    pub(crate) armed: Option<(String, u64)>,
 }
 
 pub(crate) struct SidebarMenuState {
@@ -90,7 +166,134 @@ impl SidebarMenuPanel {
             measured_height: None,
             child_item: None,
             max_height: None,
+            search: None,
+            armed: None,
         }
+    }
+
+    /// Makes the panel searchable when its first row asks for it, with the first row picked as
+    /// Quick Access's pickers start.
+    pub(crate) fn with_requested_search(mut self) -> Self {
+        let Some(placeholder) = self
+            .items
+            .first()
+            .and_then(|item| item["search"]["placeholder"].as_str())
+            .map(str::to_owned)
+        else {
+            return self;
+        };
+        self.search = Some(SidebarMenuSearch {
+            placeholder,
+            query: String::new(),
+            rows: self.items.clone(),
+        });
+        self.select_first_row();
+        self
+    }
+
+    fn select_first_row(&mut self) {
+        self.selected = self.items.iter().position(|item| {
+            item["separator"] != true && item["heading"] != true && item["disabled"] != true
+        });
+    }
+
+    /// Whether this row's Remove-style button is waiting for its second click.
+    pub(crate) fn row_is_armed(&self, item: &Value) -> bool {
+        self.armed
+            .as_ref()
+            .is_some_and(|(armed, _)| confirm_id(item).as_ref() == Some(armed))
+    }
+
+    /// The first click of a Remove-style button, or `false` when `item` has none.
+    pub(crate) fn arm_row(&mut self, item: &Value, arming: u64) -> bool {
+        let Some(id) = confirm_id(item) else {
+            return false;
+        };
+        self.armed = Some((id, arming));
+        true
+    }
+
+    /// Takes the query to `query`: the rows narrow, the first one is picked and the list goes back
+    /// to its top, and an armed button stands down because its row may have gone.
+    fn set_search_query(&mut self, query: String) {
+        let Some(search) = &mut self.search else {
+            return;
+        };
+        search.query = query;
+        let rows = searched_menu_rows(&search.rows, &search.query);
+        self.replace_items(rows);
+        self.armed = None;
+        self.select_first_row();
+        self.scroll.scroll_to_item(0);
+    }
+
+    /// A key for the search field; `true` when it changed the query. Backspace takes off a letter;
+    /// text without a command modifier is typed, a space included.
+    pub(crate) fn search_key(&mut self, keystroke: &gpui::Keystroke) -> bool {
+        let Some(search) = &self.search else {
+            return false;
+        };
+        let mut query = search.query.clone();
+        if keystroke.key == "backspace" {
+            if query.pop().is_none() {
+                return false;
+            }
+        } else if !keystroke.modifiers.platform
+            && !keystroke.modifiers.control
+            && !keystroke.modifiers.alt
+            && let Some(text) = keystroke.key_char.as_deref()
+            && text.chars().all(|character| !character.is_control())
+        {
+            query.push_str(text);
+        } else {
+            return false;
+        }
+        self.set_search_query(query);
+        true
+    }
+
+    /// A row whose project has just been removed leaves the list; the query stays.
+    pub(crate) fn drop_confirmed_row(&mut self, item: &Value) {
+        self.armed = None;
+        let Some(id) = confirm_id(item) else {
+            return;
+        };
+        let Some(search) = &mut self.search else {
+            return;
+        };
+        search
+            .rows
+            .retain(|row| confirm_id(row).as_ref() != Some(&id));
+        let query = search.query.clone();
+        let selected = self.selected;
+        self.set_search_query(query);
+        // The cursor stays about where it was rather than jumping to the top.
+        if let Some(selected) = selected {
+            let enabled = |item: &Value| {
+                item["separator"] != true && item["heading"] != true && item["disabled"] != true
+            };
+            self.selected = self
+                .items
+                .iter()
+                .enumerate()
+                .skip(selected)
+                .find(|(_, item)| enabled(item))
+                .or_else(|| {
+                    self.items
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .find(|(_, item)| enabled(item))
+                })
+                .map(|(index, _)| index);
+        }
+    }
+
+    /// The rows the panel's width is worked out from: all of them, so typing doesn't resize it.
+    fn width_rows(&self) -> &[Value] {
+        self.search
+            .as_ref()
+            .map_or(self.items.as_slice(), |search| search.rows.as_slice())
     }
 
     /// Swaps the rows in place; the old selection and measured height describe rows that are gone.
@@ -113,12 +316,19 @@ impl SidebarMenuPanel {
         if self.is_agent_launcher() {
             return super::agent_launcher_menu::AGENT_LAUNCHER_MENU_WIDTH;
         }
-        let min = if nested { 204.0 } else { 178.0 };
+        let min = if self.search.is_some() {
+            // The field's placeholder has to fit.
+            260.0
+        } else if nested {
+            204.0
+        } else {
+            178.0
+        };
         // Panel padding 6+6, border 1+1, row inset 10+10, icon 16, gap 8.
         const CHROME: f32 = 58.0;
         // 13px UI font; slightly wide so a label cannot wrap after rounding.
         const PX_PER_CHAR: f32 = 8.0;
-        self.items
+        self.width_rows()
             .iter()
             .filter(|item| item["separator"] != true)
             .map(|item| {
@@ -133,6 +343,10 @@ impl SidebarMenuPanel {
                 }
                 if item.get("secondary").is_some() {
                     extra += 36.0;
+                }
+                // Room for the armed button's word and the tick's column it keeps.
+                if confirm_id(item).is_some() {
+                    extra += 30.0 + 22.0;
                 }
                 if item["checked"] == true {
                     extra += 22.0;
@@ -166,6 +380,10 @@ impl SidebarMenuPanel {
         } else {
             gpui::px(
                 (14.0
+                    + self
+                        .search
+                        .as_ref()
+                        .map_or(0.0, |_| SIDEBAR_MENU_SEARCH_HEIGHT)
                     + self
                         .items
                         .iter()
@@ -349,6 +567,210 @@ mod tests {
 
     fn sidebar(height: f32) -> Bounds<Pixels> {
         Bounds::new(Point::default(), size(px(300.0), px(height)))
+    }
+
+    fn filter_rows() -> Vec<Value> {
+        let remove = |key: &str| {
+            serde_json::json!({
+                "icon": "x",
+                "label": "",
+                "confirmLabel": "Remove?",
+                "command": {"type": "unifiedRemoveProject", "key": key},
+            })
+        };
+        serde_json::json!([
+            {
+                "label": "All sessions",
+                "searchHidden": true,
+                "search": {"placeholder": "Search", "empty": "Nothing here"},
+                "command": {"type": "unifiedFilter", "kind": "clear"},
+            },
+            {"separator": true},
+            {"label": "Machines", "heading": true},
+            {"label": "Local", "command": {"kind": "machine", "key": "local"}},
+            {"label": "Windows", "command": {"kind": "machine", "key": "windows"}},
+            {"separator": true},
+            {"label": "Spaces", "heading": true},
+            {"label": "My Apps", "command": {"kind": "space", "key": "a"}},
+            {"label": "Active", "suffix": "Windows", "command": {"kind": "space", "key": "b"}},
+            {"separator": true},
+            {"label": "Projects", "heading": true},
+            {"label": "Ghostex", "suffix": "Local, Windows", "secondary": remove("ghostex"),
+             "command": {"kind": "repo", "key": "ghostex"}},
+            {"label": "my-apps", "secondary": remove("my-apps"),
+             "command": {"kind": "repo", "key": "my-apps"}},
+        ])
+        .as_array()
+        .unwrap()
+        .clone()
+    }
+
+    fn labels(rows: &[Value]) -> Vec<&str> {
+        rows.iter()
+            .map(|row| {
+                if row["separator"] == true {
+                    "--"
+                } else {
+                    row["label"].as_str().unwrap_or_default()
+                }
+            })
+            .collect()
+    }
+
+    fn searchable() -> SidebarMenuPanel {
+        SidebarMenuPanel::new(filter_rows(), Point::default()).with_requested_search()
+    }
+
+    fn typed(text: &str) -> gpui::Keystroke {
+        gpui::Keystroke {
+            key: text.to_string(),
+            key_char: Some(text.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_empty_query_leaves_every_row() {
+        assert_eq!(
+            labels(&searched_menu_rows(&filter_rows(), "  ")),
+            labels(&filter_rows())
+        );
+    }
+
+    #[test]
+    fn typing_narrows_spaces_and_projects_under_their_own_headings() {
+        assert_eq!(
+            labels(&searched_menu_rows(&filter_rows(), "my")),
+            ["Spaces", "My Apps", "--", "Projects", "my-apps"]
+        );
+    }
+
+    #[test]
+    fn typing_finds_another_machines_entries_by_its_name() {
+        // Words match across a row's name and its machine, in any order and case.
+        assert_eq!(
+            labels(&searched_menu_rows(&filter_rows(), "WINDOWS act")),
+            ["Spaces", "Active"]
+        );
+        assert_eq!(
+            labels(&searched_menu_rows(&filter_rows(), "windows")),
+            [
+                "Machines", "Windows", "--", "Spaces", "Active", "--", "Projects", "Ghostex"
+            ]
+        );
+    }
+
+    #[test]
+    fn nothing_matching_says_so_and_cannot_be_picked() {
+        let rows = searched_menu_rows(&filter_rows(), "zzz");
+        assert_eq!(labels(&rows), ["Nothing here"]);
+        assert_eq!(rows[0]["disabled"], true);
+    }
+
+    #[test]
+    fn the_cursor_starts_on_the_first_row_and_follows_the_matches() {
+        let mut panel = searchable();
+        assert_eq!(panel.selected, Some(0));
+        assert!(panel.search_key(&typed("g")));
+        assert_eq!(panel.items[panel.selected.unwrap()]["label"], "Ghostex");
+        assert!(panel.search_key(&gpui::Keystroke {
+            key: "backspace".to_string(),
+            ..Default::default()
+        }));
+        assert_eq!(panel.search.as_ref().unwrap().query, "");
+        assert_eq!(
+            panel.items[panel.selected.unwrap()]["label"],
+            "All sessions"
+        );
+        // Nothing left to take off: Backspace is not the field's.
+        assert!(!panel.search_key(&gpui::Keystroke {
+            key: "backspace".to_string(),
+            ..Default::default()
+        }));
+    }
+
+    #[test]
+    fn a_space_is_typed_and_a_command_key_is_not() {
+        let mut panel = searchable();
+        assert!(panel.search_key(&typed("a")));
+        assert!(panel.search_key(&gpui::Keystroke {
+            key: "space".to_string(),
+            key_char: Some(" ".to_string()),
+            ..Default::default()
+        }));
+        assert_eq!(panel.search.as_ref().unwrap().query, "a ");
+        assert!(!panel.search_key(&gpui::Keystroke {
+            key: "a".to_string(),
+            key_char: Some("a".to_string()),
+            modifiers: gpui::Modifiers {
+                platform: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        }));
+        assert!(!panel.search_key(&gpui::Keystroke {
+            key: "enter".to_string(),
+            key_char: Some("\r".to_string()),
+            ..Default::default()
+        }));
+    }
+
+    #[test]
+    fn a_panel_that_did_not_ask_for_search_is_left_alone() {
+        let items = vec![serde_json::json!({"label": "Rename"})];
+        let mut panel = SidebarMenuPanel::new(items, Point::default()).with_requested_search();
+        assert!(panel.search.is_none());
+        assert_eq!(panel.selected, None);
+        assert!(!panel.search_key(&typed("r")));
+    }
+
+    #[test]
+    fn typing_stands_an_armed_button_down() {
+        let mut panel = searchable();
+        let row = panel.items[11].clone();
+        assert!(panel.arm_row(&row, 1));
+        assert!(panel.row_is_armed(&row));
+        assert!(!panel.row_is_armed(&panel.items[12].clone()));
+        panel.search_key(&typed("g"));
+        assert!(!panel.row_is_armed(&row));
+    }
+
+    #[test]
+    fn only_a_row_with_a_confirm_button_arms() {
+        let mut panel = searchable();
+        let space = panel.items[7].clone();
+        assert!(!panel.arm_row(&space, 1));
+        assert!(panel.armed.is_none());
+    }
+
+    #[test]
+    fn a_removed_row_leaves_and_the_query_stays() {
+        let mut panel = searchable();
+        panel.search_key(&typed("m"));
+        panel.search_key(&typed("y"));
+        let row = panel
+            .items
+            .iter()
+            .find(|row| row["label"] == "my-apps")
+            .unwrap()
+            .clone();
+        panel.arm_row(&row, 1);
+        panel.drop_confirmed_row(&row);
+        assert!(panel.armed.is_none());
+        assert_eq!(labels(&panel.items), ["Spaces", "My Apps"]);
+        assert_eq!(panel.search.as_ref().unwrap().query, "my");
+        assert_eq!(panel.items[panel.selected.unwrap()]["label"], "My Apps");
+        // A later search does not bring it back.
+        panel.set_search_query(String::new());
+        assert!(!panel.items.iter().any(|item| item["label"] == "my-apps"));
+    }
+
+    #[test]
+    fn the_width_does_not_change_as_rows_narrow() {
+        let mut panel = searchable();
+        let wide = panel.bounds(sidebar(1000.0), 1.0, false).size.width;
+        panel.search_key(&typed("z"));
+        assert_eq!(panel.bounds(sidebar(1000.0), 1.0, false).size.width, wide);
     }
 
     #[test]

@@ -220,6 +220,16 @@ impl SidebarList {
         self.model.close_project_successor_session_id(group_id)
     }
 
+    /// The same when `closing_too` are going with it.
+    pub(crate) fn close_projects_successor_session_id(
+        &self,
+        group_id: &str,
+        closing_too: &[String],
+    ) -> Option<String> {
+        self.model
+            .close_projects_successor_session_id(group_id, closing_too)
+    }
+
     /// Folds what one pump changed into what the next update must apply.
     pub(super) fn note_changes(&mut self, changes: &ChangeSummary) {
         self.changes.merge(changes.clone());

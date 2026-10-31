@@ -15,22 +15,32 @@ use crate::GhostexGpuiApp;
 use crate::app::native_sidebar::appearance::SidebarAppearance;
 
 /// The filter menu: projects (by repository), machines and Spaces, each a pick that narrows the
-/// list, ticked while it does.
+/// list, ticked while it does. Typing narrows its rows (`SidebarMenuSearch`), and a project's row
+/// carries its Remove button (`activate_native_sidebar_menu_secondary`).
 ///
 /// CDXC:Sidebar 2026-10-30 DECISION:
 /// User (Q788): the header's filter narrows by projects, machines and Spaces in one menu, which stands in for the machine tabs and Space tiles the Unified sidebar does not draw.
+///
+/// CDXC:Sidebar 2026-10-31 WHY:
+/// Only a project's row gets Remove, as the user asked. A Space has its own Delete behind a dialog, and deleting one moves its projects to Other rather than taking anything away, so a two-click button beside it would be a different action wearing the same icon; the Other Space and a machine can't be removed at all.
 pub(super) fn filter_menu_items(unified: &UnifiedSidebarSnapshot) -> Value {
     let filter = &unified.filter;
     let mut items = vec![json!({
         "label": "All sessions",
         "checked": filter.is_empty(),
         "command": {"type": "unifiedFilter", "kind": "clear"},
+        "searchHidden": true,
+        "search": {
+            "placeholder": "Search Spaces and projects",
+            "empty": "No Spaces or projects match",
+        },
     })];
     let mut section = |title: &str,
                        kind: &str,
                        options: &[ghostex_gx_core::unified_sidebar::UnifiedFilterOption],
-                       picked: &std::collections::BTreeSet<String>| {
-        if options.len() < 2 && picked.is_empty() {
+                       picked: &std::collections::BTreeSet<String>,
+                       least: usize| {
+        if options.len() < least && picked.is_empty() {
             return;
         }
         items.push(json!({"separator": true}));
@@ -44,6 +54,15 @@ pub(super) fn filter_menu_items(unified: &UnifiedSidebarSnapshot) -> Value {
             if let Some(detail) = &option.detail {
                 item["suffix"] = Value::String(detail.clone());
             }
+            if !option.project_group_ids.is_empty() {
+                item["secondary"] = json!({
+                    "icon": "x",
+                    "label": "",
+                    "confirmLabel": "Remove?",
+                    "ariaLabel": format!("Remove {}", option.label),
+                    "command": {"type": "unifiedRemoveProject", "key": option.key},
+                });
+            }
             items.push(item);
         }
     };
@@ -53,9 +72,17 @@ pub(super) fn filter_menu_items(unified: &UnifiedSidebarSnapshot) -> Value {
         "machine",
         &unified.options.machines,
         &filter.machines,
+        2,
     );
-    section("Spaces", "space", &unified.options.spaces, &filter.spaces);
-    section("Projects", "repo", &unified.options.repos, &filter.repos);
+    section(
+        "Spaces",
+        "space",
+        &unified.options.spaces,
+        &filter.spaces,
+        2,
+    );
+    // A single project is no filter, but its row is the way to remove it.
+    section("Projects", "repo", &unified.options.repos, &filter.repos, 1);
     Value::Array(items)
 }
 
@@ -290,5 +317,69 @@ impl GhostexGpuiApp {
                 })),
             )
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ghostex_gx_core::unified_sidebar::{UnifiedFilterOption, UnifiedFilterOptions};
+
+    fn option(key: &str, groups: &[&str]) -> UnifiedFilterOption {
+        UnifiedFilterOption {
+            key: key.to_string(),
+            label: key.to_string(),
+            detail: None,
+            project_group_ids: groups.iter().map(ToString::to_string).collect(),
+        }
+    }
+
+    fn snapshot(repos: Vec<UnifiedFilterOption>) -> UnifiedSidebarSnapshot {
+        UnifiedSidebarSnapshot {
+            options: UnifiedFilterOptions {
+                repos,
+                machines: vec![option("local", &[]), option("windows", &[])],
+                spaces: vec![option("space-a", &[]), option("space-b", &[])],
+            },
+            ..UnifiedSidebarSnapshot::default()
+        }
+    }
+
+    fn row<'a>(items: &'a Value, label: &str) -> &'a Value {
+        items
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["label"] == label)
+            .unwrap()
+    }
+
+    #[test]
+    fn the_menu_asks_for_a_search_and_all_sessions_leaves_while_typing() {
+        let items = filter_menu_items(&snapshot(vec![option("ghostex", &["project:a"])]));
+        assert!(items[0]["search"]["placeholder"].is_string());
+        assert_eq!(items[0]["searchHidden"], true);
+    }
+
+    #[test]
+    fn only_a_row_with_a_project_can_be_removed() {
+        let items = filter_menu_items(&snapshot(vec![
+            option("ghostex", &["project:a", "machine:windows:project:b"]),
+            option("a-group", &[]),
+        ]));
+        let remove = &row(&items, "ghostex")["secondary"];
+        assert_eq!(remove["confirmLabel"], "Remove?");
+        assert_eq!(remove["command"]["type"], "unifiedRemoveProject");
+        assert_eq!(remove["command"]["key"], "ghostex");
+        assert!(row(&items, "a-group").get("secondary").is_none());
+        for no_button in ["space-a", "windows"] {
+            assert!(row(&items, no_button).get("secondary").is_none());
+        }
+    }
+
+    #[test]
+    fn a_lone_project_keeps_its_row_so_it_can_be_removed() {
+        let items = filter_menu_items(&snapshot(vec![option("ghostex", &["project:a"])]));
+        assert!(row(&items, "ghostex").get("secondary").is_some());
     }
 }

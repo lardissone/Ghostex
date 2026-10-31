@@ -37,6 +37,16 @@ impl SidebarList {
         self.model.close_project_successor_session_id(group_id)
     }
 
+    /// The same when `closing_too` are going with it.
+    pub(crate) fn close_projects_successor_session_id(
+        &self,
+        group_id: &str,
+        closing_too: &[String],
+    ) -> Option<String> {
+        self.model
+            .close_projects_successor_session_id(group_id, closing_too)
+    }
+
     /// The next host time the list reads differently: a row moving on its own (a snooze ending) or a label changing (a countdown, a relative time).
     pub(crate) fn next_deadline_ms(&self, now_ms: u64) -> Option<u64> {
         let label = self

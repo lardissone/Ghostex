@@ -6,7 +6,7 @@
 use crate::app_lifecycle::APP_LIFECYCLE_ACTIONS;
 use crate::sidebar_actions::{
     GROUP_WORKING_SESSIONS_ACTION, HIDE_PROJECTS_WITHOUT_SESSIONS_ACTION,
-    UNIFIED_GROUP_BY_PROJECT_ACTION, UNIFIED_WORKING_SECTION_ACTION,
+    SWITCH_SIDEBAR_VIEW_ACTION, UNIFIED_GROUP_BY_PROJECT_ACTION, UNIFIED_WORKING_SECTION_ACTION,
 };
 use crate::sidebar_view::tags::{
     normalize_tag_list_items, tag_list_item_filter, tag_list_item_label, tag_presentation,
@@ -54,6 +54,20 @@ pub fn more_menu(input: &MoreMenuInput<'_>) -> Vec<MenuItem> {
     CDXC:Sidebar 2026-10-31 DECISION:
     User (issue #359): Collapse All and the Sort & Filter rows that do nothing mustn't act on a hidden list while Unified is on. The Unified sidebar builds its own list across every machine, so here Show Hidden stays and shows on every machine tab (User, Q852: Unified respects Hide), Group by Project and Working Section take Group Working Sessions' place because that is what shapes this list, and the tag rows leave, since tags don't filter it (User, Q853, "hint and heading", left tags out of Unified). A row in this menu always changes what is on screen.
     */
+    /*
+    CDXC:Sidebar 2026-10-31 DECISION:
+    User: "let's please add an item under sort and filter to switch between unified and project views". The row opens the page in both views and says where it goes, writing `sidebarView`, the setting Settings > Sidebar picks. The whole sidebar changes under it, so unlike the page's other rows it closes the menu.
+    */
+    sort.push(intent(
+        if unified {
+            "Switch to Project View"
+        } else {
+            "Switch to Unified View"
+        },
+        "switch-horizontal",
+        SWITCH_SIDEBAR_VIEW_ACTION,
+    ));
+    sort.push(MenuItem::separator());
     if is_local || unified {
         sort.push(intent("Show Hidden", "eye", "showHidden").with_checked(ui.show_hidden));
     }
@@ -150,10 +164,12 @@ pub fn more_menu(input: &MoreMenuInput<'_>) -> Vec<MenuItem> {
                 "Sort & Filter",
                 "filter",
                 sort.into_iter()
-                    .map(|item| {
-                        let has_command = item.command.is_some();
+                    .enumerate()
+                    .map(|(index, item)| {
+                        // The first row is the view switch, which closes the menu.
+                        let stays_open = index > 0 && item.command.is_some();
                         MenuItem {
-                            keep_open: has_command,
+                            keep_open: stays_open,
                             ..item
                         }
                     })
@@ -296,11 +312,12 @@ mod tests {
     fn the_project_sidebars_page_has_the_hide_switch_and_a_heading_over_its_tags() {
         let (top, sort) = page(&SidebarSettings::default(), &MenuHost::default());
         assert!(top.iter().any(|label| label == "Collapse All"));
-        assert_eq!(sort[0], "Show Hidden");
-        assert_eq!(sort[1], "Group Working Sessions");
-        assert_eq!(sort[2], "Hide Projects Without Sessions");
-        assert_eq!(sort[3], "Show only sessions tagged");
-        assert!(sort.len() > 4, "the tag rows follow the heading: {sort:?}");
+        assert_eq!(sort[0], "Switch to Unified View");
+        assert_eq!(sort[1], "Show Hidden");
+        assert_eq!(sort[2], "Group Working Sessions");
+        assert_eq!(sort[3], "Hide Projects Without Sessions");
+        assert_eq!(sort[4], "Show only sessions tagged");
+        assert!(sort.len() > 5, "the tag rows follow the heading: {sort:?}");
     }
 
     #[test]
@@ -311,10 +328,44 @@ mod tests {
         };
         let (top, sort) = page(&settings, &MenuHost::default());
         // No tags and no Group Working Sessions, whose list is hidden here.
-        assert_eq!(sort, ["Show Hidden", "Group by Project", "Working Section"]);
+        assert_eq!(
+            sort,
+            [
+                "Switch to Project View",
+                "Show Hidden",
+                "Group by Project",
+                "Working Section"
+            ]
+        );
         // Flat: nothing to fold, though the hidden Project list has a group.
         assert!(!top.iter().any(|label| label == "Collapse All"));
         assert!(!top.iter().any(|label| label == "Expand Previous"));
+    }
+
+    #[test]
+    fn only_the_view_switch_closes_the_page() {
+        let settings = SidebarSettings::default();
+        let ui = SidebarUiState::default();
+        let catalog = TagCatalog::default();
+        let more = more_menu(&MoreMenuInput {
+            ui: &ui,
+            settings: &settings,
+            catalog: &catalog,
+            filter_catalog: &catalog,
+            host: &MenuHost::default(),
+            drawn_project_group_ids: &[],
+        });
+        let rows = more
+            .iter()
+            .find(|item| item.label.as_deref() == Some("Sort & Filter"))
+            .and_then(|item| item.children.clone())
+            .unwrap();
+        assert!(!rows[0].keep_open);
+        assert!(rows
+            .iter()
+            .skip(1)
+            .filter(|row| row.command.is_some())
+            .all(|row| row.keep_open));
     }
 
     #[test]

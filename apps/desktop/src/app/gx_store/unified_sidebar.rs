@@ -446,6 +446,13 @@ impl GhostexGpuiApp {
                 self.gx_store_unified_sidebar_changed(&ChangeSummary::default(), cx);
                 true
             }
+            Some("unifiedRemoveProject") => {
+                if let Some(key) = command["key"].as_str() {
+                    let key = key.to_string();
+                    self.gx_store_unified_remove_project(&key, cx);
+                }
+                true
+            }
             // CDXC:Sidebar 2026-10-31 DECISION: User (issue #359): Collapse All folds the groups the Unified sidebar draws, not the hidden Project list. It folds them all, or opens them all when every one is already folded.
             Some("sidebarAction")
                 if command["action"] == ghostex_gx_core::UNIFIED_TOGGLE_GROUPS_ACTION =>
@@ -499,6 +506,48 @@ impl GhostexGpuiApp {
 }
 
 impl GhostexGpuiApp {
+    /// A filter row's Remove button, on its second click: takes the repository's projects off the
+    /// list through Close Project, on every machine that has them.
+    ///
+    /// CDXC:Sidebar 2026-10-31 DECISION:
+    /// User: "i don't understand how the user can remove a project that was added before, i think in the filter i want to be able to click on a button on the right side twice to remove a project". A filter row is a repository, so its Remove sends each of its projects (machines and worktrees alike) the message a project's own Close Project sends: each goes to its machine's Recent Projects, where Quick Access can reopen it, and its sessions keep their records and go on running out of sight. A pick of that repository leaves the filter, so reopening the project doesn't bring back a narrowed list. If the active session is among them, it moves to an awake session outside the repository.
+    fn gx_store_unified_remove_project(&mut self, key: &str, cx: &mut gpui::Context<Self>) {
+        let host = &mut self.gx_store.unified_sidebar;
+        let mut group_ids = host
+            .all_repos
+            .iter()
+            .find(|option| option.key == key)
+            .map(|option| option.project_group_ids.clone())
+            .unwrap_or_default();
+        if host.filter.repos.remove(key) {
+            host.persist();
+        }
+        let active_group = self.gx_store.core.focus().active_group.clone();
+        // The active project first: its close moves the focus before anything else leaves.
+        group_ids.sort_by_key(|group_id| {
+            !ghostex_gx_core::close_project_group_is_active(active_group.as_ref(), group_id)
+        });
+        for group_id in &group_ids {
+            let mut message = serde_json::json!({
+                "type": "closeWorkspaceProjectForGroup",
+                "groupId": group_id,
+            });
+            if ghostex_gx_core::close_project_group_is_active(active_group.as_ref(), group_id) {
+                message["successorSessionId"] = Value::from(
+                    self.gx_store
+                        .sidebar_list
+                        .close_projects_successor_session_id(group_id, &group_ids)
+                        .unwrap_or_default(),
+                );
+            }
+            self.dispatch_native_sidebar_ui(
+                serde_json::json!({"type": "command", "message": message}),
+                cx,
+            );
+        }
+        self.gx_store_unified_sidebar_changed(&ChangeSummary::default(), cx);
+    }
+
     /// A project group's header was dropped on another's. `after`: below it.
     ///
     /// CDXC:Sidebar 2026-10-31 DECISION: User (Q850, "drag"): the order is saved in the `unifiedProjectOrder` setting, by repository, so the machines and the phone read the same order; the whole order is written, so repositories the filter keeps off screen keep their place. The Project sidebar's drag code (native_sidebar/drag.rs, session_drop.rs) is not involved: this list has no collections and no per-machine order to keep.

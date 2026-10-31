@@ -262,6 +262,7 @@ fn dragging_a_header_saves_the_whole_order_so_hidden_projects_keep_their_place()
         key: key.to_string(),
         label: key.to_string(),
         detail: None,
+        ..UnifiedFilterOption::default()
     };
     let options = [option("a"), option("b"), option("c"), option("d")];
     // `gone` is a saved repository no machine lists right now, `b` is filtered off screen.

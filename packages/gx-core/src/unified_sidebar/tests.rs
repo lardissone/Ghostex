@@ -137,6 +137,79 @@ fn repo_identity_falls_back_to_the_folder_and_a_worktree_to_its_parent() {
 }
 
 #[test]
+fn a_filter_row_names_every_project_its_remove_takes_out() {
+    let windows = MachineId::Remote("windows".to_string());
+    let local = SidebarView {
+        groups: vec![
+            group(
+                "P1",
+                "/a/ghostex",
+                Some("git@github.com:o/Ghostex.git"),
+                vec![],
+            ),
+            group(
+                "P2",
+                "/a/other",
+                Some("https://github.com/o/other.git"),
+                vec![],
+            ),
+        ],
+        ..SidebarView::default()
+    };
+    let remote = SidebarView {
+        groups: vec![group(
+            "P9",
+            "/w/ghostex",
+            Some("https://github.com/o/Ghostex"),
+            vec![],
+        )],
+        ..SidebarView::default()
+    };
+    let inputs = [
+        UnifiedMachineInput {
+            machine: MachineId::Local,
+            label: "Local".to_string(),
+            view: &local,
+            spaces: None,
+        },
+        UnifiedMachineInput {
+            machine: windows.clone(),
+            label: "Windows".to_string(),
+            view: &remote,
+            spaces: None,
+        },
+    ];
+    let view = build_unified_sidebar(
+        &inputs,
+        UnifiedSettings::default(),
+        &UnifiedFilter::default(),
+        0,
+    );
+    let ghostex = view
+        .options
+        .repos
+        .iter()
+        .find(|option| option.label == "Ghostex")
+        .unwrap();
+    let group_of = |machine: MachineId, project: &str| {
+        crate::keys::ProjectKey {
+            machine,
+            project_id: project.to_string(),
+        }
+        .to_sidebar_group_id()
+    };
+    let mut expected = vec![group_of(MachineId::Local, "P1"), group_of(windows, "P9")];
+    expected.sort();
+    assert_eq!(ghostex.project_group_ids, expected);
+    // Machines and Spaces name none, so they get no Remove.
+    assert!(view
+        .options
+        .machines
+        .iter()
+        .all(|option| option.project_group_ids.is_empty()));
+}
+
+#[test]
 fn the_same_repository_on_two_machines_is_one_filter_choice() {
     let remote = MachineId::Remote("remote-1".to_string());
     let local_view = sidebar(vec![group(

@@ -149,9 +149,20 @@ impl SidebarViewModel {
     /// filter, and a successor chosen out of that would move with a filter the close has nothing to
     /// do with.
     pub fn close_project_successor_session_id(&self, closing_group_id: &str) -> Option<String> {
+        self.close_projects_successor_session_id(closing_group_id, &[])
+    }
+
+    /// The same when `closing_too` are going with it (a repository's other checkouts), so the
+    /// session it names is not in a project about to leave as well.
+    pub fn close_projects_successor_session_id(
+        &self,
+        closing_group_id: &str,
+        closing_too: &[String],
+    ) -> Option<String> {
         let state = self.state.as_ref()?;
         super::close_successor::close_project_successor_candidates(&state.view, closing_group_id)
             .into_iter()
+            .filter(|group_id| !closing_too.contains(group_id))
             .find_map(|group_id| {
                 let build = state.groups.get(&group_id)?;
                 super::close_successor::first_awake_successor_session_id(&build.build.store_rows)

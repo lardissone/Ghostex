@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::keys::MachineId;
+use crate::keys::{MachineId, ProjectKey};
 use crate::sidebar_view::ordering::session_is_snoozed;
 use crate::sidebar_view::spaces::space_claims_project;
 use crate::sidebar_view::{
@@ -191,6 +191,10 @@ pub struct UnifiedFilterOption {
     pub label: String,
     /// What the menu prints after the label: the machines a repository is on, or a Space's machine.
     pub detail: Option<String>,
+    /// A repository's projects, one per machine and worktree, as sidebar group ids: what the
+    /// row's Remove button takes out. Empty for a machine, a Space, and a user-made group with no
+    /// project behind it.
+    pub project_group_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -355,6 +359,14 @@ pub fn repo_of_project(view: &SidebarView, project_id: &str) -> Option<RepoIdent
     repos_of(view).remove(project_id)
 }
 
+/// A repository while the filter's options are gathered, across every machine.
+#[derive(Default)]
+struct RepoOption {
+    label: String,
+    machine_labels: BTreeSet<String>,
+    project_group_ids: BTreeSet<String>,
+}
+
 /// Builds the list.
 pub fn build_unified_sidebar(
     machines: &[UnifiedMachineInput<'_>],
@@ -363,13 +375,14 @@ pub fn build_unified_sidebar(
     now_ms: u64,
 ) -> UnifiedSidebarView {
     let mut rows: Vec<UnifiedRow> = Vec::new();
-    let mut repo_machines: BTreeMap<String, (String, BTreeSet<String>)> = BTreeMap::new();
+    let mut repo_machines: BTreeMap<String, RepoOption> = BTreeMap::new();
     let mut options = UnifiedFilterOptions::default();
     for machine in machines {
         options.machines.push(UnifiedFilterOption {
             key: machine_key(&machine.machine).to_string(),
             label: machine.label.clone(),
             detail: None,
+            ..UnifiedFilterOption::default()
         });
         if let Some(spaces) = &machine.spaces {
             let remote = (!machine.machine.is_local()).then(|| machine.label.clone());
@@ -378,12 +391,14 @@ pub fn build_unified_sidebar(
                     key: space_filter_key(&machine.machine, &space.space_id),
                     label: space.name.clone(),
                     detail: remote.clone(),
+                    ..UnifiedFilterOption::default()
                 });
             }
             options.spaces.push(UnifiedFilterOption {
                 key: space_filter_key(&machine.machine, OTHER_SPACE_ID),
                 label: "Other".to_string(),
                 detail: remote,
+                ..UnifiedFilterOption::default()
             });
         }
         let repos = repos_of(machine.view);
@@ -413,8 +428,20 @@ pub fn build_unified_sidebar(
                 .unwrap_or_else(|| repo_identity(None, "", None, &group.core.title));
             let entry = repo_machines
                 .entry(repo.key.clone())
-                .or_insert_with(|| (repo.label.clone(), BTreeSet::new()));
-            entry.1.insert(machine.label.clone());
+                .or_insert_with(|| RepoOption {
+                    label: repo.label.clone(),
+                    ..RepoOption::default()
+                });
+            entry.machine_labels.insert(machine.label.clone());
+            if let Some(project_id) = project_id {
+                entry.project_group_ids.insert(
+                    ProjectKey {
+                        machine: machine.machine.clone(),
+                        project_id: project_id.to_string(),
+                    }
+                    .to_sidebar_group_id(),
+                );
+            }
             let space_key = machine
                 .spaces
                 .as_ref()
@@ -439,11 +466,16 @@ pub fn build_unified_sidebar(
     }
     options.repos = repo_machines
         .into_iter()
-        .map(|(key, (label, machine_labels))| UnifiedFilterOption {
+        .map(|(key, repo)| UnifiedFilterOption {
             key,
-            label,
-            detail: (machine_labels.len() > 1)
-                .then(|| machine_labels.into_iter().collect::<Vec<_>>().join(", ")),
+            label: repo.label,
+            detail: (repo.machine_labels.len() > 1).then(|| {
+                repo.machine_labels
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }),
+            project_group_ids: repo.project_group_ids.into_iter().collect(),
         })
         .collect();
     options
