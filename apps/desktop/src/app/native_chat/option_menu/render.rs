@@ -496,7 +496,7 @@ impl Render for ChatOptionMenuPanel {
         } else {
             (appearance.menu_surface(), border)
         };
-        div()
+        let card = div()
             .id("chat-option-menu")
             .role(gpui::Role::Menu)
             .track_focus(&self.focus)
@@ -511,9 +511,25 @@ impl Render for ChatOptionMenuPanel {
             .text_color(foreground)
             .text_size(px(m.text * scale))
             .line_height(px(m.line * scale))
-            .on_key_down(cx.listener(Self::key))
-            .child(body)
-            .into_any_element()
+            .on_key_down(cx.listener(Self::key));
+        if self
+            .rows
+            .first()
+            .is_some_and(|row| row["accounts"].is_object())
+        {
+            let at_once = !self
+                .rows
+                .first()
+                .is_some_and(super::window::accounts_row_opens_animated);
+            crate::app::window::popup_frame::popup_open_frame(
+                card,
+                body,
+                at_once,
+                cx.reduce_motion(),
+            )
+        } else {
+            card.child(body).into_any_element()
+        }
     }
 }
 

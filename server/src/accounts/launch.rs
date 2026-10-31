@@ -168,8 +168,8 @@ pub(crate) fn command(home: &Path, account: &SavedAccount) -> Result<String, Dom
     validate_identity(home, account)?;
     let executable = helpers::executable(home, account.provider.helper()).ok_or_else(|| {
         DomainStateError::bad_request(format!(
-            "Install {} on this computer first.",
-            account.provider.helper()
+            "Install {} in Settings > Accounts first.",
+            helpers::tool_label(account.provider.helper())
         ))
     })?;
     // CDXC:AgentProviders 2026-09-18 WHY:
@@ -204,8 +204,8 @@ pub(crate) fn claude_account_argv(
     launch_command(&home, account)?;
     let executable = helpers::executable(&home, account.provider.helper()).ok_or_else(|| {
         DomainStateError::bad_request(format!(
-            "Install {} on this computer first.",
-            account.provider.helper()
+            "Install {} in Settings > Accounts first.",
+            helpers::tool_label(account.provider.helper())
         ))
     })?;
     // A slot whose account is the signed-out default login starts in its own profile, as a local

@@ -128,7 +128,12 @@ pub(crate) fn dispatch(
                 "xswap"
             },
         )
-        .ok_or_else(|| DomainStateError::bad_request("Install the account login helper first."))?;
+        .ok_or_else(|| {
+            DomainStateError::bad_request(format!(
+                "Install {} in Settings > Accounts first.",
+                helpers::tool_label(provider.helper())
+            ))
+        })?;
         let mut command = CommandBuilder::new(binary);
         let result_dir = if provider == Provider::Claude {
             Some(
@@ -376,7 +381,7 @@ fn wrong_account(transcript: &str) -> Option<String> {
 const RESULT_FILE: &str = "result.json";
 const LOGIN_INCOMPLETE: &str = "Login did not complete. Check the terminal details and try again.";
 const HELPER_SILENT: &str =
-    "The helper did not report the saved account. Update the helper and try again.";
+    "The sign-in finished, but the account wasn't saved. Update it in Settings > Accounts and try again.";
 
 /// A Claude login's outcome from the helper's result file: the saved slot, or the reason it
 /// failed. The terminal screen is never read for it.
@@ -538,10 +543,13 @@ mod tests {
 
     #[test]
     fn failed_login_shows_the_helpers_reason() {
-        let report = json!({"ok":false,"error":"cswap could not save this login. Check the message above and try again."});
+        let report = json!({"ok":false,"error":"Claude Swap could not save this login. Check the message above and try again."});
         assert_eq!(
             claude_outcome(false, Some(&report), None),
-            Err("cswap could not save this login. Check the message above and try again.".into())
+            Err(
+                "Claude Swap could not save this login. Check the message above and try again."
+                    .into()
+            )
         );
     }
 

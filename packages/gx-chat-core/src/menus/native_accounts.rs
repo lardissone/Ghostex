@@ -149,7 +149,7 @@ fn current_account_problem(account: &Account, now_ms: i64) -> Option<PanelProble
             if let Some(reason) = &account.disabled_reason {
                 problem(reason.clone(), None)
             } else if let Some(error) = &account.usage_error {
-                problem(error.clone(), None)
+                problem(error.clone(), asks_to_sign_in(error).then_some("Reconnect"))
             } else {
                 let limited = limited_windows(account, now_ms);
                 if limited.is_empty() {
@@ -164,9 +164,7 @@ fn current_account_problem(account: &Account, now_ms: i64) -> Option<PanelProble
                 "identityChanged" => {
                     "The saved login belongs to a different account. Reconnect this account."
                 }
-                "unavailable" => {
-                    "The helper could not find this saved login. Refresh or reconnect it."
-                }
+                "unavailable" => "This account isn't signed in on this computer. Reconnect it.",
                 _ => "This account needs to sign in again. Reconnect it.",
             };
             problem(
@@ -178,6 +176,18 @@ fn current_account_problem(account: &Account, now_ms: i64) -> Option<PanelProble
             )
         }
     }
+}
+
+/// A ready account's usage error that says signing in again fixes it. gxserver keeps a Codex login
+/// whose usage read failed this way as ready, so the words are all that says so.
+fn asks_to_sign_in(error: &str) -> bool {
+    error.contains("Reconnect") || error.contains("Sign in again")
+}
+
+/// `current_account_problem` for an account as `/api/agentAccounts` lists it, for a surface drawing
+/// one account outside this panel (the sidebar's usage panel).
+pub fn account_problem(account: &Value, now_ms: i64) -> Option<PanelProblem> {
+    current_account_problem(&Account::from_value(account), now_ms)
 }
 
 /// The compact names of the account's used-up main windows that have not reset yet.
@@ -247,6 +257,8 @@ pub struct PanelSession {
     pub current: Option<AccountIdentity>,
     pub name: String,
     pub email: Option<String>,
+    /// The account's id, for the Reconnect that starts its sign-in.
+    pub account_id: Option<String>,
     /// "Active" beside the name when the session is on a known account.
     pub active_label: Option<String>,
     pub problem: Option<PanelProblem>,
@@ -394,6 +406,7 @@ pub fn native_account_panel(
                     .filter(|email| !email.is_empty() && *email != account.name)
                     .map(text)
             }),
+            account_id: current.and_then(|account| account.id.clone()),
             active_label: current.map(|_| "Active".to_string()),
             problem: current
                 .and_then(|account| current_account_problem(account, now_ms))
@@ -691,8 +704,8 @@ mod tests {
             ),
             (
                 "unavailable",
-                Some("The helper could not find this saved login. Refresh or reconnect it."),
-                "The helper could not find this saved login. Refresh or reconnect it.",
+                Some("This account isn't signed in on this computer. Reconnect it."),
+                "This account isn't signed in on this computer. Reconnect it.",
             ),
         ];
         for (status, error, message) in cases {
@@ -720,6 +733,36 @@ mod tests {
                 "action": null,
             })
         );
+    }
+
+    /// Codex reports these with the account still ready, and each asks for a sign-in.
+    #[test]
+    fn a_ready_account_whose_error_asks_for_a_sign_in_gets_reconnect() {
+        for error in [
+            "Sign in again to read usage.",
+            "This account's login identity changed. Reconnect it.",
+        ] {
+            let mut account = current("ready");
+            account.usage_error = Some(error.to_string());
+            assert_eq!(
+                panel(account)["problem"],
+                json!({"message": error, "action": "Reconnect"})
+            );
+        }
+    }
+
+    #[test]
+    fn the_usage_panel_reads_the_same_problem_from_the_listed_account() {
+        let problem = account_problem(
+            &json!({"status": "unavailable", "usageError": "This account isn't signed in on this computer. Reconnect it."}),
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(problem.action.as_deref(), Some("Reconnect"));
+        let turned_off = account_problem(&json!({"status": "disabled"}), NOW).unwrap();
+        assert_eq!(turned_off.action.as_deref(), Some("Open Settings"));
+        assert_eq!(account_problem(&json!({"status": "ready"}), NOW), None);
+        assert_eq!(account_problem(&json!({"status": "loading"}), NOW), None);
     }
 
     #[test]

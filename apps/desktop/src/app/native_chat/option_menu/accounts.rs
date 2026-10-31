@@ -67,6 +67,7 @@ enum Block {
         active: Option<String>,
         /// The button at the end of the row for a problem Settings can fix.
         action: Option<String>,
+        account_id: Option<String>,
     },
     /// An account's limits as compact columns, three to a line.
     Usage(Vec<UsageColumn>),
@@ -165,6 +166,15 @@ fn text(value: &Value, key: &str) -> String {
     value[key].as_str().unwrap_or_default().to_owned()
 }
 
+/// Settings > Accounts, on `account`'s sign-in when it names one
+/// (CDXC:AgentProviders 2026-10-31 on `open_gpui_settings_accounts_reconnect`).
+fn reconnect_command(account: Option<&str>) -> Value {
+    match account {
+        Some(account) => json!({"type":"openAccountsSettings","reconnectAccountId":account}),
+        None => json!({"type":"openAccountsSettings"}),
+    }
+}
+
 fn policy_command(policy: Value) -> Value {
     json!({"type":"accounts","request":{"operation":"sessionPolicy","policy":policy}})
 }
@@ -240,6 +250,7 @@ fn blocks(panel: &Value, customize: bool) -> Vec<Block> {
         email: session["email"].as_str().map(str::to_owned),
         active: session["activeLabel"].as_str().map(str::to_owned),
         action: problem["action"].as_str().map(str::to_owned),
+        account_id: session["accountId"].as_str().map(str::to_owned),
     });
     out.push(Gap(6.0));
     if let Some(message) = problem["message"].as_str() {
@@ -988,6 +999,7 @@ impl ChatOptionMenuPanel {
                 email,
                 active,
                 action,
+                account_id,
             } => name_line(
                 account.is_object().then_some(&account),
                 name,
@@ -998,7 +1010,9 @@ impl ChatOptionMenuPanel {
             )
             .h(px(20.0 * s))
             .when_some(action, |this, action| {
-                let open_settings = Action::Close(json!({"type":"openAccountsSettings"}));
+                let open_settings = Action::Close(reconnect_command(
+                    account_id.as_deref().filter(|_| action == "Reconnect"),
+                ));
                 this.child(div().flex_1()).child(
                     div()
                         .id("account-current-action")
@@ -1036,7 +1050,7 @@ impl ChatOptionMenuPanel {
                         json!({"type":"accounts","request":{"operation":"select","accountId":row["id"]}}),
                     )
                 } else {
-                    Action::Close(json!({"type":"openAccountsSettings"}))
+                    Action::Close(reconnect_command(row["id"].as_str()))
                 };
                 let usage = usage_columns(&row["usage"]);
                 let usage_error = row["usageError"].as_str().map(str::to_owned);

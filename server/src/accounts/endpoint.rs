@@ -17,6 +17,9 @@ fn provider_param(params: &Map<String, Value>) -> Result<Provider, DomainStateEr
     serde_json::from_value(params.get("provider").cloned().unwrap_or(Value::Null))
         .map_err(|_| DomainStateError::bad_request("Choose Claude or Codex."))
 }
+/// A saved account no login on this computer answers to any more.
+const SAVED_LOGIN_MISSING: &str = "This account isn't signed in on this computer. Reconnect it.";
+
 pub(crate) fn account_id(account: &DiscoveredAccount) -> String {
     format!(
         "{}-{}",
@@ -162,7 +165,10 @@ pub(crate) fn dispatch(
             launch::command(&state.paths.home_dir, &second)?;
             let binary = helpers::executable(&state.paths.home_dir, first.provider.helper())
                 .ok_or_else(|| {
-                    DomainStateError::bad_request("Install the account helper first.")
+                    DomainStateError::bad_request(format!(
+                        "Install {} in Settings > Accounts first.",
+                        helpers::tool_label(first.provider.helper())
+                    ))
                 })?;
             let output = crate::platform::process::background_command(binary)
                 .args(["swap", &first.selector, &second.selector])
@@ -170,7 +176,7 @@ pub(crate) fn dispatch(
                 .output()
                 .map_err(store::error)?;
             if !output.status.success() {
-                return Err(DomainStateError::bad_request("The account helper could not swap these slots. For Claude, stop sessions using either account first, then try again."));
+                return Err(DomainStateError::bad_request("Couldn't swap these two accounts. For Claude, stop sessions using either account first, then try again."));
             }
             state.accounts.invalidate();
             snapshot = state.accounts.refresh(&state.paths.home_dir, true);
@@ -888,7 +894,7 @@ fn state_value(
     let loading = titlebar && snapshot.fetched_at.is_none();
     for saved in &registry.accounts {
         if !rows.iter().any(|r| r["id"].as_str() == Some(&saved.id)) {
-            rows.push(json!({"id":saved.id,"provider":saved.provider,"selector":saved.selector,"name":saved.name,"email":"","indicator":saved.indicator,"color":saved.color,"eligible":saved.eligible,"registered":true,"showInTitlebar":saved.show_in_titlebar&&!saved.user_disabled,"userDisabled":saved.user_disabled,"sharedHistory":saved.shared_history,"status":if saved.user_disabled {"disabled"} else if loading {"loading"} else {"unavailable"},"usage":[],"usageError":if loading || saved.user_disabled {None} else {Some("The helper could not find this saved login. Refresh or reconnect it.")},"sessionCount":session_counts.get(&saved.id).copied().unwrap_or(0)}));
+            rows.push(json!({"id":saved.id,"provider":saved.provider,"selector":saved.selector,"name":saved.name,"email":"","indicator":saved.indicator,"color":saved.color,"eligible":saved.eligible,"registered":true,"showInTitlebar":saved.show_in_titlebar&&!saved.user_disabled,"userDisabled":saved.user_disabled,"sharedHistory":saved.shared_history,"status":if saved.user_disabled {"disabled"} else if loading {"loading"} else {"unavailable"},"usage":[],"usageError":if loading || saved.user_disabled {None} else {Some(SAVED_LOGIN_MISSING)},"sessionCount":session_counts.get(&saved.id).copied().unwrap_or(0)}));
         }
     }
     if titlebar {

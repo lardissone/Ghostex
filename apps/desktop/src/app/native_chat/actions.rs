@@ -402,9 +402,11 @@ impl NativeChatView {
                 cx,
             );
         } else if action.command["type"] == "openAccountsSettings" {
-            cx.emit(super::state::NativeChatEvent::Host(
-                json!({"type":"open","modal":"settings","initialTab":"accounts"}),
-            ));
+            let mut open = json!({"type":"open","modal":"settings","initialTab":"accounts"});
+            if let Some(account) = action.command["reconnectAccountId"].as_str() {
+                open["initialAccountsReconnect"] = json!(account);
+            }
+            cx.emit(super::state::NativeChatEvent::Host(open));
         } else if action.command["type"] == "openSkillsSettings" {
             cx.emit(super::state::NativeChatEvent::Host(json!({
                 "type":"open","modal":"settings","initialTab":"integrations","initialSection":"agentSkills",

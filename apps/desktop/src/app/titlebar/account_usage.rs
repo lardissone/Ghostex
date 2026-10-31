@@ -335,6 +335,22 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// A usage notice's button: the popup closes and Settings > Accounts opens, on `reconnect`'s
+    /// sign-in when it names an account.
+    pub(crate) fn open_accounts_from_usage_popup(
+        &mut self,
+        id: ExtensionId,
+        reconnect: Option<String>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let popup = self.titlebar_popup_window;
+        self.clear_gpui_titlebar_popup_from_window(GpuiTitlebarPopupKind::AccountUsage(id), cx);
+        if let Some(popup) = popup {
+            let _ = popup.update(cx, |_, window, _| window.remove_window());
+        }
+        self.open_gpui_settings_accounts_reconnect(reconnect.as_deref(), None, cx);
+    }
+
     pub(crate) fn sync_titlebar_account_privacy(&self, cx: &mut gpui::Context<Self>) {
         let Some(GpuiTitlebarPopupKind::AccountUsage(id)) =
             self.titlebar_popup_menu.as_ref().map(|state| state.kind)

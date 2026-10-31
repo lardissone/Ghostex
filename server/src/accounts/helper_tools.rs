@@ -499,7 +499,7 @@ pub(crate) fn dispatch(
                 })?;
             let work = match (action, helpers::executable(&home, provider.helper())) {
                 (Action::Install, Some(_)) => {
-                    return Err(DomainStateError::bad_request("This helper is already installed."))
+                    return Err(DomainStateError::bad_request("It's already installed."))
                 }
                 (Action::Install, None) => {
                     if let (_, Some(reason)) = install_plan(&home, provider) {
@@ -520,7 +520,7 @@ pub(crate) fn dispatch(
                         ),
                     }
                 }
-                (_, None) => return Err(DomainStateError::bad_request("This helper isn't installed.")),
+                (_, None) => return Err(DomainStateError::bad_request("It isn't installed.")),
                 (_, Some(_)) if provider == Provider::Claude && claude_swap_switch::pending().is_some() => {
                     let message = claude_swap_switch::pending()
                         .map(|pending| claude_swap_switch::waiting_message(&pending))
@@ -546,7 +546,7 @@ pub(crate) fn dispatch(
             Ok(response(&home, false))
         }
         _ => Err(DomainStateError::bad_request(
-            "Unknown account helper operation.",
+            "Unknown account tool action.",
         )),
     }
 }

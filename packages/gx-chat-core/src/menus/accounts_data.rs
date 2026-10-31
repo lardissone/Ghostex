@@ -76,7 +76,7 @@ pub struct Account {
 }
 
 impl Account {
-    fn from_value(value: &Value) -> Self {
+    pub(crate) fn from_value(value: &Value) -> Self {
         let object = value.as_object();
         let text = |key: &str| {
             object
