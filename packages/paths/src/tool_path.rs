@@ -736,6 +736,30 @@ mod tests {
 
     #[cfg(not(target_os = "windows"))]
     #[test]
+    fn missing_shells_are_skipped_and_the_next_one_answers() {
+        // A Linux computer with no `/bin/zsh` (or a `$SHELL` that is gone) still gets its PATH.
+        let home = scratch_home("missing-shells");
+        let entries = probe_candidates(
+            vec![
+                "/nonexistent/zsh".to_string(),
+                "/nonexistent/fish".to_string(),
+                "/bin/sh".to_string(),
+            ],
+            &home,
+            Duration::from_secs(4),
+            Some(OsStr::new(MARKER_PATH)),
+        );
+        let _ = fs::remove_dir_all(&home);
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry == "/ghostex-probe-test/bin"),
+            "{entries:?}"
+        );
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
     fn sentinel_line_must_be_complete() {
         assert!(!has_complete_sentinel_line(
             b"noise\n__GHOSTEX_SHELL_PATH__:/a:/b"

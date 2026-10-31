@@ -1,4 +1,6 @@
-use std::{collections::HashMap, path::Path, time::Duration};
+#[cfg(target_os = "macos")]
+use std::time::Duration;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
 
@@ -35,6 +37,7 @@ pub(crate) struct GpuiDetectedOpenTargetAvailability {
     pub(crate) resolved_app_names: HashMap<String, String>,
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) const GPUI_OPEN_TARGET_DETECTION_TIMEOUT: Duration = Duration::from_secs(45);
 
 #[cfg(target_os = "macos")]
