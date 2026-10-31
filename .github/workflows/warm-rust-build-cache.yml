@@ -389,9 +389,9 @@ jobs:
             echo "- Zig package cache: ${{ steps.zig_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Mirrors jobs.build in .github/workflows/release-gpui-linux.yml.
+  # Mirrors jobs.build in .github/workflows/release-gpui-linux.yml (same Ubuntu 22.04 runner).
   linux_x64:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
       CEF_PATH: ${{ github.workspace }}/apps/desktop/build/cef-cache

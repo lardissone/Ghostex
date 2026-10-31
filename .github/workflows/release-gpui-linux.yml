@@ -78,7 +78,16 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    # CDXC:Release 2026-10-31 WHY:
+    # Ubuntu 22.04, not 24.04: what this job links against sets the oldest glibc
+    # the packages run on, and the AppImage now carries libraries copied from
+    # this runner (appimage-bundle-libraries.mjs). Built on 24.04 the arm64 app
+    # needed glibc 2.39 and 24.04's libxkbcommon needs 2.38, so neither ran on
+    # the AppImage catalog's Ubuntu 22.04 test (PR #11084) or on Debian 12; from
+    # 22.04 everything needs at most glibc 2.35. Going lower means a container
+    # job (GitHub has no older Ubuntu runner), and Ubuntu 20.04's CMake 3.16 is
+    # below the 3.21 the CEF wrapper needs.
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
     timeout-minutes: 120
     env:
       CEF_PATH: ${{ github.workspace }}/apps/desktop/build/cef-cache
@@ -191,7 +200,7 @@ jobs:
       - name: Install native packaging dependencies
         run: |
           tooling/release-gpui/retry.sh 3 5 -- sudo apt-get update
-          tooling/release-gpui/retry.sh 3 5 -- sudo apt-get install -y cmake ninja-build pkg-config rpm squashfs-tools zsync appstream zstd libasound2-dev libfontconfig1-dev libfreetype-dev libx11-dev libxcb1-dev libxkbcommon-x11-dev
+          tooling/release-gpui/retry.sh 3 5 -- sudo apt-get install -y cmake ninja-build pkg-config rpm squashfs-tools zsync appstream zstd patchelf libasound2-dev libfontconfig1-dev libfreetype-dev libx11-dev libxcb1-dev libxkbcommon-x11-dev
       - name: Install pinned Zig toolchain
         run: |
           tooling/release-gpui/retry.sh 3 5 -- bash -c 'curl -fsSL https://mise.run | sh'
@@ -387,6 +396,13 @@ jobs:
           test ! -e "$ROOT/DEBIAN"
           grep -qx 'X-AppImage-Homepage=https://ghostex.dev' "$ROOT/ghostex.desktop"
           appstreamcli validate --no-net "$ROOT/usr/share/metainfo/dev.ghostex.ghostex.metainfo.xml"
+      # What the AppImage catalog does to every image: start it on a clean
+      # Ubuntu 22.04 without network and wait for a window.
+      - name: Start the AppImage on a clean offline host
+        if: ${{ contains(inputs.packages, 'appimage') }}
+        run: |
+          tooling/release-gpui/linux-appimage-smoke.sh \
+            "build/release-gpui/${{ inputs.version }}/linux-appimage-$LINUX_ARCH/ghostex-${{ inputs.version }}-linux-$LINUX_ARCH.AppImage"
       - name: Build the DEB package
         if: ${{ contains(inputs.packages, 'deb') }}
         env:

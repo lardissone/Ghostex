@@ -229,8 +229,9 @@ function gxserverProduct(arch) {
  * four wrappers over the same staged package root (§7): .deb, .rpm, the
  * prefix-preserving `.tar.zst` that Arch, ubi, and mise install straight from
  * the release page, and the AppImage (GitHub issue #320). ARM64 builds natively
- * on ubuntu-24.04-arm with the same scripts; its names use each format's own
- * spelling of the architecture.
+ * on ubuntu-22.04-arm with the same scripts; its names use each format's own
+ * spelling of the architecture. Both build on Ubuntu 22.04 for its glibc 2.35
+ * floor (CDXC:Release 2026-10-31 in release-gpui-linux.yml).
  */
 const LINUX_DESKTOP_ARTIFACT_NAMES = Object.freeze({
   x64: Object.freeze({
@@ -281,11 +282,13 @@ function linuxDesktopProduct(format, arch = 'x64') {
             { pathspec: 'tooling/packaging/appimage/**' },
             { pathspec: 'tooling/release-gpui/appimage-update-info.mjs' },
             { pathspec: 'tooling/release-gpui/appimage-signature.mjs' },
+            { pathspec: 'tooling/release-gpui/appimage-bundle-libraries.mjs' },
+            { pathspec: 'tooling/release-gpui/linux-appimage-smoke.sh' },
           ]
         : []),
       { pathspec: '.github/workflows/release-gpui-linux.yml' },
     ],
-    platform: { arch, os: 'linux', runnerLabel: arch === 'arm64' ? 'ubuntu-24.04-arm' : 'ubuntu-24.04' },
+    platform: { arch, os: 'linux', runnerLabel: arch === 'arm64' ? 'ubuntu-22.04-arm' : 'ubuntu-22.04' },
     scopeFlag: LINUX_DESKTOP_SCOPE_FLAGS[arch][format],
     sideFiles: [],
     signing: { mode: 'unsigned' },
