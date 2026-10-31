@@ -223,6 +223,8 @@ pub struct SidebarUiState {
     pub collapse: SidebarCollapseState,
     pub hidden_items: SidebarHiddenItems,
     pub show_hidden: bool,
+    /// The Show all projects row is on: `hide_projects_without_sessions` draws every project.
+    pub show_all_projects: bool,
     /// Tag filters the user ticked, already pruned to the enabled and visible ones.
     pub selected_tag_filters: Vec<String>,
     /// Sidebar row ids of a multi-selection.
@@ -239,6 +241,7 @@ impl Default for SidebarUiState {
             collapse: SidebarCollapseState::default(),
             hidden_items: SidebarHiddenItems::default(),
             show_hidden: false,
+            show_all_projects: false,
             selected_tag_filters: Vec::new(),
             selected_session_ids: Vec::new(),
             collapsed_machine_notices: BTreeMap::new(),
@@ -307,6 +310,15 @@ pub struct SidebarSettings {
     /// The Unified sidebar folds working sessions into its Working shelf
     /// (`unifiedWorkingSection`, on by default).
     pub unified_working_section: bool,
+    /// The Unified sidebar's own hover strip (`unifiedSessionCardHoverButtons`); `session_card_hover_buttons`
+    /// stays the Project sidebar's.
+    pub unified_card_hover_buttons: Value,
+    /// Unified cards sit under project headers (`unifiedGroupByProject`).
+    pub unified_group_by_project: bool,
+    /// The project groups' saved order, by repository key (`unifiedProjectOrder`).
+    pub unified_project_order: Vec<String>,
+    /// The Project sidebar leaves out projects with no sessions (`sidebarHideProjectsWithoutSessions`).
+    pub hide_projects_without_sessions: bool,
 }
 
 impl Default for SidebarSettings {
@@ -334,6 +346,10 @@ impl Default for SidebarSettings {
             session_notes_enabled: false,
             unified_sidebar: false,
             unified_working_section: true,
+            unified_card_hover_buttons: Value::Null,
+            unified_group_by_project: false,
+            unified_project_order: Vec::new(),
+            hide_projects_without_sessions: false,
         }
     }
 }
@@ -401,6 +417,29 @@ impl SidebarSettings {
             unified_working_section: boolean(
                 "unifiedWorkingSection",
                 defaults.unified_working_section,
+            ),
+            unified_card_hover_buttons: settings
+                .get("unifiedSessionCardHoverButtons")
+                .cloned()
+                .unwrap_or(Value::Null),
+            unified_group_by_project: boolean(
+                "unifiedGroupByProject",
+                defaults.unified_group_by_project,
+            ),
+            unified_project_order: settings
+                .get("unifiedProjectOrder")
+                .and_then(Value::as_array)
+                .map(|order| {
+                    order
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            hide_projects_without_sessions: boolean(
+                "sidebarHideProjectsWithoutSessions",
+                defaults.hide_projects_without_sessions,
             ),
             // An inverted key like every Official extension switch, hidden unless set to false.
             bots_enabled: !boolean("botsHidden", !defaults.bots_enabled),

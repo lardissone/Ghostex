@@ -1,10 +1,12 @@
-//! The Unified sidebar's header: the filter, Add project and New session.
+//! The Unified sidebar's header: the search field, the filter, Add project and New session.
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
     div, px,
 };
+use gpui_component::input::Input;
+use gpui_component::tooltip::{ManagedTooltipExt as _, ManagedTooltipPlacement};
 use gpui_component::{ElementExt as _, h_flex};
 use serde_json::{Value, json};
 
@@ -16,7 +18,7 @@ use crate::app::native_sidebar::appearance::SidebarAppearance;
 /// list, ticked while it does.
 ///
 /// CDXC:Sidebar 2026-10-30 DECISION:
-/// User (Q788): the header's filter narrows by projects, machines and Spaces in one menu, which stands in for the machine tabs and Space tiles the Unified sidebar does not draw. User (Q787): there is no Group by; the list stays flat.
+/// User (Q788): the header's filter narrows by projects, machines and Spaces in one menu, which stands in for the machine tabs and Space tiles the Unified sidebar does not draw.
 pub(super) fn filter_menu_items(unified: &UnifiedSidebarSnapshot) -> Value {
     let filter = &unified.filter;
     let mut items = vec![json!({
@@ -115,14 +117,18 @@ impl GhostexGpuiApp {
         );
     }
 
+    /// CDXC:Sidebar 2026-10-31 DECISION:
+    /// User (Q854, "field in header"): the header's first control is a search field that is always there and types into the list; the filter shrinks to an icon beside it, marked while a pick is on, and its menu still closes after each pick. Escape clears the field.
     pub(in crate::app::native_sidebar) fn render_native_unified_header(
-        &self,
+        &mut self,
         unified: &UnifiedSidebarSnapshot,
         appearance: &SidebarAppearance,
+        window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
-        let icon_button = |id: &'static str, label: &'static str, icon: &'static str| {
+        let input = self.unified_search_input(window, cx);
+        let icon_button = |id: &'static str, label: String, icon: &'static str| {
             div()
                 .id(id)
                 .role(gpui::Role::Button)
@@ -144,6 +150,11 @@ impl GhostexGpuiApp {
         let filtered = !unified.filter.is_empty();
         let menu = filter_menu_items(unified);
         let owner = crate::app::native_sidebar::menus::MenuOwner::default();
+        let searching = !unified.filter.query.is_empty();
+        let clear_input = input.clone();
+        let escape_input = input.clone();
+        let tooltip_label = filter_label(unified);
+        let tooltip_delay = appearance.tooltip_delay;
         h_flex()
             .w_full()
             .flex_shrink_0()
@@ -152,40 +163,95 @@ impl GhostexGpuiApp {
             .gap(px(2.0 * scale))
             .child(
                 h_flex()
-                    .on_prepaint(crate::app::native_sidebar::menus::record_menu_owner(&owner))
-                    .id("native-unified-filter")
-                    .role(gpui::Role::Button)
-                    .aria_label("Filter sessions")
+                    .id("native-unified-search")
                     .min_w_0()
                     .flex_1()
                     .h(px(28.0 * scale))
-                    .px(px(8.0 * scale))
-                    .gap(px(7.0 * scale))
+                    .pl(px(8.0 * scale))
+                    .pr(px(4.0 * scale))
+                    .gap(px(6.0 * scale))
                     .rounded(px(6.0 * scale))
-                    .text_size(px(13.5 * scale))
-                    .text_color(if filtered {
-                        appearance.foreground
-                    } else {
-                        appearance.muted
-                    })
-                    .when(filtered, |button| button.bg(appearance.selected))
-                    .hover(|button| button.bg(appearance.hover))
+                    .border_1()
+                    .border_color(appearance.foreground.opacity(0.1))
+                    .on_key_down(
+                        cx.listener(move |_, event: &gpui::KeyDownEvent, window, cx| {
+                            if event.keystroke.key == "escape" {
+                                escape_input
+                                    .update(cx, |input, cx| input.set_value("", window, cx));
+                                cx.stop_propagation();
+                            }
+                        }),
+                    )
                     .child(
                         gpui::svg()
-                            .path("titlebar/filter.svg")
+                            .path("titlebar/search.svg")
                             .size(px(14.0 * scale))
                             .flex_shrink_0()
                             .text_color(appearance.chrome_icon),
                     )
-                    .child(div().min_w_0().truncate().child(filter_label(unified)))
                     .child(
-                        gpui::svg()
-                            .path("titlebar/chevron-down.svg")
-                            .size(px(12.0 * scale))
-                            .flex_shrink_0()
-                            .text_color(appearance.muted),
+                        div().flex_1().min_w_0().child(
+                            Input::new(&input)
+                                .appearance(false)
+                                .bordered(false)
+                                .focus_bordered(false)
+                                .w_full()
+                                .p_0()
+                                .text_size(px(13.0 * scale))
+                                .text_color(appearance.foreground)
+                                .placeholder_color(appearance.muted),
+                        ),
                     )
-                    .on_click(cx.listener(move |_, event: &gpui::ClickEvent, window, cx| {
+                    .when(searching, |field| {
+                        field.child(
+                            div()
+                                .id("native-unified-search-clear")
+                                .role(gpui::Role::Button)
+                                .aria_label("Clear search")
+                                .size(px(18.0 * scale))
+                                .flex_shrink_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(4.0 * scale))
+                                .hover(|button| button.bg(appearance.hover))
+                                .child(
+                                    gpui::svg()
+                                        .path("titlebar/x.svg")
+                                        .size(px(12.0 * scale))
+                                        .text_color(appearance.muted),
+                                )
+                                .on_click(cx.listener(move |_, _, window, cx| {
+                                    cx.stop_propagation();
+                                    clear_input
+                                        .update(cx, |input, cx| input.set_value("", window, cx));
+                                })),
+                        )
+                    }),
+            )
+            .child(
+                icon_button(
+                    "native-unified-filter",
+                    format!("Filter sessions: {tooltip_label}"),
+                    "titlebar/filter.svg",
+                )
+                .on_prepaint(crate::app::native_sidebar::menus::record_menu_owner(&owner))
+                .when(filtered, |button| button.bg(appearance.selected))
+                .when(self.native_sidebar.pointer_inside, |button| {
+                    button.managed_discrete_tooltip_with_placement(
+                        ManagedTooltipPlacement::BelowLeft,
+                        tooltip_delay,
+                        move |window, cx| {
+                            crate::app::native_sidebar::tooltips::sidebar_style_tooltip(
+                                tooltip_label.clone(),
+                                window,
+                                cx,
+                            )
+                        },
+                    )
+                })
+                .on_click(cx.listener(
+                    move |_, event: &gpui::ClickEvent, window, cx| {
                         cx.stop_propagation();
                         Self::show_unified_filter_menu(
                             &menu,
@@ -195,12 +261,13 @@ impl GhostexGpuiApp {
                             window,
                             cx,
                         );
-                    })),
+                    },
+                )),
             )
             .child(
                 icon_button(
                     "native-unified-add-project",
-                    "Add project",
+                    "Add project".to_string(),
                     "titlebar/folder-plus.svg",
                 )
                 .on_click(cx.listener(|app, _, _, cx| {
@@ -214,7 +281,7 @@ impl GhostexGpuiApp {
             .child(
                 icon_button(
                     "native-unified-new-session",
-                    "New session",
+                    "New session".to_string(),
                     "titlebar/edit.svg",
                 )
                 .on_click(cx.listener(|app, _, _, cx| {

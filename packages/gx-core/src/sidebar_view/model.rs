@@ -24,7 +24,7 @@ use super::membership::{project_members, ProjectMembers};
 use super::projects::ProjectMeta;
 use super::rows::{browser_row, session_row, RowContext};
 use super::spaces::SpacesState;
-use super::tags::TagCatalog;
+use super::tags::{tag_label, TagCatalog};
 use super::threads::tally_threads;
 use super::view::{MachineSummary, RemoteMachineView, SidebarView, ThreadTally};
 
@@ -678,7 +678,14 @@ impl SidebarViewModel {
 
         // 7. The list itself.
         let side_state = store.machine(&machine).map(|entry| entry.side_state());
+        let tag_filter_labels = effective
+            .ui
+            .selected_tag_filters
+            .iter()
+            .map(|tag| tag_label(Some(tag), &catalog).unwrap_or_else(|| tag.clone()))
+            .collect();
         state.view = assemble(AssembleInput {
+            tag_filter_labels,
             plans: &plans,
             builds: &builds,
             meta: &meta,

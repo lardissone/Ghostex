@@ -1,15 +1,14 @@
-//! What a hovered Unified card shows where its status was: Snooze and Park on a card, Unsnooze or
+//! What a hovered Unified card shows where its status was: its hover strip on a card, Unsnooze or
 //! Unpark on a shelf's one-line row.
 //!
 //! CDXC:Sidebar 2026-10-30 DECISION:
-//! User: snooze and park buttons on Unified sidebar cards, matching the inbox sidebar the Unified one is modelled on. Hovering a card swaps its status for a clock (Snooze) and a check with the word Park, small and muted, brightening under the pointer; Snooze opens the session's own snooze choices (1 Hour, 3 Hours, Tomorrow, Next Week, the session menu's Snooze submenu) and the card moves to the Snoozed shelf until it wakes; Park parks it into the Parked shelf. Park shows only while Enable session parking is on, since a parked card has no shelf otherwise. A snoozed row offers Unsnooze and a parked row Unpark in the same place.
+//! User: a snoozed row offers Unsnooze and a parked row Unpark where its time was.
 
-use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
     px,
 };
-use gpui_component::{ElementExt as _, h_flex};
+use gpui_component::h_flex;
 use serde_json::{Value, json};
 
 use ghostex_gx_core::unified_sidebar::UnifiedShelf;
@@ -18,7 +17,6 @@ use super::model::UnifiedCard;
 use crate::GhostexGpuiApp;
 use crate::app::native_sidebar::actions::NativeSidebarAction;
 use crate::app::native_sidebar::appearance::SidebarAppearance;
-use crate::app::native_sidebar::menus::{MenuOwner, press_position, record_menu_owner};
 
 /// A session command as the session menu's rows send it.
 fn session_command(message: Value) -> Value {
@@ -59,78 +57,30 @@ impl GhostexGpuiApp {
             .children(word)
     }
 
-    /// Snooze and Park, for a card in the list, Drafts or the Working shelf.
-    pub(super) fn render_unified_card_actions(
+    /// A hovered card's own strip: `unifiedSessionCardHoverButtons`, through the same buttons as a
+    /// Project sidebar row.
+    ///
+    /// CDXC:Sidebar 2026-10-31 DECISION:
+    /// User (Q846): "if i expand my strip then it's expanded for all session cards so snooze/park can be 1 click". The chevron opens the strip on every card at once and stays open across restarts (`UnifiedSavedState::strip_expanded`), where the Project sidebar keeps it per project. This replaces the fixed Snooze and Park buttons; those two are in the default strip, right of its chevron.
+    pub(super) fn render_unified_card_strip(
         &self,
         card: &UnifiedCard,
-        parking: bool,
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
-    ) -> AnyElement {
-        let scale = appearance.scale;
-        let id = card.session.session_id.clone();
-        let owner = MenuOwner::default();
-        let menu_owner = format!("session:{id}");
-        // The session's own Snooze submenu, asked for when it opens (`sessionMenu`).
-        let snooze_menu = json!([{
-            "label": "Loading…",
-            "disabled": true,
-            "menuOwner": menu_owner,
-            "onOpen": {"type": "sessionMenu", "sessionId": id, "action": "snooze", "ownerId": menu_owner},
-        }]);
-        let trigger = format!("unified-snooze:{id}");
-        let snooze = Self::unified_hover_button(
-            format!("native-unified-snooze-{id}"),
-            "titlebar/clock.svg",
-            None,
-            "Snooze session",
+    ) -> Option<AnyElement> {
+        let expanded = self.gx_store.unified_sidebar.saved.strip_expanded;
+        if crate::app::native_sidebar::hover_actions::session_hover_items(&card.session, expanded)
+            .is_empty()
+        {
+            return None;
+        }
+        Some(self.render_native_session_hover_strip(
+            &card.session,
+            expanded,
+            json!({"type": "unifiedHoverExpand"}),
             appearance,
-        )
-        .on_prepaint(record_menu_owner(&owner))
-        .on_click(cx.listener(move |_, event: &gpui::ClickEvent, window, cx| {
-            cx.stop_propagation();
-            Self::show_native_sidebar_menu_hung(
-                &snooze_menu,
-                owner.get(),
-                None,
-                Some((trigger.clone(), press_position(event))),
-                event.position(),
-                scale,
-                window,
-                cx,
-            );
-        }));
-        let park_id = id.clone();
-        h_flex()
-            .flex_shrink_0()
-            .gap(px(2.0 * scale))
-            .child(snooze)
-            .when(parking, |row| {
-                row.child(
-                    Self::unified_hover_button(
-                        format!("native-unified-park-{id}"),
-                        "titlebar/check.svg",
-                        Some("Park"),
-                        "Park session",
-                        appearance,
-                    )
-                    .on_click(cx.listener(move |app, _, window, cx| {
-                        cx.stop_propagation();
-                        app.handle_native_sidebar_action(
-                            &NativeSidebarAction {
-                                command: session_command(json!({
-                                    "type": "setSessionParked",
-                                    "sessionId": park_id,
-                                    "parked": true,
-                                })),
-                            },
-                            window,
-                            cx,
-                        );
-                    })),
-                )
-            })
-            .into_any_element()
+            cx,
+        ))
     }
 
     /// Unsnooze on a snoozed row, Unpark on a parked one.

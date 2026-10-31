@@ -33,6 +33,8 @@ mod reveal;
 pub(crate) mod rows;
 mod sections;
 #[cfg(test)]
+mod hide_empty_tests;
+#[cfg(test)]
 mod session_notes_tests;
 pub(crate) mod session_slot;
 mod session_text;
@@ -98,7 +100,8 @@ pub use view::{
     EmptyState, FoldedStatus, GroupCore, GroupSummary, GroupView, LabelDeadline, MachineNotice,
     MachineSummary, MachineTabView, NeedsYou, OrderItem, OrderKind, ProjectContextView,
     RemoteMachineView, RowNesting, SectionView, SessionMenuFacts, SessionRow, SessionTiming,
-    SessionView, SidebarView, SpaceView, ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
+    SessionView, ShowAllProjectsRow, SidebarView, SpaceView, ThreadTally, WorktreeView,
+    RENAME_SHAKE_FRESH_MS,
 };
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
 pub use workspaces::{

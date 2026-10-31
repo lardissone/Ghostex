@@ -9,9 +9,10 @@ pub(crate) struct NativeSidebarState {
     /// The Unified sidebar, installed only while Settings › Sidebar selects it
     /// (gx_store/unified_sidebar.rs); the classic snapshot below is still built and kept.
     pub(crate) unified: Option<Arc<super::unified::model::UnifiedSidebarSnapshot>>,
-    /// The Unified sidebar's shelves the user opened; every shelf starts folded.
-    pub(crate) unified_open_shelves:
-        std::collections::HashSet<ghostex_gx_core::unified_sidebar::UnifiedShelf>,
+    /// The header's search field, made the first time the header draws.
+    pub(crate) unified_search: Option<super::unified::search::UnifiedSearch>,
+    /// A dragged project header is over this group, and below its middle when `true`.
+    pub(crate) unified_drop_target: Option<(String, bool)>,
     /// Redraws the Unified sidebar once a second while a card shows a running timer.
     pub(crate) unified_tick: Option<gpui::Task<()>>,
     pub(crate) disclosures: super::disclosure::SidebarDisclosures,

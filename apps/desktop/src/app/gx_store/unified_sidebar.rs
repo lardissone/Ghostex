@@ -8,10 +8,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use ghostex_gx_core::indicators::neutral_indicator_inputs;
 use ghostex_gx_core::unified_sidebar::{
-    UnifiedFilter, UnifiedMachineInput, UnifiedRow, UnifiedSettings, UnifiedShelf,
-    build_unified_sidebar, repo_of_project, unified_machine_spaces,
+    UNIFIED_SAVED_STATE_KEY, UnifiedFilter, UnifiedFilterOption, UnifiedMachineInput, UnifiedRow,
+    UnifiedSavedState, UnifiedSettings, UnifiedShelf, build_unified_sidebar, group_unified_sidebar,
+    move_unified_project, repo_of_project, unified_lane_inputs, unified_machine_spaces,
 };
 use ghostex_gx_core::{
     ChangeSummary, Core, HoverAction, LOCAL_MACHINE_ID, MachineId, MenuHost, MenuItem, SessionKey,
@@ -23,7 +23,7 @@ use super::sidebar_snapshot::{SnapshotCache, SnapshotInput, snapshot_from_view};
 use crate::GhostexGpuiApp;
 use crate::app::native_sidebar::model::{NativeSidebarGroup, NativeSidebarSession};
 use crate::app::native_sidebar::unified::model::{
-    UnifiedCard, UnifiedShelfView, UnifiedSidebarSnapshot,
+    UnifiedCard, UnifiedGroupView, UnifiedShelfView, UnifiedSidebarSnapshot,
 };
 
 /// One machine's neutral list and the snapshot cache its rows are drawn through.
@@ -37,8 +37,21 @@ struct MachineLane {
 #[derive(Default)]
 pub(crate) struct UnifiedSidebarHost {
     lanes: BTreeMap<MachineId, MachineLane>,
-    /// What the header's filter keeps; kept while the app runs.
+    /// What the header's filter and search field keep.
     pub(crate) filter: UnifiedFilter,
+    /// The filter's picks, the open shelves and the folded groups, kept across restarts.
+    pub(crate) saved: UnifiedSavedState,
+    saved_read: bool,
+    /// The order the user just dragged, until the settings fan-out brings it back (and all along
+    /// on the web build, which has no settings writes).
+    order_override: Option<Vec<String>>,
+    /// Every repository the list knows, including what the filter and search keep off screen, for
+    /// a drag to keep their places.
+    all_repos: Vec<UnifiedFilterOption>,
+    /// Where the next New session starts, while its picker is open.
+    pub(crate) picker_target: Option<String>,
+    /// A draft moving to another project, taken by the launch it asked for.
+    pub(crate) pending_draft_move: Option<super::unified_new_session::PendingDraftMove>,
     /// A project picked in Quick Access whose repository the filter is set to once the list
     /// holds it (a reopened project arrives a moment later).
     pending_project: Option<String>,
@@ -58,28 +71,28 @@ impl UnifiedSidebarHost {
             .and_then(|session| session.row.key.clone())
     }
 
-    /// The repository of a project on whichever machine lists it.
-    fn repo_key_of_project(&self, project_id: &str) -> Option<String> {
-        self.lanes
-            .values()
-            .find_map(|lane| repo_of_project(lane.model.view(), project_id))
-            .map(|repo| repo.key)
+    /// Reads the saved state once, the first time the list is built.
+    pub(crate) fn ensure_saved_read(&mut self) {
+        if self.saved_read {
+            return;
+        }
+        self.saved_read = true;
+        let raw = super::sidebar_ui_storage::read_preference_value(UNIFIED_SAVED_STATE_KEY)
+            .ok()
+            .flatten();
+        self.saved = UnifiedSavedState::parse(raw.as_deref());
+        self.filter = self.saved.filter();
     }
 
-    /// A project of this computer in the repository `repo_key`, for a new session to start in.
-    fn local_project_in_repo(&self, repo_key: &str) -> Option<String> {
-        let lane = self.lanes.get(&MachineId::Local)?;
-        lane.model
-            .view()
-            .groups
-            .iter()
-            .filter_map(|group| group.core.project_context.as_ref())
-            .map(|context| context.project_id.as_str())
-            .find(|project_id| {
-                repo_of_project(lane.model.view(), project_id)
-                    .is_some_and(|repo| repo.key == repo_key)
-            })
-            .map(str::to_string)
+    /// Writes the saved state with the filter's current picks.
+    pub(crate) fn persist(&mut self) {
+        self.saved.set_filter(&self.filter);
+        let raw = self.saved.to_json();
+        // A refused write only costs the state after a restart; the list keeps what it holds.
+        let _ = super::sidebar_ui_storage::write_client_document_value(
+            UNIFIED_SAVED_STATE_KEY,
+            Some(&raw),
+        );
     }
 
     /// A card's right-click menu, or one of its hover buttons' submenus, from the machine list
@@ -118,6 +131,7 @@ impl UnifiedSidebarHost {
         hud: &Arc<Value>,
         now_ms: u64,
     ) -> UnifiedSidebarSnapshot {
+        self.ensure_saved_read();
         let store = core.presentation();
         // This computer always, then every remote machine the host feeds into the store, under the
         // names their tabs carry.
@@ -139,7 +153,7 @@ impl UnifiedSidebarHost {
         let mut sessions: HashMap<(MachineId, String), Arc<NativeSidebarSession>> = HashMap::new();
         for (machine, _) in &machines {
             let lane = self.lanes.entry(machine.clone()).or_default();
-            lane.inputs = neutral_indicator_inputs(list_inputs, machine);
+            lane.inputs = unified_lane_inputs(list_inputs, machine);
             lane.model.update(core, &lane.inputs, changes, now_ms);
             let menus = SidebarMenus::new(core, lane.model.view(), &lane.inputs, menu_host, now_ms);
             let snapshot = snapshot_from_view(
@@ -181,9 +195,11 @@ impl UnifiedSidebarHost {
             if let Some(repo) = repo {
                 self.filter = UnifiedFilter {
                     repos: [repo.key].into(),
+                    query: std::mem::take(&mut self.filter.query),
                     ..UnifiedFilter::default()
                 };
                 self.pending_project = None;
+                self.persist();
             }
         }
         let inputs: Vec<UnifiedMachineInput<'_>> = machines
@@ -202,7 +218,13 @@ impl UnifiedSidebarHost {
             enable_session_parking: list_inputs.settings.enable_session_parking,
         };
         let has_projects = inputs.iter().any(|input| !input.view.groups.is_empty());
-        let view = build_unified_sidebar(&inputs, settings, &self.filter, now_ms);
+        let mut view = build_unified_sidebar(&inputs, settings, &self.filter, now_ms);
+        // A restored pick of what is hidden or away narrows nothing (`UnifiedFilter::within`).
+        let filter = self.filter.within(&view.options);
+        if filter != self.filter {
+            view = build_unified_sidebar(&inputs, settings, &filter, now_ms);
+        }
+        self.all_repos.clone_from(&view.options.repos);
         // One icon per repository: the first of its projects, on any machine, that has one.
         let mut icons: HashMap<String, Arc<gpui::Image>> = HashMap::new();
         for row in view
@@ -224,6 +246,23 @@ impl UnifiedSidebarHost {
                 icons.insert(row.repo.key.clone(), icon);
             }
         }
+        if self
+            .order_override
+            .as_ref()
+            .is_some_and(|order| *order == list_inputs.settings.unified_project_order)
+        {
+            self.order_override = None;
+        }
+        let order = self
+            .order_override
+            .as_ref()
+            .unwrap_or(&list_inputs.settings.unified_project_order);
+        let grouped = list_inputs.settings.unified_group_by_project;
+        let project_groups = if grouped {
+            group_unified_sidebar(&view, order)
+        } else {
+            Vec::new()
+        };
         let card = |row: UnifiedRow| -> Option<UnifiedCard> {
             Some(UnifiedCard {
                 session: sessions
@@ -237,36 +276,66 @@ impl UnifiedSidebarHost {
                 repo_label: row.repo.label,
                 machine_label: row.machine_label,
                 status: row.status,
+                in_group: grouped && row.shelf != UnifiedShelf::Drafts,
             })
         };
-        let drafts = view.drafts.into_iter().filter_map(card).collect();
-        let list = view
-            .pinned
+        let shelves_of = |working: Vec<UnifiedRow>,
+                          snoozed: Vec<UnifiedRow>,
+                          parked: Vec<UnifiedRow>|
+         -> Vec<UnifiedShelfView> {
+            [
+                (UnifiedShelf::Working, working),
+                (UnifiedShelf::Snoozed, snoozed),
+                (UnifiedShelf::Parked, parked),
+            ]
             .into_iter()
-            .chain(view.active)
-            .filter_map(card)
+            .filter(|(_, rows)| !rows.is_empty())
+            .map(|(shelf, rows)| UnifiedShelfView {
+                shelf,
+                cards: rows.into_iter().filter_map(card).collect(),
+            })
+            .collect()
+        };
+        let groups = project_groups
+            .into_iter()
+            .map(|group| {
+                let count = group.count();
+                UnifiedGroupView {
+                    repo_key: group.repo_key,
+                    label: group.label,
+                    cards: group
+                        .pinned
+                        .into_iter()
+                        .chain(group.active)
+                        .filter_map(card)
+                        .collect(),
+                    shelves: shelves_of(group.working, group.snoozed, group.parked),
+                    count,
+                }
+            })
             .collect();
-        let shelves = [
-            (UnifiedShelf::Working, view.working),
-            (UnifiedShelf::Snoozed, view.snoozed),
-            (UnifiedShelf::Parked, view.parked),
-        ]
-        .into_iter()
-        .filter(|(_, rows)| !rows.is_empty())
-        .map(|(shelf, rows)| UnifiedShelfView {
-            shelf,
-            cards: rows.into_iter().filter_map(card).collect(),
-        })
-        .collect();
+        let drafts = view.drafts.into_iter().filter_map(card).collect();
+        let (list, shelves) = if grouped {
+            (Vec::new(), Vec::new())
+        } else {
+            (
+                view.pinned
+                    .into_iter()
+                    .chain(view.active)
+                    .filter_map(card)
+                    .collect(),
+                shelves_of(view.working, view.snoozed, view.parked),
+            )
+        };
         UnifiedSidebarSnapshot {
             drafts,
             list,
             shelves,
+            groups,
             options: view.options,
-            filter: self.filter.clone(),
+            filter,
             total: view.total,
             has_projects,
-            parking: list_inputs.settings.enable_session_parking,
         }
     }
 }
@@ -279,6 +348,8 @@ impl GhostexGpuiApp {
         changes: &ChangeSummary,
         cx: &mut gpui::Context<Self>,
     ) {
+        // Read with the Project sidebar selected too: the tray's project chip reads and writes it.
+        self.gx_store.unified_sidebar.ensure_saved_read();
         if !self
             .gx_store
             .sidebar_list
@@ -340,34 +411,6 @@ impl GhostexGpuiApp {
         self.gx_store_unified_sidebar_changed(&ChangeSummary::default(), cx);
     }
 
-    /// The header's New session button: the New Thread picker (agents with their accounts, then
-    /// Browser and Terminal), the one the New Thread hotkey opens. The page has no picker window,
-    /// so there it makes a terminal session as before.
-    ///
-    /// CDXC:Sidebar 2026-10-30 DECISION:
-    /// User: the Unified header's New session button opens the app's existing new-session picker. It launches into the active project, as from its hotkey; when the filter narrows to one project (one repository) and the active project is not in it, that repository's project on this computer is made active first, so the session starts where the list is looking. Any other filter, or a repository only another machine has, leaves the active project as it is.
-    pub(crate) fn open_unified_new_session(&mut self, cx: &mut gpui::Context<Self>) {
-        let host = &self.gx_store.unified_sidebar;
-        let target = match (host.filter.repos.len(), host.filter.repos.first()) {
-            (1, Some(repo_key)) => {
-                let active_repo = self
-                    .gpui_app_modal_active_project_id()
-                    .and_then(|project_id| host.repo_key_of_project(&project_id));
-                (active_repo.as_deref() != Some(repo_key.as_str()))
-                    .then(|| host.local_project_in_repo(repo_key))
-                    .flatten()
-            }
-            _ => None,
-        };
-        if let Some(project_id) = target {
-            let _ = self.dispatch_gpui_menu_bar_project_activation(&project_id, cx);
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        self.open_gpui_new_thread_picker(cx);
-        #[cfg(target_arch = "wasm32")]
-        self.dispatch_native_sidebar_command(serde_json::json!({"type": "createSession"}), cx);
-    }
-
     /// The Unified header's filter menu and its shelves. Returns whether the command was one.
     pub(crate) fn gx_store_run_unified_sidebar_command(
         &mut self,
@@ -379,7 +422,13 @@ impl GhostexGpuiApp {
                 self.gx_store.unified_sidebar.pending_project = None;
                 let filter = &mut self.gx_store.unified_sidebar.filter;
                 match (command["kind"].as_str(), command["key"].as_str()) {
-                    (Some("clear"), _) => *filter = UnifiedFilter::default(),
+                    // All sessions clears the picks; the search field keeps what it shows.
+                    (Some("clear"), _) => {
+                        *filter = UnifiedFilter {
+                            query: std::mem::take(&mut filter.query),
+                            ..UnifiedFilter::default()
+                        };
+                    }
                     (Some(kind), Some(key)) => {
                         let set = match kind {
                             "repo" => &mut filter.repos,
@@ -393,11 +442,103 @@ impl GhostexGpuiApp {
                     }
                     _ => return true,
                 }
+                self.gx_store.unified_sidebar.persist();
                 self.gx_store_unified_sidebar_changed(&ChangeSummary::default(), cx);
+                true
+            }
+            // CDXC:Sidebar 2026-10-31 DECISION: User (issue #359): Collapse All folds the groups the Unified sidebar draws, not the hidden Project list. It folds them all, or opens them all when every one is already folded.
+            Some("sidebarAction")
+                if command["action"] == ghostex_gx_core::UNIFIED_TOGGLE_GROUPS_ACTION =>
+            {
+                let keys: Vec<String> = self
+                    .native_sidebar
+                    .unified
+                    .as_ref()
+                    .map(|unified| {
+                        unified
+                            .groups
+                            .iter()
+                            .map(|group| group.repo_key.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let host = &mut self.gx_store.unified_sidebar;
+                let all_folded = keys
+                    .iter()
+                    .all(|key| host.saved.folded_groups.contains(key));
+                for key in keys {
+                    if all_folded {
+                        host.saved.folded_groups.remove(&key);
+                    } else {
+                        host.saved.folded_groups.insert(key);
+                    }
+                }
+                host.persist();
+                cx.notify();
+                true
+            }
+            Some("unifiedHoverExpand") => {
+                let host = &mut self.gx_store.unified_sidebar;
+                host.saved.strip_expanded = !host.saved.strip_expanded;
+                host.persist();
+                cx.notify();
+                true
+            }
+            Some("unifiedNewSession") => {
+                if let (Some(machine_id), Some(project_id)) =
+                    (command["machineId"].as_str(), command["projectId"].as_str())
+                {
+                    let (machine_id, project_id) = (machine_id.to_string(), project_id.to_string());
+                    self.open_new_session_in(&machine_id, &project_id, cx);
+                }
                 true
             }
             _ => false,
         }
+    }
+}
+
+impl GhostexGpuiApp {
+    /// A project group's header was dropped on another's. `after`: below it.
+    ///
+    /// CDXC:Sidebar 2026-10-31 DECISION: User (Q850, "drag"): the order is saved in the `unifiedProjectOrder` setting, by repository, so the machines and the phone read the same order; the whole order is written, so repositories the filter keeps off screen keep their place. The Project sidebar's drag code (native_sidebar/drag.rs, session_drop.rs) is not involved: this list has no collections and no per-machine order to keep.
+    pub(in crate::app) fn gx_store_unified_move_group(
+        &mut self,
+        moved: &str,
+        target: &str,
+        after: bool,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let host = &mut self.gx_store.unified_sidebar;
+        let saved_order = &self
+            .gx_store
+            .sidebar_list
+            .last_inputs
+            .settings
+            .unified_project_order;
+        let current = host.order_override.as_ref().unwrap_or(saved_order);
+        let order = move_unified_project(current, &host.all_repos, moved, target, after);
+        host.order_override = Some(order.clone());
+        self.gx_store_save_unified_project_order(order, cx);
+        self.gx_store_unified_sidebar_changed(&ChangeSummary::default(), cx);
+    }
+
+    fn gx_store_save_unified_project_order(
+        &mut self,
+        order: Vec<String>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.handle_gpui_app_modal_update_settings_patch_message(
+            &serde_json::json!({
+                "type": "updateSettingsPatch",
+                "source": "sidebar:unifiedProjectOrder",
+                "patch": { "unifiedProjectOrder": order },
+            }),
+            cx,
+        );
+        #[cfg(target_arch = "wasm32")]
+        let _ = (order, cx);
     }
 }
 

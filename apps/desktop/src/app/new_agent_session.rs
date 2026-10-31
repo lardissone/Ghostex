@@ -160,6 +160,10 @@ impl GhostexGpuiApp {
         if let Some(run_location) = run_location {
             message["runLocation"] = json!(run_location);
         }
+        // A session the Unified header's New session aimed somewhere (gx_store/unified_new_session.rs).
+        if let Some(group_id) = self.gx_store.unified_sidebar.picker_target.take() {
+            message["groupId"] = json!(group_id);
+        }
         self.stage_agent_launch_placeholder(&message, cx);
         self.focus_staged_chat_after_picker(cx);
         self.dispatch_gpui_sidebar_host_message(message, cx);

@@ -12,6 +12,9 @@ pub(crate) struct NativeSidebarSnapshot {
     /// The selected remote machine is not connected: the list says why above what it holds.
     #[serde(skip)]
     pub(crate) machine_notice: Option<ghostex_gx_core::MachineNotice>,
+    /// The row after the list that brings the projects with no sessions back.
+    #[serde(skip)]
+    pub(crate) show_all_projects_row: Option<ghostex_gx_core::ShowAllProjectsRow>,
     /// Shared with the store's runtime facts holder rather than copied per install
     /// (gx_store/runtime_facts.rs).
     pub(crate) hud: std::sync::Arc<Value>,

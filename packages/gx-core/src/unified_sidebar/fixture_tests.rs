@@ -19,8 +19,8 @@ use serde_json::{json, Value};
 use crate::keys::{MachineId, SessionKey};
 use crate::sidebar_view::view::SpaceProject;
 use crate::sidebar_view::{
-    GroupCore, GroupSummary, GroupView, ProjectContextView, SessionRow, SessionTiming, SessionView,
-    SidebarView, Space, SpacesState, WorktreeView,
+    GroupCore, GroupSummary, GroupView, ProjectContextView, SessionMenuFacts, SessionRow,
+    SessionTiming, SessionView, SidebarView, Space, SpacesState, WorktreeView,
 };
 
 use super::*;
@@ -76,6 +76,11 @@ fn session_row(machine: &MachineId, session: &Value) -> SessionRow {
             project_id: project.to_string(),
             session_id: id.to_string(),
         }),
+        display_title: text(session, "title").to_string(),
+        menu_facts: SessionMenuFacts {
+            branch: session["branch"].as_str().map(str::to_string),
+            ..SessionMenuFacts::default()
+        },
         activity: session["activity"].as_str().unwrap_or("idle").to_string(),
         awaiting_approval: flag(session, "awaitingApproval"),
         pending_question_count: session["pendingQuestionCount"].as_u64().unwrap_or(0),
@@ -256,6 +261,7 @@ fn expected_of(case: &Value) -> Value {
         repos: set("repos"),
         machines: set("machines"),
         spaces: set("spaces"),
+        query: text(&case["filter"], "query").to_string(),
     };
     let now = case["nowMs"].as_u64().unwrap_or(0);
     let view = build_unified_sidebar(&inputs, settings, &filter, now);
@@ -273,7 +279,95 @@ fn expected_of(case: &Value) -> Value {
     }
     let ids =
         |rows: &[UnifiedRow]| Value::Array(rows.iter().map(|row| json!(row_id(row))).collect());
+    let order = strings(&case["order"]);
+    let groups: Vec<Value> = group_unified_sidebar(&view, &order)
+        .iter()
+        .map(|group| {
+            json!({
+                "repoKey": group.repo_key,
+                "label": group.label,
+                "pinned": ids(&group.pinned),
+                "active": ids(&group.active),
+                "working": ids(&group.working),
+                "snoozed": ids(&group.snoozed),
+                "parked": ids(&group.parked),
+            })
+        })
+        .collect();
+    let moves: Vec<Value> = case["moves"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .map(|step| {
+            json!(move_unified_project(
+                &order,
+                &view.options.repos,
+                text(step, "moved"),
+                text(step, "target"),
+                flag(step, "after"),
+            ))
+        })
+        .collect();
+    let choice_inputs: Vec<UnifiedChoiceMachineInput> = machines_in
+        .iter()
+        .map(|machine| UnifiedChoiceMachineInput {
+            machine: machine_of(text(machine, "machine")),
+            label: text(machine, "label").to_string(),
+            connected: machine["connected"].as_bool() != Some(false),
+            projects: machine["projects"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .map(|project| ProjectChoiceInput {
+                    project_id: text(project, "projectId").to_string(),
+                    title: text(project, "title").to_string(),
+                    path: text(project, "path").to_string(),
+                    git_remote_origin_url: project["gitRemoteOriginUrl"]
+                        .as_str()
+                        .map(str::to_string),
+                    worktree_parent_path: project["worktreeParentPath"]
+                        .as_str()
+                        .map(str::to_string),
+                })
+                .collect(),
+        })
+        .collect();
+    let last_machines: BTreeMap<String, String> = case["lastMachines"]
+        .as_object()
+        .map(|map| {
+            map.iter()
+                .filter_map(|(repo, machine)| Some((repo.clone(), machine.as_str()?.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
+    let current_machine = case["currentMachine"].as_str().unwrap_or("local");
+    let all_choices = unified_project_choices(&choice_inputs, &last_machines, current_machine);
+    let choices: Vec<Value> = filter_project_choices(&all_choices, text(case, "choiceQuery"))
+        .iter()
+        .map(|choice| {
+            json!({
+                "repoKey": choice.repo_key,
+                "label": choice.label,
+                "selected": choice.selected,
+                "machines": choice.machines.iter().map(|chip| json!({
+                    "machineId": chip.machine_id,
+                    "label": chip.label,
+                    "connected": chip.connected,
+                    "projectId": chip.project_id,
+                })).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    let target =
+        unified_new_session_target(&filter, &all_choices, case["activeProjectId"].as_str())
+            .map(|target| json!({"machineId": target.machine_id, "projectId": target.project_id}));
     json!({
+        "groups": groups,
+        "moves": moves,
+        "choices": choices,
+        "newSessionTarget": target,
         "drafts": ids(&view.drafts),
         "pinned": ids(&view.pinned),
         "active": ids(&view.active),
@@ -301,7 +395,85 @@ fn session(id: &str, project: &str, extra: Value) -> Value {
 /// The cases, in the phone's terms. The expected answers are the builder's.
 fn cases() -> Vec<Value> {
     let now = 10_000_000_i64;
+    let scale_machines = json!([
+        {
+            "machine": "local", "label": "Local",
+            "projects": [
+                {"projectId": "zeb", "title": "zebra", "path": "/zebra", "gitRemoteOriginUrl": "https://github.com/o/zebra"},
+                {"projectId": "ac-wt", "title": "acme wt", "path": "/acme-wt", "gitRemoteOriginUrl": "https://github.com/o/acme", "worktreeParentPath": "/acme"},
+                {"projectId": "ac", "title": "acme", "path": "/acme", "gitRemoteOriginUrl": "https://github.com/o/acme"},
+                {"projectId": "bil", "title": "billing", "path": "/billing", "gitRemoteOriginUrl": "https://github.com/o/billing"},
+                {"projectId": "quiet", "title": "quiet", "path": "/quiet", "gitRemoteOriginUrl": "https://github.com/o/quiet"},
+            ],
+            "sessions": [
+                session("z1", "zeb", json!({"title": "Tune zebra", "createdMs": 1, "lastInteractionMs": 900})),
+                session("a1", "ac", json!({"title": "Fix login", "branch": "feature/Login", "createdMs": 1, "lastInteractionMs": 100})),
+                session("a-pin", "ac", json!({"title": "Pinned one", "isPinned": true, "createdMs": 1, "lastInteractionMs": 50})),
+                session("a-work", "ac-wt", json!({"title": "Busy", "activity": "working", "createdMs": 1, "workingStartedMs": 500, "lastInteractionMs": 500})),
+                session("a-park", "ac", json!({"title": "Later", "isParked": true, "createdMs": 1, "lastInteractionMs": 400})),
+                session("a-draft", "ac", json!({"title": "New chat", "isDraft": true, "createdMs": 7, "lastInteractionMs": 600})),
+                session("b1", "bil", json!({"title": "Invoices", "createdMs": 1, "lastInteractionMs": 300})),
+            ],
+        },
+        {
+            "machine": "studio", "label": "Studio", "connected": false,
+            "projects": [
+                {"projectId": "rac", "title": "acme", "path": "/r/acme", "gitRemoteOriginUrl": "git@github.com:o/acme.git"},
+                {"projectId": "only-wt", "title": "tools wt", "path": "/r/tools-wt", "gitRemoteOriginUrl": "git@github.com:o/tools.git", "worktreeParentPath": "/r/tools"},
+            ],
+            "sessions": [
+                session("r1", "rac", json!({"title": "Remote fix", "snoozedUntilMs": now + 1_000, "createdMs": 1, "lastInteractionMs": 700})),
+            ],
+        },
+    ]);
+    let scale = |name: &str, extra: Value| {
+        let mut case = json!({
+            "name": name,
+            "nowMs": now,
+            "settings": {"workingSection": true, "parking": true},
+            "filter": {},
+            "machines": scale_machines,
+        });
+        if let (Some(case), Some(extra)) = (case.as_object_mut(), extra.as_object()) {
+            case.extend(extra.clone());
+        }
+        case
+    };
     vec![
+        scale("groups hold every machine's sessions with their own shelves, A to Z until dragged", json!({
+            "activeProjectId": "zeb",
+        })),
+        scale("the saved order comes first, a repository it has not met lands after it, and a drag writes the whole order", json!({
+            "order": ["github.com/o/zebra", "gone/repo", "github.com/o/billing"],
+            "moves": [
+                {"moved": "github.com/o/acme", "target": "github.com/o/zebra"},
+                {"moved": "github.com/o/zebra", "target": "github.com/o/billing", "after": true},
+                {"moved": "github.com/o/billing", "target": "github.com/o/billing"},
+            ],
+        })),
+        scale("the search field matches a title, a project, a branch and a machine", json!({
+            "filter": {"query": "LOGIN"},
+        })),
+        scale("every word of a search has to match, across project and machine", json!({
+            "filter": {"query": "studio acme"},
+        })),
+        scale("a search and a filter pick narrow together", json!({
+            "filter": {"query": "fix", "repos": ["github.com/o/acme"], "machines": ["studio"]},
+        })),
+        scale("machine chips start on the last used machine, and New session aims at the filtered repository", json!({
+            "filter": {"repos": ["github.com/o/acme"]},
+            "lastMachines": {"github.com/o/acme": "studio", "github.com/o/zebra": "gone"},
+            "activeProjectId": "zeb",
+        })),
+        scale("machine chips start on the current machine, and New session stays in a project of the filtered repository", json!({
+            "filter": {"repos": ["github.com/o/acme"]},
+            "currentMachine": "studio",
+            "activeProjectId": "ac",
+        })),
+        scale("the project search matches names and machines", json!({
+            "choiceQuery": "stu",
+            "filter": {"repos": ["github.com/o/tools"]},
+        })),
         json!({
             "name": "one repository on two machines is one project, named as this computer spells it",
             "nowMs": now,

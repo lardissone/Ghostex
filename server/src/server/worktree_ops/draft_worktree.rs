@@ -359,7 +359,10 @@ pub(crate) async fn draft_worktree(
     let project_id = read_project_id(params)?;
     let session_id = read_session_id(params)?;
     if params.get("finish").and_then(Value::as_bool) == Some(true) {
-        let closed = finish_draft_move(state, &project_id, &session_id);
+        // `moved`: the host started this draft's replacement in another project or machine, which
+        // no move on this gxserver knows about.
+        let moved = params.get("moved").and_then(Value::as_bool) == Some(true);
+        let closed = finish_draft_move(state, &project_id, &session_id, moved);
         return Ok(json!({ "closed": closed }));
     }
     if params.get("start").is_some_and(Value::is_object) {
@@ -430,27 +433,35 @@ async fn read_tray(
     let project_id = value_text(project, "projectId")?;
     let session_id = value_text(session, "sessionId")?;
     let memory = DraftWorktreeMemory::read(project);
-    let unavailable = || {
+    let project_name = project
+        .get("title")
+        .or_else(|| project.get("name"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    // CDXC:Worktrees 2026-10-31 DECISION: User (Q847): the tray also picks the project and machine. A draft in a folder that is not a git checkout has no worktree choices but can still move, so the answer says `movable` apart from `available`, and the tray shows the project chip alone there.
+    let unavailable = |movable: bool| {
         json!({
             "available": false,
+            "movable": movable,
+            "projectName": project_name,
             "remembered": memory.to_value(),
             "move": move_value(&project_id, &session_id),
         })
     };
     if !tray_applies(project, session) {
-        return Ok(unavailable());
+        return Ok(unavailable(false));
     }
     let mut context_params = Map::new();
     context_params.insert("projectId".to_string(), json!(project_id));
     // A folder that is not a git checkout lists no worktrees and no branches: no tray.
     let Ok(context) = resolve_project_worktree_operation_context(state, &context_params) else {
-        return Ok(unavailable());
+        return Ok(unavailable(true));
     };
     let (Ok(options), Ok(branches)) = (
         project_worktree_options(&context).await,
         project_worktree_base_branches(&context).await,
     ) else {
-        return Ok(unavailable());
+        return Ok(unavailable(true));
     };
     let current_branch = source_branch(&context).await;
     let worktrees: Vec<Value> = options
@@ -466,6 +477,8 @@ async fn read_tray(
         .collect();
     Ok(json!({
         "available": true,
+        "movable": true,
+        "projectName": project_name,
         "currentBranch": current_branch,
         "branches": branches,
         "worktrees": worktrees,
@@ -525,7 +538,7 @@ fn start_draft_move(
             tokio::time::sleep(DRAFT_CLOSE_GRACE).await;
             let state = state.clone();
             let _ = tokio::task::spawn_blocking(move || {
-                finish_draft_move(&state, &project_id, &session_id)
+                finish_draft_move(&state, &project_id, &session_id, false)
             })
             .await;
         }
@@ -878,11 +891,13 @@ pub(crate) async fn rollback_draft_move(
 }
 
 /// Closes the draft a finished move left behind; `false` when there is none to close.
-fn finish_draft_move(state: &AppState, project_id: &str, session_id: &str) -> bool {
-    if !matches!(
-        read_move(project_id, session_id),
-        Some(DraftMoveStatus::Done { .. })
-    ) {
+fn finish_draft_move(state: &AppState, project_id: &str, session_id: &str, moved: bool) -> bool {
+    if !moved
+        && !matches!(
+            read_move(project_id, session_id),
+            Some(DraftMoveStatus::Done { .. })
+        )
+    {
         return false;
     }
     let Ok((_, session)) = read_draft(state, project_id, session_id) else {

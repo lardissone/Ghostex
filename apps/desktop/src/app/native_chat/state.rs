@@ -225,6 +225,9 @@ pub(crate) struct NativeChatView {
     /// The chat zoom this view's transcript rows were last measured at (zoom.rs).
     pub(super) drawn_zoom_percent: Option<f32>,
     pub(crate) draft: String,
+    /// The worktree tray's project search, while it is open.
+    pub(super) draft_project_picker: Option<super::draft_project_picker::DraftProjectPicker>,
+    pub(super) draft_project_chip_bounds: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(crate) draft_revision: u64,
     pub(crate) draft_id: String,
     /// A send left this composer and has not settled; Enter does not wait for it (the core holds
@@ -394,6 +397,8 @@ impl NativeChatView {
             input_window: None,
             input_focus_listeners: Vec::new(),
             option_menu: None,
+            draft_project_picker: None,
+            draft_project_chip_bounds: Default::default(),
             menu_toggle: Default::default(),
             pill_bounds: Default::default(),
             working_card: Default::default(),

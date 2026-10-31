@@ -4,6 +4,8 @@
 //! this file only lays it out and reports picks. The phone draws the same tray in
 //! `apps/mobile/app/src/chat/native/composer/WorktreeTray.tsx`.
 //!
+//! The project chip and its search are `draft_project_picker.rs`.
+//!
 //! CDXC:Worktrees 2026-10-31 DECISION:
 //! User (Q828): the tray sits on top of the message box, attached to it like a tab, while the chat is
 //! new. The pick uses the shared bordered segmented control (AGENTS.md "Shared UI controls"); the
@@ -136,6 +138,7 @@ impl NativeChatView {
         let foreground: Rgba = p.primary.into();
         let border: Rgba = p.composer_border.into();
         let trailing: Rgba = p.muted.into();
+        let has_choices = !segments.is_empty();
         let control = modal_bordered_segmented_control(
             foreground,
             border,
@@ -162,7 +165,10 @@ impl NativeChatView {
             .gap(px(8.0 * s))
             .min_w_0()
             .text_size(px(12.5 * s))
-            .child(control);
+            .when_some(tray["projectName"].as_str(), |row, name| {
+                row.child(self.render_draft_project_chip(name, p, busy, cx))
+            })
+            .when(has_choices, |row| row.child(control));
         let status = &tray["status"];
         match status["state"].as_str() {
             Some("creating") | Some("opened") => {
@@ -246,7 +252,7 @@ impl NativeChatView {
             }
             _ => {}
         }
-        if status.is_null() {
+        if status.is_null() && has_choices {
             match mode.as_str() {
                 "newWorktree" => {
                     let base = tray["baseBranch"].as_str().unwrap_or("main").to_owned();
@@ -329,8 +335,10 @@ impl NativeChatView {
         Some(
             div()
                 .w_full()
+                .relative()
                 .px(px(14.0 * s))
                 .mb(px(-9.0 * s))
+                .children(self.render_draft_project_picker(p, cx))
                 .child(
                     div()
                         .w_full()

@@ -55,7 +55,7 @@ impl GhostexGpuiApp {
         let unified = self.native_sidebar.unified.clone();
         let unified_header = unified
             .as_ref()
-            .map(|unified| self.render_native_unified_header(unified, &appearance, cx));
+            .map(|unified| self.render_native_unified_header(unified, &appearance, window, cx));
         let unified_list = unified.as_ref().map(|unified| {
             self.render_native_unified_list(unified, &snapshot.hud, &appearance, cx)
         });
@@ -314,6 +314,17 @@ impl GhostexGpuiApp {
                                             }
                                         },
                                     ))
+                                    .children(
+                                        content.show_all_projects_row.filter(|_| classic).map(
+                                            |row| {
+                                                self.render_native_show_all_projects_row(
+                                                    row,
+                                                    &appearance,
+                                                    cx,
+                                                )
+                                            },
+                                        ),
+                                    )
                                     .child(
                                         div()
                                             .id("native-sidebar-ungroup-drop")

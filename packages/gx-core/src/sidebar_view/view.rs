@@ -1,6 +1,7 @@
 //! What the sidebar draws: the same content the native renderer once read from the TypeScript
 //! snapshot, minus menus, hover actions and header actions (`sidebar_menu/` builds those).
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::keys::SessionKey;
@@ -42,6 +43,13 @@ pub struct SidebarView {
     pub collections: Vec<CollectionView>,
     /// The top-level row sequence: a project group or a collection of them.
     pub order: Vec<OrderItem>,
+    /// The row that brings the projects with no sessions back; `None` while nothing is left out
+    /// or `sidebarHideProjectsWithoutSessions` is off.
+    pub show_all_projects_row: Option<ShowAllProjectsRow>,
+    /// Groups of the collections the user hid: still in `groups`, because a collection's rows are
+    /// reached through `order`, but not drawn. The Unified sidebar, which reads `groups`, leaves
+    /// them out too.
+    pub hidden_collection_group_ids: BTreeSet<String>,
     pub empty_state: EmptyState,
     /// The selected remote machine is not connected, so the list says why above whatever it still
     /// holds (`machines::machine_notice`). Absent for this computer and a connected machine.
@@ -724,6 +732,19 @@ pub struct EmptyState {
     pub detail: String,
     /// The retry button's label while `error` is set.
     pub action_label: String,
+    /// The ticked tag filters that left the list empty: the button reads Clear filter and unticks
+    /// them. Empty otherwise.
+    pub clear_tag_filters: Vec<String>,
+}
+
+/// The row at the end of the Project sidebar while `sidebarHideProjectsWithoutSessions` has
+/// projects to leave out: Show all projects, then the way back.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ShowAllProjectsRow {
+    /// Projects with no sessions, in the list this view draws.
+    pub empty_projects: usize,
+    /// They are on screen now.
+    pub showing: bool,
 }
 
 #[cfg(test)]

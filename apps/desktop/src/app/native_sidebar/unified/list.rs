@@ -1,5 +1,5 @@
-//! The Unified sidebar's list: Drafts on top, the cards, then the shelves pushed to the bottom, or
-//! what an empty list says.
+//! The Unified sidebar's list: Drafts on top, then the cards and the shelves pushed to the bottom,
+//! or each project's group with its own shelves, or what an empty list says.
 
 use gpui::prelude::FluentBuilder;
 use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, px};
@@ -23,6 +23,8 @@ impl GhostexGpuiApp {
         let empty = unified.is_empty().then(|| {
             let copy = if !unified.has_projects {
                 "No projects yet".to_string()
+            } else if !unified.filter.query.trim().is_empty() {
+                format!("No sessions match \"{}\"", unified.filter.query.trim())
             } else if unified.total > 0 {
                 "No sessions match this filter".to_string()
             } else {
@@ -47,9 +49,15 @@ impl GhostexGpuiApp {
             .children(drafts.map(|drafts| {
                 v_flex()
                     .w_full()
-                    .child(self.render_native_unified_shelf(&drafts, hud, appearance, cx))
+                    .child(self.render_native_unified_shelf(&drafts, None, hud, appearance, cx))
                     .child(div().h(px(10.0 * scale)))
             }))
+            .children(
+                unified
+                    .groups
+                    .iter()
+                    .map(|group| self.render_native_unified_group(group, hud, appearance, cx)),
+            )
             .children(
                 unified
                     .list
@@ -60,10 +68,9 @@ impl GhostexGpuiApp {
                 column.child(div().h(px(10.0 * scale)))
             })
             .children(
-                unified
-                    .shelves
-                    .iter()
-                    .map(|shelf| self.render_native_unified_shelf(shelf, hud, appearance, cx)),
+                unified.shelves.iter().map(|shelf| {
+                    self.render_native_unified_shelf(shelf, None, hud, appearance, cx)
+                }),
             )
             .into_any_element()
     }

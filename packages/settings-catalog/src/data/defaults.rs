@@ -514,6 +514,11 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("sidebarSpaceSwitchBehavior", J::Str("restore")),
     ("sidebarView", J::Str("project")),
     ("unifiedWorkingSection", J::Bool(true)),
+    ("unifiedGroupByProject", J::Bool(false)),
+    // CDXC:Sidebar 2026-10-31 SEE-ALSO: gx-core unified_sidebar/grouping.rs; repository keys in the order the user dragged the project groups into. No Settings row: the drag is how it is set.
+    ("unifiedProjectOrder", J::Arr(&[])),
+    ("unifiedSessionCardHoverButtons", super::session_card_hover_actions::DEFAULT_UNIFIED_SESSION_CARD_HOVER_BUTTONS),
+    ("sidebarHideProjectsWithoutSessions", J::Bool(false)),
     ("projectSwitchKeepAliveMinutes", J::Num(10.0)),
     ("sidebarSpaceFollowActiveSession", J::Bool(false)),
     ("sidebarVisibilityMemory", J::Str("shared")),

@@ -36,6 +36,7 @@ pub(crate) mod cursor;
 mod deferred_work;
 pub(crate) mod dictation;
 mod disclosure_body;
+mod draft_project_picker;
 mod edit_shortcuts;
 mod file_actions;
 mod file_change_card;

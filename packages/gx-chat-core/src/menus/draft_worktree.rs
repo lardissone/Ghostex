@@ -307,15 +307,25 @@ pub fn tray(state: &ChatState) -> Option<Value> {
     if !moving && (!is_draft(state) || box_picked(state)) {
         return None;
     }
-    if answer.get("available").and_then(Value::as_bool) != Some(true) {
+    let available = answer.get("available").and_then(Value::as_bool) == Some(true);
+    let movable = available || answer.get("movable").and_then(Value::as_bool) == Some(true);
+    if !movable {
         return None;
     }
-    let mode = selected_mode(state, answer);
+    // CDXC:Worktrees 2026-10-31 DECISION:
+    // User (Q847): "we need to add picking the project and machine in the bar that we added today". The renderers put a project chip first in the tray whenever `movable`; picking from it moves the draft to that project and machine, and the chip is all the tray shows in a folder that is not a git checkout, which has nothing else to pick. A chat being moved into a worktree keeps it, disabled through `busy`.
+    // SEE-ALSO: packages/gx-core/src/unified_sidebar/choices.rs (the choices), apps/desktop/src/app/native_chat/draft_project_picker.rs.
+    let mode = if available {
+        selected_mode(state, answer)
+    } else {
+        MODE_FOLDER.to_string()
+    };
     let worktree_list = worktrees(answer);
-    let mut segments = vec![
-        json!({ "mode": MODE_FOLDER, "label": "This folder" }),
-        json!({ "mode": MODE_NEW, "label": "New worktree" }),
-    ];
+    let mut segments = Vec::new();
+    if available {
+        segments.push(json!({ "mode": MODE_FOLDER, "label": "This folder" }));
+        segments.push(json!({ "mode": MODE_NEW, "label": "New worktree" }));
+    }
     if !worktree_list.is_empty() {
         segments.push(json!({ "mode": MODE_EXISTING, "label": "Existing" }));
     }
@@ -341,6 +351,10 @@ pub fn tray(state: &ChatState) -> Option<Value> {
     let mut value = Map::new();
     value.insert("mode".to_string(), json!(mode));
     value.insert("segments".to_string(), Value::Array(segments));
+    value.insert(
+        "projectName".to_string(),
+        answer.get("projectName").cloned().unwrap_or(Value::Null),
+    );
     value.insert(
         "currentBranch".to_string(),
         answer.get("currentBranch").cloned().unwrap_or(Value::Null),
@@ -670,5 +684,40 @@ mod tests {
         let mut state = draft_state();
         state.menus.draft_worktree.answer = Some(json!({ "available": false }));
         assert!(tray(&state).is_none());
+    }
+
+    #[test]
+    fn a_folder_that_is_not_git_keeps_the_tray_for_its_project_chip_and_sends_as_always() {
+        let mut state = draft_state();
+        state.menus.draft_worktree.answer = Some(json!({
+            "available": false,
+            "movable": true,
+            "projectName": "notes",
+            // Remembered from when the folder was a checkout: it can't apply now.
+            "remembered": { "mode": MODE_NEW },
+        }));
+        let current = tray(&state).expect("the chip's tray");
+        assert_eq!(current["projectName"], "notes");
+        assert_eq!(current["mode"], MODE_FOLDER);
+        assert_eq!(current["segments"], json!([]));
+        assert!(intercept_send(&mut state, "hello", &[]).is_none());
+    }
+
+    #[test]
+    fn a_git_folder_names_its_project_beside_the_choices() {
+        let mut state = draft_state();
+        answered(&mut state, json!({}));
+        state
+            .menus
+            .draft_worktree
+            .answer
+            .as_mut()
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("projectName".to_string(), json!("acme"));
+        let current = tray(&state).expect("the tray");
+        assert_eq!(current["projectName"], "acme");
+        assert!(current["segments"].as_array().unwrap().len() >= 2);
     }
 }

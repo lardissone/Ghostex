@@ -37,7 +37,10 @@ pub(super) fn elapsed_label(ms: i64) -> String {
 }
 
 /// The icon and colour of a status word, in the classic row's status colours.
-fn status_look(status: UnifiedStatus, appearance: &SidebarAppearance) -> (&'static str, Hsla) {
+pub(super) fn status_look(
+    status: UnifiedStatus,
+    appearance: &SidebarAppearance,
+) -> (&'static str, Hsla) {
     match status {
         UnifiedStatus::Approval => ("titlebar/alert-triangle.svg", rgb(FAILED_COLOR).into()),
         UnifiedStatus::Question => ("titlebar/help-circle.svg", rgb(QUESTION_COLOR).into()),
@@ -258,17 +261,20 @@ impl GhostexGpuiApp {
                 card.status,
                 None | Some(UnifiedStatus::Working | UnifiedStatus::Waiting)
             );
-        let project = match &card.machine_label {
-            Some(machine) => format!("{} · {machine}", card.repo_label),
-            None => card.repo_label.clone(),
+        // CDXC:Sidebar 2026-10-31 DECISION: User (Q849): under a project header a card drops its project line, keeping the computer's name for a session on another machine. With nothing left on that line, its status or time and its hover strip move up beside the title.
+        let project = match (&card.machine_label, card.in_group) {
+            (Some(machine), true) => machine.clone(),
+            (None, true) => String::new(),
+            (Some(machine), false) => format!("{} · {machine}", card.repo_label),
+            (None, false) => card.repo_label.clone(),
         };
-        let parking = self
-            .native_sidebar
-            .unified
-            .as_ref()
-            .is_some_and(|unified| unified.parking);
-        let right: AnyElement = if hovered {
-            self.render_unified_card_actions(card, parking, appearance, cx)
+        let title_line_only = card.in_group && card.machine_label.is_none();
+        // The strip of the Unified sidebar, or the status when the user turned every button off.
+        let strip = hovered
+            .then(|| self.render_unified_card_strip(card, appearance, cx))
+            .flatten();
+        let right: AnyElement = if let Some(strip) = strip {
+            strip
         } else {
             status_slot(card, appearance, now).unwrap_or_else(|| {
                 div()
@@ -318,6 +324,14 @@ impl GhostexGpuiApp {
         let tooltips = hud["settings"]["showSidebarSessionTooltips"].as_bool() != Some(false)
             && self.native_sidebar.pointer_inside
             && self.native_sidebar.menu.is_none();
+        let mut right = Some(right);
+        let pin = || {
+            gpui::svg()
+                .path("titlebar/pin-filled.svg")
+                .size(px(13.0 * scale))
+                .flex_shrink_0()
+                .text_color(appearance.muted)
+        };
         let card_row = div()
             .id(format!("native-unified-card-{}", session.session_id))
             .role(gpui::Role::TreeItem)
@@ -335,38 +349,37 @@ impl GhostexGpuiApp {
             .when(!focused, |row| {
                 row.hover(|row| row.bg(appearance.session_hover))
             })
-            .child(
-                h_flex()
-                    .h(px(18.0 * scale))
-                    .gap(px(6.0 * scale))
-                    .child(repo_tile(card, appearance, show_project_icons(hud), false))
-                    // CDXC:Sidebar 2026-10-30 DECISION:
-                    // User: "make the pin icon not look like this, it should be the other pin icon we're using in the app already". A pinned card shows the filled pin the sidebar's Links list and account usage button use for something pinned (`pin-filled.svg`), at their 13px, not the `pin.svg` outline the user turned down before.
-                    .when(session.is_pinned, |line| {
-                        line.child(
-                            gpui::svg()
-                                .path("titlebar/pin-filled.svg")
-                                .size(px(13.0 * scale))
-                                .flex_shrink_0()
-                                .text_color(appearance.muted),
+            .when(!title_line_only, |column| {
+                column.child(
+                    h_flex()
+                        .h(px(18.0 * scale))
+                        .gap(px(6.0 * scale))
+                        .when(!card.in_group, |line| {
+                            line.child(repo_tile(card, appearance, show_project_icons(hud), false))
+                        })
+                        // CDXC:Sidebar 2026-10-30 DECISION:
+                        // User: "make the pin icon not look like this, it should be the other pin icon we're using in the app already". A pinned card shows the filled pin the sidebar's Links list and account usage button use for something pinned (`pin-filled.svg`), at their 13px, not the `pin.svg` outline the user turned down before.
+                        .when(session.is_pinned, |line| line.child(pin()))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .text_size(px(12.5 * scale))
+                                .font_weight(gpui::FontWeight::NORMAL)
+                                .text_color(appearance.muted)
+                                .child(project),
                         )
-                    })
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(px(12.5 * scale))
-                            .font_weight(gpui::FontWeight::NORMAL)
-                            .text_color(appearance.muted)
-                            .child(project),
-                    )
-                    .child(right),
-            )
+                        .children(right.take()),
+                )
+            })
             .child(
                 h_flex()
                     .min_h(px(20.0 * scale))
                     .gap(px(6.0 * scale))
+                    .when(title_line_only && session.is_pinned, |line| {
+                        line.child(pin())
+                    })
                     .child(
                         div()
                             .flex_1()
@@ -378,7 +391,10 @@ impl GhostexGpuiApp {
                             .when(recede, |title| title.opacity(0.75))
                             .child(session.title().to_owned()),
                     )
-                    .when(!has_meta, |line| line.child(agent())),
+                    .when(!has_meta && !(title_line_only && hovered), |line| {
+                        line.child(agent())
+                    })
+                    .children(right.take()),
             )
             .when(has_meta, |column| {
                 column.child(

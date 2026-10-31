@@ -477,6 +477,18 @@
       "agentWritable": true
     },
     {
+      "key": "unifiedGroupByProject",
+      "title": "Group by project",
+      "subtitle": "Put every machine's sessions of one repository under one header, with its Working, Snoozed and Parked sections inside it. Drag the headers to arrange them. Drafts stay above the groups. Also in the sidebar's Sort & Filter menu. Shown while the Unified sidebar is selected.",
+      "tab": "sidebar",
+      "tabTitle": "Sidebar & Sessions",
+      "section": "sidebar",
+      "sectionTitle": "Sidebar",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "sidebarSpaceSwitchBehavior",
       "title": "When switching to a Space",
       "subtitle": "Reopen the session you last had open in a Space when you switch to it, in the view its project was in. Shown while the Spaces extension is on.",
@@ -830,6 +842,18 @@
       "agentWritable": true
     },
     {
+      "key": "sidebarHideProjectsWithoutSessions",
+      "title": "Hide projects without sessions",
+      "subtitle": "Leave projects with no sessions out of the Project sidebar, whatever state a session is in; the open project always stays, and a Show all projects row at the end of the list brings them back. Also in the sidebar's Sort & Filter menu.",
+      "tab": "sidebar",
+      "tabTitle": "Sidebar & Sessions",
+      "section": "sidebar",
+      "sectionTitle": "Sidebar",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "groupWorkingSessions",
       "title": "Group working sessions",
       "subtitle": "Move sessions into a collapsed Working section under their project while their agent works; they return to Sessions when it stops or needs you. Also in the sidebar's Sort & Filter menu.",
@@ -932,7 +956,7 @@
     {
       "key": "sessionCardHoverButtons",
       "title": "Session hover buttons (click to toggle, drag to reorder)",
-      "subtitle": "Buttons a session card shows when you hover it. Click an icon to turn it on or off; drag icons to reorder them. Buttons to the right of the chevron always show, buttons to its left hide until the chevron is clicked. By default the strip is Tag, Park, Sleep, chevron, Close.",
+      "subtitle": "Buttons a session card shows when you hover it in the Project sidebar. Click an icon to turn it on or off; drag icons to reorder them. Buttons to the right of the chevron always show, buttons to its left hide until the chevron is clicked. By default the strip is Tag, Park, Sleep, chevron, Close. The button beside the strip copies the Unified sidebar's. Shown while the Project sidebar is selected.",
       "tab": "sidebar",
       "tabTitle": "Sidebar & Sessions",
       "section": "sessionCards",
@@ -974,6 +998,60 @@
         {
           "enabled": true,
           "id": "chevron"
+        },
+        {
+          "enabled": true,
+          "id": "close"
+        }
+      ],
+      "advanced": true,
+      "agentWritable": false
+    },
+    {
+      "key": "unifiedSessionCardHoverButtons",
+      "title": "Session hover buttons (click to toggle, drag to reorder)",
+      "subtitle": "Buttons a session card shows when you hover it in the Unified sidebar, which keeps its own strip. Click an icon to turn it on or off; drag icons to reorder them. Buttons to the right of the chevron always show, buttons to its left hide until the chevron is clicked, and opening the chevron opens it on every card. By default the strip is Tag, Sleep, chevron, Snooze, Park, Close. The button beside the strip copies the Project sidebar's. Shown while the Unified sidebar is selected.",
+      "tab": "sidebar",
+      "tabTitle": "Sidebar & Sessions",
+      "section": "sessionCards",
+      "sectionTitle": "Session Cards",
+      "type": "json",
+      "default": [
+        {
+          "enabled": false,
+          "id": "rename"
+        },
+        {
+          "enabled": false,
+          "id": "pin"
+        },
+        {
+          "enabled": false,
+          "id": "note"
+        },
+        {
+          "enabled": false,
+          "id": "closeAfterDone"
+        },
+        {
+          "enabled": true,
+          "id": "tag"
+        },
+        {
+          "enabled": true,
+          "id": "sleep"
+        },
+        {
+          "enabled": true,
+          "id": "chevron"
+        },
+        {
+          "enabled": true,
+          "id": "snooze"
+        },
+        {
+          "enabled": true,
+          "id": "park"
         },
         {
           "enabled": true,
@@ -8245,6 +8323,18 @@
       "type": "string",
       "default": "",
       "advanced": true,
+      "agentWritable": false
+    },
+    {
+      "key": "unifiedProjectOrder",
+      "title": "unifiedProjectOrder",
+      "subtitle": "App-managed state saved with the settings; not a user preference.",
+      "tab": "about",
+      "tabTitle": "About",
+      "section": "internalState",
+      "sectionTitle": "Internal state (not user settings)",
+      "type": "json",
+      "default": [],
       "agentWritable": false
     },
     {

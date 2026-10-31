@@ -41,11 +41,39 @@ pub struct UnifiedFilter {
     pub machines: BTreeSet<String>,
     /// [`space_filter_key`]s.
     pub spaces: BTreeSet<String>,
+    /// What is typed in the header's search field. It narrows with the rest but is no pick of the
+    /// filter menu, and it is not kept across restarts.
+    pub query: String,
 }
 
 impl UnifiedFilter {
+    /// No pick of the filter menu is set; the search field is separate.
     pub fn is_empty(&self) -> bool {
         self.repos.is_empty() && self.machines.is_empty() && self.spaces.is_empty()
+    }
+
+    /// Nothing narrows the list at all.
+    pub fn keeps_everything(&self) -> bool {
+        self.is_empty() && self.query.trim().is_empty()
+    }
+
+    /// The picks that still name a choice. A restored filter can name a project that is hidden now
+    /// or a machine that is away, which would leave an empty list with nothing ticked to clear; it
+    /// stays saved, so it is back when they are.
+    pub fn within(&self, options: &UnifiedFilterOptions) -> Self {
+        let kept = |picks: &BTreeSet<String>, options: &[UnifiedFilterOption]| {
+            picks
+                .iter()
+                .filter(|pick| options.iter().any(|option| option.key == **pick))
+                .cloned()
+                .collect()
+        };
+        Self {
+            repos: kept(&self.repos, &options.repos),
+            machines: kept(&self.machines, &options.machines),
+            spaces: kept(&self.spaces, &options.spaces),
+            query: self.query.clone(),
+        }
     }
 
     fn keeps(&self, row: &UnifiedRow) -> bool {
@@ -56,7 +84,28 @@ impl UnifiedFilter {
                     .space_key
                     .as_ref()
                     .is_some_and(|key| self.spaces.contains(key)))
+            && query_matches(&self.query, row)
     }
+}
+
+/// Whether every word typed in the search field is in a row's title, project, branch or machine.
+///
+/// CDXC:Sidebar 2026-10-31 DECISION:
+/// User (Q854, "field in header"): a search field always in the Unified header types into the list itself: the title, the project and the branch, for a reporter with a hundred projects who could not find one in the filter menu. Each word has to match somewhere, in any order and any case, so "acme fix" finds the acme session whose title says fix. The machine's name counts too, so "studio" narrows to that computer. Searching runs after the filter menu's picks and over every shelf, so a snoozed session is findable.
+fn query_matches(query: &str, row: &UnifiedRow) -> bool {
+    let words = query.split_whitespace().map(str::to_lowercase);
+    let session = &row.session.row;
+    let branch = session.menu_facts.branch.as_deref().unwrap_or_default();
+    let machine = row.machine_label.as_deref().unwrap_or_default();
+    let haystack = [
+        session.display_title.as_str(),
+        row.repo.label.as_str(),
+        branch,
+        machine,
+    ]
+    .join("\n")
+    .to_lowercase();
+    words.into_iter().all(|word| haystack.contains(&word))
 }
 
 /// Where a row sits.
@@ -190,7 +239,7 @@ pub fn space_filter_key(machine: &MachineId, space_id: &str) -> String {
     format!("{}|{space_id}", machine_key(machine))
 }
 
-fn machine_key(machine: &MachineId) -> &str {
+pub(super) fn machine_key(machine: &MachineId) -> &str {
     machine.remote_id().unwrap_or(LOCAL_MACHINE_ID)
 }
 
@@ -340,6 +389,14 @@ pub fn build_unified_sidebar(
         let repos = repos_of(machine.view);
         let machine_label = (!machine.machine.is_local()).then(|| machine.label.clone());
         for group in &machine.view.groups {
+            // A hidden collection's projects are still in `groups`; a hidden project is not.
+            if machine
+                .view
+                .hidden_collection_group_ids
+                .contains(&group.core.group_id)
+            {
+                continue;
+            }
             let project_id = group
                 .space_project
                 .as_ref()

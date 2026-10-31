@@ -131,7 +131,7 @@ impl GhostexGpuiApp {
         };
         // The menu is read when the button is pressed; sharing the snapshot keeps this row from
         // copying the menu's JSON on every frame.
-        let more_menu_snapshot = snapshot.clone();
+        let more_menu_now = self.native_sidebar_more_menu_now(&snapshot.more_menu);
         /*
         CDXC:Sidebar 2026-09-20 DECISION:
         User: with the titlebar row deleted, the sidebar's Search row is what sits in the window's
@@ -365,7 +365,7 @@ impl GhostexGpuiApp {
                                     size: gpui::size(gpui::px(1.0), gpui::px(1.0)),
                                 });
                                 Self::toggle_native_sidebar_more_menu(
-                                    &more_menu_snapshot.more_menu,
+                                    &more_menu_now,
                                     trigger,
                                     event.position,
                                     scale,

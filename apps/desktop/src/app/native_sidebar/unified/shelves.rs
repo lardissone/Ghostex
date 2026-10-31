@@ -39,10 +39,12 @@ fn wake_label(wake_at_ms: i64, now: i64) -> String {
 
 impl GhostexGpuiApp {
     /// A shelf: its header, and its rows while open. Drafts and Working keep the full cards;
-    /// Snoozed and Parked rows are one line.
+    /// Snoozed and Parked rows are one line. `project` is the repository whose group it sits in,
+    /// which keeps its own open or folded state.
     pub(in crate::app::native_sidebar) fn render_native_unified_shelf(
         &self,
         shelf: &UnifiedShelfView,
+        project: Option<&str>,
         hud: &Value,
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
@@ -51,13 +53,22 @@ impl GhostexGpuiApp {
         let kind = shelf.shelf;
         // Drafts starts open and the rest folded, so the set holds whichever was toggled away
         // from that.
-        let open = self.native_sidebar.unified_open_shelves.contains(&kind)
+        let key = match project {
+            Some(repo) => format!("{repo}|{}", shelf_label(kind)),
+            None => shelf_label(kind).to_string(),
+        };
+        let open = self
+            .gx_store
+            .unified_sidebar
+            .saved
+            .toggled_shelves
+            .contains(&key)
             != (kind == UnifiedShelf::Drafts);
         v_flex()
             .w_full()
             .child(
                 h_flex()
-                    .id(format!("native-unified-shelf-{}", shelf_label(kind)))
+                    .id(format!("native-unified-shelf-{key}"))
                     .role(gpui::Role::Button)
                     .aria_label(format!("{} ({})", shelf_label(kind), shelf.cards.len()))
                     .aria_expanded(open)
@@ -88,10 +99,11 @@ impl GhostexGpuiApp {
                     )
                     .on_click(cx.listener(move |app, _, _, cx| {
                         cx.stop_propagation();
-                        let shelves = &mut app.native_sidebar.unified_open_shelves;
-                        if !shelves.remove(&kind) {
-                            shelves.insert(kind);
+                        let host = &mut app.gx_store.unified_sidebar;
+                        if !host.saved.toggled_shelves.remove(&key) {
+                            host.saved.toggled_shelves.insert(key.clone());
                         }
+                        host.persist();
                         cx.notify();
                     })),
             )

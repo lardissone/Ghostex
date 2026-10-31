@@ -788,6 +788,30 @@ mod tests {
         let picked = to_mobile_session_list(&result, &settings);
         assert_eq!(picked["sidebarView"], "unified");
         assert_eq!(picked["unifiedWorkingSection"], json!(false));
+
+        // CDXC:Sidebar 2026-10-31: the rest of the Unified sidebar's settings reach the phone only when set.
+        assert!(defaults.get("unifiedGroupByProject").is_none());
+        assert!(defaults.get("unifiedProjectOrder").is_none());
+        assert!(defaults.get("unifiedSessionCardHoverButtons").is_none());
+        assert!(defaults.get("sidebarHideProjectsWithoutSessions").is_none());
+        settings.insert("unifiedGroupByProject".to_string(), json!(true));
+        settings.insert("unifiedProjectOrder".to_string(), json!(["github.com/o/a"]));
+        settings.insert(
+            "unifiedSessionCardHoverButtons".to_string(),
+            json!([{"id": "park", "enabled": true}]),
+        );
+        settings.insert(
+            "sidebarHideProjectsWithoutSessions".to_string(),
+            json!(true),
+        );
+        let scale = to_mobile_session_list(&result, &settings);
+        assert_eq!(scale["unifiedGroupByProject"], json!(true));
+        assert_eq!(scale["unifiedProjectOrder"], json!(["github.com/o/a"]));
+        assert_eq!(
+            scale["unifiedSessionCardHoverButtons"][0]["id"],
+            json!("park")
+        );
+        assert_eq!(scale["sidebarHideProjectsWithoutSessions"], json!(true));
         assert_eq!(picked["enableSessionParking"], json!(false));
     }
 

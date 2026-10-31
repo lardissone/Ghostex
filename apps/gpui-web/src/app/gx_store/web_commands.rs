@@ -115,6 +115,9 @@ impl GhostexGpuiApp {
             "sidebarAction" if command["action"] == "showHidden" => {
                 Some(SidebarUiIntent::ToggleShowHidden)
             }
+            "sidebarAction" if command["action"] == "showAllProjects" => {
+                Some(SidebarUiIntent::ToggleShowAllProjects)
+            }
             "selectSession" if matches!(command["mode"].as_str(), Some("clear" | "focus")) => {
                 Some(SidebarUiIntent::SetSelectedSessions {
                     session_ids: Vec::new(),

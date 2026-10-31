@@ -67,6 +67,7 @@ mod sidebar_snooze;
 mod sidebar_state_actions;
 mod sidebar_ui_storage;
 pub(crate) mod terminal_lifecycle;
+pub(crate) mod unified_new_session;
 pub(crate) mod unified_sidebar;
 mod web_commands;
 pub(crate) mod web_transport;

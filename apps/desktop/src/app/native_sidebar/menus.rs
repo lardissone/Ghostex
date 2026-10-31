@@ -160,6 +160,28 @@ impl GhostexGpuiApp {
 
     /// CDXC:Sidebar 2026-09-21 DECISION:
     /// User: the sidebar menu drops down from its trigger button rather than opening where the pointer was: its right edge lines up with the button's right edge, and it sits below the button with a gap (4px since 2026-09-25, `HEADER_MENU_TRIGGER_GAP`). Clicking the button again closes it.
+    /// The More menu with its Collapse All row saying what the next press does to the Unified
+    /// groups, which fold without the menu being rebuilt.
+    pub(crate) fn native_sidebar_more_menu_now(&self, items: &Value) -> Value {
+        let mut items = items.clone();
+        let all_folded = self.native_sidebar.unified.as_ref().is_some_and(|unified| {
+            let saved = &self.gx_store.unified_sidebar.saved;
+            !unified.groups.is_empty()
+                && unified
+                    .groups
+                    .iter()
+                    .all(|group| saved.folded_groups.contains(&group.repo_key))
+        });
+        if all_folded && let Some(rows) = items.as_array_mut() {
+            for row in rows {
+                if row["command"]["action"] == ghostex_gx_core::UNIFIED_TOGGLE_GROUPS_ACTION {
+                    row["label"] = Value::from("Expand All");
+                }
+            }
+        }
+        items
+    }
+
     pub(crate) fn toggle_native_sidebar_more_menu(
         items: &Value,
         trigger: Bounds<Pixels>,

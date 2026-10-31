@@ -23,6 +23,7 @@
 //! SEE-ALSO: packages/gx-core/src/session_create/agents.rs and params.rs,
 //! apps/desktop/src/app/gx_store/create/focus_created.rs.
 
+use crate::app::gx_store::unified_new_session::{PendingDraftMove, with_moved_draft_text};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -396,12 +397,15 @@ impl GhostexGpuiApp {
             .as_deref()
             .and_then(ProjectKey::parse_sidebar_group_id)
             .filter(|project| !project.machine.is_local());
+        // The draft this launch replaces, when the tray's project chip asked for it.
+        let draft_move = self.gx_store.unified_sidebar.pending_draft_move.take();
         if let Some(project) = remote {
             self.gx_store_create_remote_agent_session(
                 agent_id,
                 project,
                 account_id,
                 run_location,
+                draft_move,
                 cx,
             );
             return gpui::Task::ready(Ok(()));
@@ -459,10 +463,13 @@ impl GhostexGpuiApp {
             .gx_store_bot_name(&project_id, &agent.agent_id)
             .unwrap_or_else(|| agent.name.clone());
         let title = agent_session_default_title(Some(&title_name));
-        let params = replacing_empty_sessions(with_run_location(
-            local_agent_launch_params(&agent, &project_id, title_settings, account_id, &title),
-            run_location,
-        ));
+        let params = with_moved_draft_text(
+            replacing_empty_sessions(with_run_location(
+                local_agent_launch_params(&agent, &project_id, title_settings, account_id, &title),
+                run_location,
+            )),
+            &draft_move,
+        );
         let preferred_interface = if is_agentbox_run_location(run_location) {
             "terminal".to_string()
         } else {
@@ -488,6 +495,7 @@ impl GhostexGpuiApp {
                         Some(&preferred_interface),
                         cx,
                     );
+                    this.gx_store_finish_draft_move(draft_move, cx);
                 }
                 Err(error) => {
                     if error.code.as_deref() == Some("projectPathUnavailable") {
@@ -507,6 +515,7 @@ impl GhostexGpuiApp {
         project: ProjectKey,
         account_id: Option<&str>,
         run_location: Option<&str>,
+        draft_move: Option<PendingDraftMove>,
         cx: &mut gpui::Context<Self>,
     ) {
         let Some(machine_id) = project.machine.remote_id().map(str::to_string) else {
@@ -551,16 +560,19 @@ impl GhostexGpuiApp {
             None,
         );
         // The remote machine's own gxserver runs agentbox for a box launch there.
-        let params = replacing_empty_sessions(with_run_location(
-            remote_agent_launch_params(
-                &launch_agent_id,
-                &project.project_id,
-                title_settings,
-                account_id,
-                &title,
-            ),
-            run_location,
-        ));
+        let params = with_moved_draft_text(
+            replacing_empty_sessions(with_run_location(
+                remote_agent_launch_params(
+                    &launch_agent_id,
+                    &project.project_id,
+                    title_settings,
+                    account_id,
+                    &title,
+                ),
+                run_location,
+            )),
+            &draft_move,
+        );
         let chat = !is_agentbox_run_location(run_location)
             && self.gx_store_preferred_interface(&normalized) == "chat";
         let task = self.start_gpui_remote_sidebar_rpc(
@@ -608,6 +620,7 @@ impl GhostexGpuiApp {
                     chat.then_some("chat"),
                 );
                 this.receive_sidebar_native_project_path_action_payload(&payload.to_string(), cx);
+                this.gx_store_finish_draft_move(draft_move, cx);
                 if chat {
                     return;
                 }
