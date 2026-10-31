@@ -73,6 +73,9 @@ pub struct MessagesState {
     /// When reads started getting no answer from Ghostex's service, while they still get none.
     /// Cleared by any answer, a refusal included.
     pub unreachable_since_ms: Option<f64>,
+    /// Reads in a row that got no answer, which picks the next retry's delay
+    /// (`unreachable_retry_delay_ms`). Cleared with `unreachable_since_ms`.
+    pub unreachable_failures: u32,
     /// `JSON.stringify([machineId, projectId, sessionId])`, the retained record's own key.
     ///
     /// The host builds it (it is the one that knows the machine) and passes it in with

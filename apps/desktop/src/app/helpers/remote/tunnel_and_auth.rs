@@ -6,8 +6,6 @@
 
 use std::{
     collections::HashSet,
-    io::{Read, Write},
-    net::TcpStream,
     process::Stdio,
     thread,
     time::{Instant, SystemTime, UNIX_EPOCH},
@@ -30,7 +28,9 @@ pub(crate) fn gpui_open_remote_gxserver_tunnel(
                 Ok(tunnel) => tunnel,
                 Err(_) => continue,
             };
-        if let Some(capabilities) = gpui_wait_for_remote_authenticated_health(local_port, token) {
+        if let Some(capabilities) =
+            gpui_wait_for_remote_authenticated_health(local_port, token, &mut tunnel.child)
+        {
             return Ok(GpuiRemoteGxserverConnection {
                 _base_url: format!("http://127.0.0.1:{local_port}"),
                 capabilities,
@@ -41,13 +41,19 @@ pub(crate) fn gpui_open_remote_gxserver_tunnel(
                 presentation_stream_generation: None,
                 token: token.to_string(),
                 child: tunnel.child,
-                health_check_failures: 0,
+                liveness: GpuiRemoteTunnelLiveness::default(),
                 this_computer: false,
             });
         }
+        // A tunnel that is still running bound its port (ExitOnForwardFailure), so another port
+        // would only be another SSH login over the same link (GitHub #361).
+        let tunnel_was_running = matches!(tunnel.child.try_wait(), Ok(None));
         gpui_forget_remote_tunnel(tunnel.child.id());
         let _ = tunnel.child.kill();
         let _ = tunnel.child.wait();
+        if tunnel_was_running {
+            break;
+        }
     }
     Err(match execution_target {
         GpuiRemoteExecutionTarget::PosixHost | GpuiRemoteExecutionTarget::WindowsPowerShell => {
@@ -178,54 +184,31 @@ pub(crate) fn gpui_remote_gxserver_candidate_ports() -> Vec<u16> {
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+/// Waits for the new tunnel to carry a healthy answer. The port refuses until SSH has logged in
+/// and bound it, which takes several round trips on a slow link, so the wait lasts
+/// [`GPUI_REMOTE_GXSERVER_HEALTH_DEADLINE`] and each probe may take
+/// [`GPUI_REMOTE_GXSERVER_HEALTH_TIMEOUT`]; an SSH process that exits ends it at once, so a refused
+/// login or an unreachable host is still reported as soon as SSH gives up (GitHub #361).
 pub(crate) fn gpui_wait_for_remote_authenticated_health(
     local_port: u16,
     token: &str,
+    tunnel: &mut std::process::Child,
 ) -> Option<GpuiRemoteGxserverCapabilities> {
     let deadline = Instant::now() + GPUI_REMOTE_GXSERVER_HEALTH_DEADLINE;
-    while Instant::now() < deadline {
-        if let Some(capabilities) = gpui_remote_authenticated_health(local_port, token) {
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() || !matches!(tunnel.try_wait(), Ok(None)) {
+            return None;
+        }
+        if let GpuiRemoteHealthProbe::Healthy(capabilities) = gpui_remote_health_probe(
+            local_port,
+            token,
+            remaining.min(GPUI_REMOTE_GXSERVER_HEALTH_TIMEOUT),
+        ) {
             return Some(capabilities);
         }
         thread::sleep(GPUI_REMOTE_GXSERVER_TUNNEL_RETRY_DELAY);
     }
-    None
-}
-
-/// Authenticated remote-daemon liveness probe. A healthy answer also carries
-/// that daemon's advertised capability inventory, which callers keep for the
-/// lifetime of the connection so remote requests can pick selectors this daemon
-/// implements. `None` means the probe did not get a healthy answer.
-pub(crate) fn gpui_remote_authenticated_health(
-    local_port: u16,
-    token: &str,
-) -> Option<GpuiRemoteGxserverCapabilities> {
-    let address = format!("127.0.0.1:{local_port}");
-    let mut stream = TcpStream::connect(address.as_str()).ok()?;
-    stream
-        .set_read_timeout(Some(GPUI_REMOTE_GXSERVER_HEALTH_TIMEOUT))
-        .ok()?;
-    stream
-        .set_write_timeout(Some(GPUI_REMOTE_GXSERVER_HEALTH_TIMEOUT))
-        .ok()?;
-    let request = format!(
-        "GET /api/health/server HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAuthorization: Bearer {token}\r\n{GPUI_GXSERVER_PROTOCOL_HEADER}: {GPUI_GXSERVER_PROTOCOL_VERSION}\r\n\r\n",
-    );
-    stream.write_all(request.as_bytes()).ok()?;
-    let mut response = String::new();
-    stream.read_to_string(&mut response).ok()?;
-    let healthy = response
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|status| status.parse::<u16>().ok())
-        .is_some_and(|status| (200..300).contains(&status));
-    if !healthy {
-        return None;
-    }
-    Some(gpui_remote_gxserver_capabilities_from_health_response(
-        response.as_str(),
-    ))
 }
 
 /// Reads the fixed capability names GPUI selects remote operations with out of a

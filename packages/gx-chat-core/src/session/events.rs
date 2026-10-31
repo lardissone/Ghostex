@@ -833,11 +833,14 @@ fn stall_watchdog(state: &mut ChatState, context: &ChatContext) -> Vec<Effect> {
     // blank loading hold forever, and only a new subscription can re-request the snapshot that was
     // lost. Rebuilding restamps `last_frame_at_ms`, so the next tick starts a fresh window rather
     // than firing again immediately.
-    // A service that is not answering at all is already being read every 2 s, and the socket
-    // reconnects on its own ladder: a recycle then only puts a second read in flight and spends
-    // one of the two recycles the stream may need once the service is back.
+    // A service that is not answering at all is already being read on its retry ladder, and the
+    // socket reconnects on its own ladder: a recycle then only puts a second read in flight and
+    // spends one of the two recycles the stream may need once the service is back. A read still
+    // on its way fills the view when it lands; over a slow link (GitHub #361) a recycle and a
+    // second read only add load to the link it is waiting on.
     if !state.messages.position.frame_arrived
         && state.messages.unreachable_since_ms.is_none()
+        && state.messages.reads.is_empty()
         && loading_hold(state)
         && state.messages.auto_reconnects < MAX_AUTOMATIC_RECONNECTS
         && now - state.messages.last_frame_at_ms > INITIAL_STALL_THRESHOLD_MS
