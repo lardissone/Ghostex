@@ -230,7 +230,7 @@ fn thread_pages(db: &rusqlite::Connection, project_id: &str, session_id: &str) -
             .flatten()
             .map(|session| crate::coordinators::session_title_of(&session))
             .filter(|title| !title.trim().is_empty())
-            .unwrap_or_else(|| "Thread".to_string());
+            .unwrap_or_else(|| "Worker".to_string());
         let reference = ThreadRef {
             title,
             project_id: thread.project_id.clone(),

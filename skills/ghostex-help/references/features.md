@@ -3608,8 +3608,10 @@ on the pill still steps to the previous unanswered question; on the phone a tap
 opens it. The pill stays while the chat has anything to list, with its dot and
 count only while a question is unanswered.
 The count and the list cover the whole conversation, including what the chat hasn't
-loaded. A coordinator's list also has Thread pages: the pages its threads posted,
-closed threads included, each with the thread's name. They open read-only there.
+loaded. A coordinator's list also has Worker pages: the pages its Workers posted,
+closed Workers included, each with the Worker's name. They open read-only there.
+Each group (Unanswered, Earlier, Worker pages) shows 12 rows at first with its own
+Show more under them; a folded group shows none.
 Every copy shows a small "Copied!" bubble at the pointer for a moment, whether
 it came from a terminal, a chat message, a copy button, or a menu. Copy sound is
 off by default. Enable it under Settings > Notifications > Sounds to also hear a

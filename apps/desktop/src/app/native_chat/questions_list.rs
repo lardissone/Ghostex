@@ -48,7 +48,7 @@ fn row_tooltip(row: &Value) -> String {
     let posted_in = if thread.is_empty() {
         String::new()
     } else {
-        format!("Posted in {thread}")
+        format!("Posted by {thread}")
     };
     [text(row, "title"), posted_in, text(row, "timeTitle")]
         .into_iter()
@@ -153,14 +153,9 @@ pub(super) fn questions_menu_height(open: &Value, list: &QuestionList) -> Option
                 + ROW_HEIGHT,
         );
     }
-    // The "Show more" row ends the list while the core left rows out.
-    let more = if open["remaining"].as_u64().unwrap_or(0) > 0 {
-        ROW_HEIGHT
-    } else {
-        0.0
-    };
-    let rows: f32 = more
-        + sections
+    // Each group's own "Show more" row sits under its rows while the core cut some, and a folded
+    // group shows none.
+    let rows: f32 = sections
             .iter()
             .map(|section| {
                 let shown = if list.folded(&text(section, "id")) {
@@ -174,7 +169,14 @@ pub(super) fn questions_menu_height(open: &Value, list: &QuestionList) -> Option
                 } else {
                     SECTION_HEIGHT
                 };
-                header + shown as f32 * ROW_HEIGHT
+                let more = if !list.folded(&text(section, "id"))
+                    && section["remaining"].as_u64().unwrap_or(0) > 0
+                {
+                    ROW_HEIGHT
+                } else {
+                    0.0
+                };
+                more + header + shown as f32 * ROW_HEIGHT
             })
             .sum::<f32>();
     Some(
@@ -375,7 +377,12 @@ impl NativeChatView {
             Some(trigger),
             p,
         );
-        let remaining = open["remaining"].as_u64().unwrap_or(0);
+        // The rows still to come in the groups that are open: what scrolling to the bottom loads.
+        let remaining: u64 = sections
+            .iter()
+            .filter(|section| !self.question_list.folded(&text(section, "id")))
+            .map(|section| section["remaining"].as_u64().unwrap_or(0))
+            .sum();
         // A new filter starts again from the top and from one page.
         let filter = text(&open, "filter");
         if *self.question_list.auto_filter.borrow() != filter {
@@ -432,10 +439,12 @@ impl NativeChatView {
                 for row in section["rows"].as_array().into_iter().flatten() {
                     list = list.child(self.question_list_row(headed, row, p, cx));
                 }
+                // This group's own Show more, under its own rows.
+                let left = section["remaining"].as_u64().unwrap_or(0);
+                if left > 0 {
+                    list = list.child(self.question_show_more_row(&id, left, p, cx));
+                }
             }
-        }
-        if remaining > 0 {
-            list = list.child(self.question_show_more_row(remaining, p, cx));
         }
         Some(
             div()
@@ -464,13 +473,14 @@ impl NativeChatView {
     /// scrolling to the bottom adds the next ones by itself.
     fn question_show_more_row(
         &self,
+        group: &str,
         remaining: u64,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> AnyElement {
         let s = p.scale;
         div()
-            .id("chat-questions-show-more")
+            .id(SharedString::from(format!("chat-questions-show-more:{group}")))
             .role(gpui::Role::Button)
             .aria_label(format!("Show more, {remaining} left"))
             .flex_shrink_0()
@@ -784,12 +794,12 @@ mod tests {
     }
 
     #[test]
-    fn a_thread_pages_tooltip_names_its_thread() {
+    fn a_worker_pages_tooltip_names_its_worker() {
         let row =
             json!({"title": "Layout notes", "thread": "Fix the sidebar", "timeTitle": "1:57 AM"});
         assert_eq!(
             row_tooltip(&row),
-            "Layout notes\nPosted in Fix the sidebar\n1:57 AM"
+            "Layout notes\nPosted by Fix the sidebar\n1:57 AM"
         );
     }
 
@@ -857,19 +867,23 @@ mod tests {
     }
 
     #[test]
-    fn the_show_more_row_adds_its_height_until_the_cap() {
-        let section = json!({"id": "pages", "rows": [{"id": "a"}], "count": 30});
-        let list = QuestionList::default();
-        let whole = json!({"total": 30, "sections": [section.clone()], "remaining": 0});
-        let cut = json!({"total": 30, "sections": [section.clone()], "remaining": 29});
-        let base = questions_menu_height(&whole, &list).unwrap();
-        assert_eq!(
-            questions_menu_height(&cut, &list).unwrap(),
-            base + ROW_HEIGHT
-        );
+    fn a_groups_show_more_row_counts_in_its_height_only_while_it_is_open() {
+        let whole = json!({"id": "pages", "rows": [{"id": "a"}], "count": 30, "remaining": 0});
+        let cut = json!({"id": "pages", "rows": [{"id": "a"}], "count": 30, "remaining": 29});
+        let other = json!({"id": "threads", "title": "Worker pages", "rows": [{"id": "w"}], "count": 1, "remaining": 0});
+        let mut list = QuestionList::default();
+        let plain = json!({"total": 31, "sections": [whole, other.clone()]});
+        let with_more = json!({"total": 31, "sections": [cut.clone(), other]});
+        let base = questions_menu_height(&plain, &list).unwrap();
+        assert_eq!(questions_menu_height(&with_more, &list).unwrap(), base + ROW_HEIGHT);
+        // Folded: the group's rows and its Show more both go (the 401 under another group).
+        list.toggled.insert("pages".to_string());
+        let folded = questions_menu_height(&with_more, &list).unwrap();
+        let folded_plain = questions_menu_height(&plain, &list).unwrap();
+        assert_eq!(folded, folded_plain, "a folded group shows no Show more");
         // A long page is capped at the list's maximum, Show more row or not.
         let rows: Vec<Value> = (0..15).map(|i| json!({"id": i})).collect();
-        let long = json!({"total": 90, "sections": [{"id": "answered", "rows": rows, "count": 80}], "remaining": 65});
+        let long = json!({"total": 90, "sections": [{"id": "answered", "rows": rows, "count": 80, "remaining": 65}]});
         let capped = questions_menu_height(&long, &list).unwrap();
         assert_eq!(
             capped,

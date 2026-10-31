@@ -109,7 +109,7 @@ pub(crate) async fn serve(
 /// CDXC:SessionChat 2026-10-30 DECISION:
 /// User: a coordinator's Resources lists "any of the inline html files that were posted in a thread". A thread's questions are answered by its coordinator bringing them over, and a page answers to the session that published it, so a page opened from the coordinator's list must not send answers on its own. It opens read-only; pressing Send says nothing was sent and why. The thread's own chat opens the same page normally, and it still takes answers there.
 fn with_read_only(page: Vec<u8>) -> Vec<u8> {
-    const SCRIPT: &str = "<script>window.__gxReadOnly=true;document.addEventListener('DOMContentLoaded',function(){var n=document.createElement('div');n.textContent='Read-only: a thread posted this page, so answers sent from here go nowhere.';n.style.cssText='position:fixed;top:8px;right:8px;z-index:2147483647;max-width:280px;padding:6px 10px;border-radius:8px;font:12px/1.35 system-ui,sans-serif;background:rgba(0,0,0,.72);color:#fff;pointer-events:none';document.body.appendChild(n);});</script>";
+    const SCRIPT: &str = "<script>window.__gxReadOnly=true;document.addEventListener('DOMContentLoaded',function(){var n=document.createElement('div');n.textContent='Read-only: a Worker posted this page, so answers sent from here go nowhere.';n.style.cssText='position:fixed;top:8px;right:8px;z-index:2147483647;max-width:280px;padding:6px 10px;border-radius:8px;font:12px/1.35 system-ui,sans-serif;background:rgba(0,0,0,.72);color:#fff;pointer-events:none';document.body.appendChild(n);});</script>";
     let Ok(html) = String::from_utf8(page) else {
         return Vec::new();
     };

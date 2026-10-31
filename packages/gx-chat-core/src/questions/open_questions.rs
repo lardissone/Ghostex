@@ -87,6 +87,10 @@ pub struct QuestionListSection {
     pub count: u32,
     /// Newest first.
     pub rows: Vec<QuestionListRow>,
+    /// How many of this group's rows the page cut (`page_sections`): its own "Show more" sits under
+    /// its rows while this is above zero, and a folded group shows none.
+    #[serde(default)]
+    pub remaining: u32,
 }
 
 /// One form, page or chart in the list; a click sends `jumpToQuestion {id}`.
@@ -117,7 +121,7 @@ pub struct QuestionListRow {
     pub at_ms: Option<i64>,
     /// The full date, for a tooltip.
     pub time_title: String,
-    /// The thread that posted this page, on a row of a coordinator's Thread pages group.
+    /// The thread that posted this page, on a row of a coordinator's Worker pages group.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub thread: String,
 }
@@ -188,7 +192,7 @@ pub fn page_sections(
     sections: Vec<QuestionListSection>,
     pages: u32,
 ) -> (Vec<QuestionListSection>, u32) {
-    // Each paged group has its own budget, so a coordinator's Thread pages are on the first page
+    // Each paged group has its own budget, so a coordinator's Worker pages are on the first page
     // beside its Earlier list and not behind all of it.
     let budget = (pages as usize + 1) * LIST_PAGE;
     let mut left_out = 0usize;
@@ -198,6 +202,7 @@ pub fn page_sections(
             if !always_whole(&section.id) {
                 let keep = section.rows.len().min(budget);
                 left_out += section.rows.len() - keep;
+                section.remaining = (section.rows.len() - keep) as u32;
                 section.rows.truncate(keep);
             }
             section
@@ -410,7 +415,7 @@ fn indexed_row(
 const GROUPS: [(&str, &str); 3] = [
     ("unanswered", "Unanswered"),
     ("earlier", "Earlier"),
-    ("threads", "Thread pages"),
+    ("threads", "Worker pages"),
 ];
 
 /// The pill's list: every form, page and chart in its group, all kinds. Earlier is newest first;
@@ -486,6 +491,7 @@ pub fn list(state: &ChatState, context: &ChatContext) -> Vec<QuestionListSection
                 title: title.to_string(),
                 count: rows.len() as u32,
                 rows,
+                remaining: 0,
             })
         })
         .collect()
@@ -624,6 +630,7 @@ pub fn project(state: &ChatState, context: &ChatContext) -> OpenQuestions {
                 (!rows.is_empty()).then(|| QuestionListSection {
                     count: rows.len() as u32,
                     rows,
+                    remaining: 0,
                     ..section.clone()
                 })
             })
@@ -1403,6 +1410,7 @@ mod tests {
                     ..QuestionListRow::default()
                 })
                 .collect(),
+            remaining: 0,
         }
     }
 
@@ -1539,7 +1547,7 @@ mod tests {
         assert_eq!(pill.total, 2);
         let ids: Vec<&str> = pill.sections.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(ids, ["earlier", "threads"]);
-        assert_eq!(pill.sections[1].title, "Thread pages");
+        assert_eq!(pill.sections[1].title, "Worker pages");
         assert_eq!(pill.sections[1].rows[0].thread, "Fix the sidebar");
         assert_eq!(pill.count, 0, "a thread's page never counts as waiting");
     }
@@ -1584,5 +1592,24 @@ mod tests {
         let shown: Vec<usize> = paged.iter().map(|s| s.rows.len()).collect();
         assert_eq!(shown, [2, LIST_PAGE, LIST_PAGE], "each paged group has its own page");
         assert_eq!(left as usize, (200 - LIST_PAGE) + (30 - LIST_PAGE));
+    }
+
+    /// Each group's Show more belongs to its own cut rows: a long Earlier next to a short Worker
+    /// pages group says 401 on Earlier and nothing on the other (the screenshot where Earlier was
+    /// folded showed Earlier's 401 under Worker pages).
+    #[test]
+    fn each_group_counts_its_own_cut_rows() {
+        let (paged, left) = page_sections(
+            vec![sized("unanswered", 2), sized("earlier", 413), sized("threads", 4)],
+            0,
+        );
+        let remaining: Vec<(&str, u32)> = paged.iter().map(|s| (s.id.as_str(), s.remaining)).collect();
+        assert_eq!(
+            remaining,
+            [("unanswered", 0), ("earlier", 413 - LIST_PAGE as u32), ("threads", 0)]
+        );
+        assert_eq!(left, 413 - LIST_PAGE as u32, "the list-wide total is their sum");
+        let (later, _) = page_sections(vec![sized("earlier", 30)], 1);
+        assert_eq!(later[0].remaining, 30 - 2 * LIST_PAGE as u32);
     }
 }
